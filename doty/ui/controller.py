@@ -359,22 +359,10 @@ class Controller(QObject):
 
 
 def save_api_key(key: str, name: str = "ANTHROPIC_API_KEY") -> None:
-    """Store a key the way `setx NAME ...` does (your Windows user environment), and use it
-    in this process right away. Linux: the desktop's keyring, or a private file (doty/keystore.py)."""
+    """Keep a key between runs and use it in this process right away. Windows: Credential Manager, encrypted
+    for your account. Linux: the desktop's keyring, or a private file. See doty/keystore.py."""
+    from .. import keystore
+
     key = key.strip()
     os.environ[name] = key
-    if sys.platform.startswith("linux"):
-        from .. import keystore
-
-        keystore.save(name, key)
-        return
-    if sys.platform != "win32":
-        return
-    import ctypes
-    import winreg
-
-    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE) as k:
-        winreg.SetValueEx(k, name, 0, winreg.REG_SZ, key)
-    # Tell Explorer so apps started from now on see it (what setx does).
-    result = ctypes.c_ulong()
-    ctypes.windll.user32.SendMessageTimeoutW(0xFFFF, 0x001A, 0, "Environment", 0x0002, 1000, ctypes.byref(result))
+    keystore.save(name, key)

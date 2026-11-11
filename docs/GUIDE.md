@@ -288,6 +288,8 @@ What's different:
 Everything Doty learns about your game stays on your PC, except what you send to the AI you chose: a
 screenshot of the game and a summary of your game state, when the coach looks or you ask. Your voice is
 transcribed on your PC. Logs live in `%LOCALAPPDATA%\Doty\logs` (on Linux, `~/.local/share/doty/logs`).
+Your AI key is kept in Windows Credential Manager (on Linux, the desktop keyring) and goes only to that AI.
+[SECURITY.md](../SECURITY.md) has the full list of what leaves your PC and when.
 
 ## More
 

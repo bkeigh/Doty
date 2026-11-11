@@ -19,6 +19,28 @@ def _no_real_kokoro(tmp_path_factory):
     os.environ["DOTY_ART"] = "0"  # no hero portraits or item icons from the internet either
 
 
+@pytest.fixture(scope="session")
+def real_wincred():
+    """The real Windows Credential Manager, for the one test that round-trips a throwaway entry."""
+    from doty import keystore
+
+    cred = keystore._wincred()
+    if cred is None:
+        pytest.skip("no Windows Credential Manager here")
+    return cred
+
+
+@pytest.fixture(autouse=True)
+def _no_real_credential_manager(monkeypatch, request):
+    """Tests never read or write the player's saved API keys: the key store finds no Credential Manager
+    unless a test hands it one (a fake, or `real_wincred` for a throwaway entry)."""
+    from doty import keystore
+
+    if "real_wincred" in request.fixturenames:
+        request.getfixturevalue("real_wincred")  # resolve it before the lookup is switched off
+    monkeypatch.setattr(keystore, "_wincred", lambda: None)
+
+
 class Recorder:
     def __init__(self) -> None:
         self.items = []

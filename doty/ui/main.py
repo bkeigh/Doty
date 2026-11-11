@@ -108,7 +108,11 @@ def main(cfg: Config | None = None) -> int:
         from .. import keystore, x11
 
         x11.prefer_xcb()  # (before the QApplication) on Wayland, the overlay needs X11 to sit over the game
-        keystore.load_into_environ()  # the API keys saved in Settings (Windows keeps them in the environment)
+        keystore.load_into_environ()  # the API keys saved in Settings
+    elif sys.platform == "win32":
+        from .. import keystore
+
+        keystore.load_into_environ()  # the API keys saved in Settings (Windows Credential Manager)
     set_process_app_id()  # taskbar grouping and pinning use the shortcut's identity
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("Doty")

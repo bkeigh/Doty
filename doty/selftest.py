@@ -4,6 +4,10 @@ It exercises what a frozen (PyInstaller) build tends to lose: Qt plugins (the JP
 art), bundled assets, native libraries (PortAudio, CTranslate2, ONNX Runtime), Windows COM
 (SAPI, shortcuts), TLS certificates for Claude and ElevenLabs, and the engine starting and
 stopping its Game State Integration server. It writes a JSON report; exit code 0 = all passed.
+
+On a build machine (GitHub Actions) there are no speakers, maybe no voices and no desktop to capture. With
+DOTY_SELFTEST_NO_HARDWARE=1 the three checks that need those report "not checked" instead of failing.
+Everything a build can get wrong (a missing library, plugin, asset or certificate) is still checked.
 """
 
 from __future__ import annotations
@@ -25,8 +29,10 @@ if TYPE_CHECKING:
 def run(report: str | None = None) -> int:
     os.environ["QT_QPA_PLATFORM"] = "offscreen"  # nothing appears on screen
     results: list[dict] = []
+    no_hardware = bool(os.environ.get("DOTY_SELFTEST_NO_HARDWARE"))
 
-    def check(name: str):
+    def check(name: str, hardware: bool = False):
+        """`hardware`: this check needs a device a build machine may not have (see the module docstring)."""
         def wrap(fn):
             t0 = time.perf_counter()
             try:
@@ -34,6 +40,10 @@ def run(report: str | None = None) -> int:
                 results.append({"check": name, "ok": True, "detail": detail or "",
                                 "ms": round((time.perf_counter() - t0) * 1000)})
             except Exception as exc:
+                if hardware and no_hardware:
+                    results.append({"check": name, "ok": True, "ms": round((time.perf_counter() - t0) * 1000),
+                                    "detail": f"not checked: no such device on this build machine ({exc!r})"})
+                    return fn
                 results.append({"check": name, "ok": False, "detail": f"{exc!r}",
                                 "trace": traceback.format_exc()[-1500:],
                                 "ms": round((time.perf_counter() - t0) * 1000)})
@@ -56,6 +66,15 @@ def run(report: str | None = None) -> int:
         import anthropic
 
         return f"anthropic {anthropic.__version__}"
+
+    @check("key store and signature check")
+    def _():
+        from . import authenticode, keystore
+
+        signed_by = authenticode.publisher(sys.executable)
+        if sys.platform == "win32":
+            assert keystore._wincred() is not None, "win32cred (Windows Credential Manager) is missing"
+        return f"this build is signed by {signed_by}" if signed_by else "this build is not code-signed"
 
     @check("assets")
     def _():
@@ -124,14 +143,20 @@ def run(report: str | None = None) -> int:
             return f"{n} CA certs; handshake skipped (offline: {exc.__class__.__name__})"
         return f"{n} CA certs; {version} handshake with api.anthropic.com verified"
 
-    @check("audio output (PortAudio)")
+    @check("audio library (PortAudio)")
+    def _():
+        import sounddevice as sd  # loads the bundled PortAudio DLL: must work everywhere
+
+        return sd.get_portaudio_version()[1]
+
+    @check("audio output", hardware=True)
     def _():
         import sounddevice as sd
 
         out = sd.query_devices(kind="output")
         return out["name"]
 
-    @check("windows voice (SAPI)")
+    @check("windows voice (SAPI)", hardware=True)
     def _():
         from .voice import list_voices
 
@@ -187,7 +212,7 @@ def run(report: str | None = None) -> int:
         return (f"faster-whisper {faster_whisper.__version__}, ctranslate2 {ctranslate2.__version__}, "
                 f"{'GPU' if cuda_libs_available() else 'CPU'}")
 
-    @check("screen capture")
+    @check("screen capture", hardware=True)
     def _():
         import mss
 

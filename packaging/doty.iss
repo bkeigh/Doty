@@ -34,6 +34,12 @@ WizardSmallImageFile=build\wizard-small.bmp,build\wizard-small@2x.bmp
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
+; Code signing: build.py passes /DSign=1 and the "dotysign" command when DOTY_SIGN_ARGS is set. Inno Setup
+; then signs the uninstaller it generates and the installer itself.
+#ifdef Sign
+SignTool=dotysign
+SignedUninstaller=yes
+#endif
 ; Doty holds this mutex while open, so setup asks you to close it instead of failing.
 AppMutex=DotyCoachRunning
 CloseApplications=yes

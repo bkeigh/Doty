@@ -1,0 +1,159 @@
+# Builds DotySetup-<version>.exe on GitHub's own Windows machine, from exactly the commit that was tagged.
+#
+# Why here and not on a developer's PC: anyone can see which commit an installer came from, GitHub records
+# that in a build attestation, and SignPath Foundation (free code signing for open source) only signs files
+# that were built this way. See docs/RELEASING.md, "Code signing".
+#
+# Runs when a tag like v0.1.2 is pushed, or by hand (Actions > Release build > Run workflow).
+# Signing is skipped until the repository variable SIGNPATH_ORGANIZATION_ID is set; the build is then
+# unsigned and says so. A tag ends in a DRAFT release: a person looks at it and publishes it.
+name: Release build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write       # create the draft release
+  actions: read         # SignPath reads the run that built the file
+  id-token: write       # build attestation
+  attestations: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest   # GitHub-hosted: SignPath Foundation requires it
+    timeout-minutes: 90
+    env:
+      SIGNPATH_ORG: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+      DOTY_SELFTEST_NO_HARDWARE: "1"   # no speakers, voices or desktop on a build machine
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Install Doty and the build tools (pinned versions)
+        run: python -m pip install -e .[build] -c packaging/constraints.txt
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Read the version, and check a tag matches it
+        id: version
+        shell: pwsh
+        run: |
+          $v = python -c "import doty; print(doty.__version__)"
+          "version=$v" >> $env:GITHUB_OUTPUT
+          if ("${{ github.ref_type }}" -eq "tag" -and "${{ github.ref_name }}" -ne "v$v") {
+            throw "The tag ${{ github.ref_name }} doesn't match the version in doty/__init__.py ($v)."
+          }
+
+      - name: Build the app folder and self-test it
+        run: python packaging/build.py --no-installer
+
+      # ---- Sign Doty.exe, then build the installer around the signed file --------------------------------
+      - name: Hand Doty.exe to GitHub for signing
+        id: upload-app
+        if: env.SIGNPATH_ORG != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-app
+          path: dist/Doty/Doty.exe
+          if-no-files-found: error
+
+      - name: Sign Doty.exe (SignPath; waits for a person to approve)
+        if: env.SIGNPATH_ORG != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: app
+          github-artifact-id: ${{ steps.upload-app.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed/app
+
+      - name: Put the signed Doty.exe back
+        if: env.SIGNPATH_ORG != ''
+        shell: pwsh
+        run: Copy-Item signed/app/Doty.exe dist/Doty/Doty.exe -Force
+
+      - name: Build the installer (and self-test the app as it will ship)
+        run: python packaging/build.py --reuse
+
+      # ---- Sign the installer -----------------------------------------------------------------------------
+      - name: Hand the installer to GitHub for signing
+        id: upload-setup
+        if: env.SIGNPATH_ORG != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-installer
+          path: dist/DotySetup-${{ steps.version.outputs.version }}.exe
+          if-no-files-found: error
+
+      - name: Sign the installer (SignPath; waits for a person to approve)
+        if: env.SIGNPATH_ORG != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.upload-setup.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed/installer
+
+      - name: Put the signed installer back
+        if: env.SIGNPATH_ORG != ''
+        shell: pwsh
+        run: Copy-Item "signed/installer/DotySetup-${{ steps.version.outputs.version }}.exe" dist/ -Force
+
+      # ---- Checksum, and proof of what was built ------------------------------------------------------------
+      - name: Check the signatures and write the checksum
+        shell: pwsh
+        run: |
+          if ($env:SIGNPATH_ORG) { python packaging/build.py --finish --require-signed }
+          else { python packaging/build.py --finish }
+
+      - name: Record which commit and workflow built this file
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dist/DotySetup-${{ steps.version.outputs.version }}.exe
+
+      - name: Keep the installer with this run
+        uses: actions/upload-artifact@v7
+        with:
+          name: DotySetup-${{ steps.version.outputs.version }}
+          path: |
+            dist/DotySetup-${{ steps.version.outputs.version }}.exe
+            dist/DotySetup-${{ steps.version.outputs.version }}.exe.sha256
+          if-no-files-found: error
+
+      - name: Draft the release (a person publishes it)
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          $signed = "Not code-signed yet: Windows will show its protected-your-PC notice (choose More info, then Run anyway)."
+          if ($env:SIGNPATH_ORG) { $signed = "Code-signed. See the [code signing policy](https://github.com/${{ github.repository }}#code-signing-policy)." }
+          @(
+            "Built by GitHub Actions from commit ${{ github.sha }}. $signed",
+            "",
+            "To check a download, compare its SHA-256 with the .sha256 file here, or run: gh attestation verify DotySetup-$v.exe --repo ${{ github.repository }}",
+            "",
+            "What Doty does on your PC: [SECURITY.md](https://github.com/${{ github.repository }}/blob/main/SECURITY.md)"
+          ) | Set-Content release-notes.md -Encoding utf8
+          gh release create "${{ github.ref_name }}" "dist/DotySetup-$v.exe" "dist/DotySetup-$v.exe.sha256" --draft --verify-tag --title "Doty $v" --notes-file release-notes.md

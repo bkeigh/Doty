@@ -267,10 +267,10 @@ def main(argv: list[str] | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):
         if stream is not None and hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="replace")
-    if sys.platform.startswith("linux"):
+    if sys.platform.startswith("linux") or sys.platform == "win32":
         from .keystore import load_into_environ
 
-        load_into_environ()  # the API keys saved in Settings (Windows keeps them in the environment)
+        load_into_environ()  # the API keys saved in Settings (Credential Manager, a keyring or a private file)
     cfg = load_config(Path(args.config) if args.config else None)
     return args.fn(args, cfg)
 

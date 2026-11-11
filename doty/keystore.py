@@ -1,14 +1,19 @@
-"""Where Doty keeps your API keys between runs on Linux.
+"""Where Doty keeps your API keys between runs.
 
-Windows keeps them in your user environment (what `setx` does: ui/controller.save_api_key), so every app
-started afterwards has them. Linux has no such place, so there:
+**Windows: Credential Manager** (Control Panel > Credential Manager > Windows Credentials, entries named
+"Doty/<NAME>"). Windows encrypts them for your account. Doty up to 0.1.1 put the key in your user
+environment instead (what `setx` does), where every program you start gets a copy; a key still there keeps
+working, but a key saved in Settings from now on goes to Credential Manager only and wins over it.
+
+**Linux:**
 1. **The desktop's keyring** (GNOME Keyring, KWallet: the Secret Service), through the `keyring` package, when
    it's installed and a keyring is running. Encrypted, unlocked when you log in.
 2. **Otherwise a file only you can read:** ~/.config/doty/keys.env (permissions 600), one NAME=key a line.
-   Not encrypted: anyone with your user account can read it, the same as the Windows user environment.
+   Not encrypted: anyone with your user account can read it.
 
-At start-up `load_into_environ()` puts the saved keys into the process environment, where the rest of Doty
-looks for them. A key already set in the environment (exported in your shell) wins over a saved one.
+At start-up `load_into_environ()` puts the saved keys into this process's environment, where the rest of Doty
+looks for them. On Linux a key already exported in your shell wins over a saved one. On Windows the saved one
+wins: the environment may still hold the key an older Doty wrote there.
 """
 
 from __future__ import annotations
@@ -20,6 +25,43 @@ from pathlib import Path
 SERVICE = "doty"
 # Every key Doty asks for (coach/backends.PROVIDERS' key_env, and ElevenLabs'): tests check this list.
 KNOWN = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "ELEVENLABS_API_KEY")
+
+
+CRED_PREFIX = "Doty/"  # Credential Manager target names: "Doty/ANTHROPIC_API_KEY"
+
+
+def _wincred():
+    """pywin32's win32cred on Windows, else None."""
+    if sys.platform != "win32":
+        return None
+    try:
+        import win32cred
+    except ImportError:
+        return None
+    return win32cred
+
+
+def _cred_write(cred, name: str, key: str) -> None:
+    target = CRED_PREFIX + name
+    if key:
+        cred.CredWrite({"Type": cred.CRED_TYPE_GENERIC, "TargetName": target, "UserName": name,
+                        "CredentialBlob": key, "Persist": cred.CRED_PERSIST_LOCAL_MACHINE,
+                        "Comment": "An API key saved in Doty's Settings"}, 0)
+        return
+    try:
+        cred.CredDelete(target, cred.CRED_TYPE_GENERIC, 0)
+    except Exception:
+        pass  # wasn't there
+
+
+def _cred_read(cred, name: str) -> str:
+    try:
+        blob = cred.CredRead(CRED_PREFIX + name, cred.CRED_TYPE_GENERIC, 0).get("CredentialBlob")
+    except Exception:
+        return ""  # not saved
+    if isinstance(blob, bytes):
+        blob = blob.decode("utf-16-le", "ignore")
+    return (blob or "").strip()
 
 
 def keys_file() -> Path:
@@ -70,9 +112,17 @@ def _write_file(path: Path, keys: dict[str, str]) -> None:
     tmp.replace(path)
 
 
-def save(name: str, key: str, ring=None, path: Path | None = None) -> str:
-    """Keep a key (or forget it, if `key` is empty). Returns where it went: "keyring" or "file"."""
+def save(name: str, key: str, ring=None, path: Path | None = None, cred=None) -> str:
+    """Keep a key (or forget it, if `key` is empty). Returns where it went: "credential manager" (Windows),
+    "keyring" or "file"."""
     key = key.strip()
+    cred = _wincred() if cred is None else cred
+    if cred:
+        try:
+            _cred_write(cred, name, key)
+            return "credential manager"
+        except Exception as exc:  # (not seen in practice) the private file still works
+            print(f"[doty] Credential Manager unavailable ({exc.__class__.__name__}); saving the key to a file")
     ring = _keyring() if ring is None else ring
     path = path or keys_file()
     if ring:
@@ -100,12 +150,19 @@ def save(name: str, key: str, ring=None, path: Path | None = None) -> str:
     return "file"
 
 
-def load_into_environ(env=None, ring=None, path: Path | None = None) -> list[str]:
-    """Put saved keys into the environment (Linux; Windows already has them there). Returns the names loaded."""
+def load_into_environ(env=None, ring=None, path: Path | None = None, cred=None) -> list[str]:
+    """Put saved keys into this process's environment. Returns the names loaded."""
     env = os.environ if env is None else env
+    cred = _wincred() if cred is None else cred
+    loaded = []
+    if cred:  # Windows: a key saved in Settings wins over one an older Doty left in the user environment
+        for name in KNOWN:
+            value = _cred_read(cred, name)
+            if value:
+                env[name] = value
+                loaded.append(name)
     ring = _keyring() if ring is None else ring
     path = path or keys_file()
-    loaded = []
     stored = _read_file(path)
     for name in dict.fromkeys([*KNOWN, *stored]):
         if env.get(name, "").strip():

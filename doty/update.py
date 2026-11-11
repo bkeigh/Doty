@@ -4,6 +4,10 @@
   is sent but the request itself. Off when `update_repo` is "".
 - **Download:** the release's `DotySetup-<version>.exe`, checked against the `.sha256` file published next
   to it; a file that doesn't match is deleted, never run.
+- **Publisher:** the checksum sits on the same page as the installer, so it only proves the download arrived
+  whole. Once Doty itself is code-signed, the update must carry a valid signature from the same publisher
+  (Windows checks it: `authenticode.publisher`), or it is deleted. An unsigned Doty (0.1.x) can't ask this
+  of its update, which is how the first signed release gets installed.
 - **Install:** runs the installer, which closes Doty (it waits on Doty's AppMutex), updates it in place and
   can start it again. Only the installed Doty updates itself; a source checkout updates with git.
 """
@@ -14,15 +18,19 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from . import __version__
+from . import __version__, authenticode
 
 API = "https://api.github.com"
 TIMEOUT_S = 15
+
+
+MAX_INSTALLER_BYTES = 600 * 1024 * 1024  # the installer is ~100 MB; nothing near this is one
 
 
 class UpdateError(Exception):
@@ -93,9 +101,16 @@ def check(repo: str, current: str = __version__, api: str = API) -> Release | No
                    assets[exe], exe, sha)
 
 
-def download(release: Release, folder: Path, progress: Callable[[int, int], None] | None = None) -> Path:
-    """Download the installer and check its SHA-256. Returns its path; deletes it and raises if it
-    doesn't match the published checksum."""
+def own_publisher() -> str:
+    """Who signed the Doty that is running ("" from source, and for the unsigned 0.1.x builds)."""
+    return authenticode.publisher(sys.executable) if getattr(sys, "frozen", False) else ""
+
+
+def download(release: Release, folder: Path, progress: Callable[[int, int], None] | None = None,
+             publisher: str | None = None) -> Path:
+    """Download the installer, check its SHA-256 and, if this Doty is signed (`publisher`, by default
+    whoever signed the running Doty), that the same publisher signed it. Returns its path; deletes it and
+    raises if anything doesn't match."""
     folder.mkdir(parents=True, exist_ok=True)
     expected = _get(release.sha256_url, "text/plain").decode("utf-8", "replace").split()[0].lower()
     if not re.fullmatch(r"[0-9a-f]{64}", expected):
@@ -110,11 +125,24 @@ def download(release: Release, folder: Path, progress: Callable[[int, int], None
             out.write(chunk)
             digest.update(chunk)
             done += len(chunk)
+            if done > MAX_INSTALLER_BYTES:
+                break
             if progress:
                 progress(done, total)
+    if done > MAX_INSTALLER_BYTES:
+        path.unlink(missing_ok=True)
+        raise UpdateError("the download was far bigger than a Doty installer, so it was deleted")
     if digest.hexdigest() != expected:
         path.unlink(missing_ok=True)
         raise UpdateError("the download didn't match its checksum, so it was deleted")
+    publisher = own_publisher() if publisher is None else publisher
+    if publisher:
+        signed_by = authenticode.publisher(path)
+        if signed_by != publisher:
+            path.unlink(missing_ok=True)
+            raise UpdateError("the update isn't signed by Doty's publisher"
+                              + (f" (it's signed by {signed_by})" if signed_by else " (it isn't signed)")
+                              + ", so it was deleted")
     return path
 
 

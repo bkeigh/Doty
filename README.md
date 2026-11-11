@@ -52,7 +52,7 @@ Every card is colour-coded, so you know what it is before you read it.
 | **Windows 10 & 11** | **[Download DotySetup from Releases](https://github.com/bkeigh/Doty/releases/latest)** and run it. No admin prompt. |
 | <a id="linux"></a>**Linux** | Runs from source today (native Linux Dota 2, X11). A packaged build is on the way. |
 
-> **Windows says "protected your PC"?** The installer isn't code-signed yet. Click **More info**, then **Run anyway**. Each release ships a SHA-256 checksum if you want to check it.
+> **Windows says "protected your PC"?** The installer isn't code-signed yet. Click **More info**, then **Run anyway**. Each release ships a SHA-256 checksum if you want to check it. [SECURITY.md](SECURITY.md) lists what Doty does on your PC, what leaves it, and how to verify a download.
 
 ## Set up in a minute
 
@@ -69,6 +69,7 @@ Doty only uses what you could see yourself.
 - Never reads the game's memory.
 - Never presses a key for you.
 - Never looks up who's in your lobby. All its stats are about heroes, never players.
+- No telemetry, and no key of its own: the AI coach runs on your key, kept in Windows Credential Manager.
 
 It runs on Valve's official **Game State Integration**.
 
@@ -518,6 +519,23 @@ The tests cover:
 - the coach's streaming pipeline, run against a local fake of the Claude streaming API so no key is needed
 - push-to-talk, including a real Whisper transcription of a question spoken by Windows TTS
   (this one is skipped until a Whisper model has been downloaded)
+
+## Code signing policy
+
+**Status: releases are not code-signed yet.** Doty is preparing an application to the
+[SignPath Foundation](https://signpath.org/) programme for open-source projects. If it is accepted, this
+section will say: free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
+
+- **How a release is made.** From the release after 0.1.1, the installer is built by GitHub Actions
+  ([release.yml](.github/workflows/release.yml)) from the tagged commit in this repository, not on a
+  developer's PC. Once signing is in place, a person approves each signing request before a release is
+  published.
+- **Committers and reviewers:** [bkeigh](https://github.com/bkeigh)
+- **Approvers:** [bkeigh](https://github.com/bkeigh)
+- **Privacy policy:** [SECURITY.md](SECURITY.md) lists everything Doty sends, to whom, and when. In short:
+  nothing goes anywhere except to the AI service you choose and enter a key for, plus requests for public
+  hero data and pictures. There is no Doty server and no telemetry.
 
 ## License
 
