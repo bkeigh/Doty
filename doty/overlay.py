@@ -39,8 +39,8 @@ import time
 from typing import Callable
 
 from PySide6.QtCore import QEasingCurve, QObject, QPoint, QPointF, QPropertyAnimation, QRect, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import (QColor, QFont, QFontMetricsF, QGuiApplication, QLinearGradient, QPainter, QPen,
-                           QPolygonF, QRegion, QStaticText)
+from PySide6.QtGui import (QColor, QFont, QFontMetricsF, QGuiApplication, QLinearGradient, QPainter, QPainterPath,
+                           QPainterPathStroker, QPen, QPolygonF, QRegion, QStaticText)
 from PySide6.QtWidgets import QGraphicsOpacityEffect, QLabel, QVBoxLayout, QWidget
 
 from . import hud
@@ -86,11 +86,19 @@ DRAW_AFTER_S = 0.12  # the first mark starts drawing this soon (the pointer is s
 DRAW_GAP_S = 0.12  # and each next one this much later
 POINTER_S = 0.28  # the pointer's dart to the first mark
 POINTER_FROM = 420.0  # ...from at most this far (at 1080p), so only that part of the window is redrawn
-FADE_S = 0.4
-MARK_TTL_S = 6.5  # drawings are about this moment; they shouldn't linger into the next one
-ARROW_TTL_S = 4.5  # an arrow's moment passes faster than a circled hero's
+FADE_S = 0.3
+MARK_TTL_S = 5.0  # drawings are about this moment; they shouldn't linger into the next one
+ARROW_TTL_S = 3.5  # an arrow's moment passes faster than a circled hero's
 MINIMAP_COLOR = QColor("#ffd970")
-ANIMATE_S = 2.0  # draw-in plus the minimap pings; after that the layer stops repainting
+ANIMATE_S = 1.6  # draw-in plus the minimap ping; after that the layer stops repainting
+PING_REACH = 1.8  # a minimap circle's ripple grows to this many radii
+# The look of a drawing (the player asked for lighter ones): a thin line at OverlayConfig.mark_width px
+# (at 1080p, scaling with the window) and mark_opacity, inside a hairline dark edge so it reads on grass,
+# snow or lava. No glow. Labels are drawn more solid than the lines, so the words stay readable.
+EDGE_PX = 1.0  # the dark edge on each side of the line, at 1080p
+EDGE_ALPHA = 150
+LABEL_PX = 12  # label text size at 1080p
+LABEL_MIN_OPACITY = 0.85
 
 
 class OverlayBridge(QObject):
@@ -101,6 +109,7 @@ class OverlayBridge(QObject):
     laning = Signal(object)  # LaningInfo or None
     hud = Signal(object)  # the live strip's {timers, item}, or None
     drop_marks = Signal(str)  # a space ("screen"): its drawings have gone stale
+    me = Signal(object)  # your hero's world position (x, y), or None: drawings on "me" follow it
     toggle = Signal()
 
 
@@ -691,6 +700,7 @@ class Overlay(QWidget):
         self.bridge.laning.connect(self._on_laning)
         self.bridge.hud.connect(self._on_hud)
         self.bridge.drop_marks.connect(self.marks.drop)
+        self.bridge.me.connect(self.marks.set_me)
         self._covered = False  # another app's window is in front of Dota: nothing of Doty's shows over it
 
         self._placed: tuple | None = None
@@ -736,6 +746,11 @@ class Overlay(QWidget):
         """Take down the drawings in one space ("screen": you've walked on, so they point at the wrong
         spot now). Thread-safe."""
         self.bridge.drop_marks.emit(space)
+
+    def set_me(self, pos: tuple[float, float] | None) -> None:
+        """Your hero's world position from the game data (None: not known, or dead): a drawing on "me"
+        moves with it, and comes down without it. Thread-safe."""
+        self.bridge.me.emit(pos)
 
     # GUI thread --------------------------------------------------------------
     def showEvent(self, event) -> None:  # noqa: N802 (Qt naming)
@@ -944,6 +959,7 @@ class MarkLayer(QWidget):
         self.shown_at = 0.0
         self.ttl = MARK_TTL_S
         self.origin = QPointF()
+        self.me: tuple[float, float] | None = None  # your hero's world position, for drawings on "me"
         self._dirty = QRegion()  # where the marks are (see _mark_region)
         self._pointer_was = QRect()  # where the pointer was drawn last
         self._tick = QTimer(self)
@@ -957,6 +973,8 @@ class MarkLayer(QWidget):
             self.setGeometry(area)
 
     def show_marks(self, marks: tuple, origin: QPointF | None = None) -> None:
+        if self.me is None:  # (Doty doesn't know where you are: nothing to put on "me")
+            marks = tuple(m for m in marks if not getattr(m, "follows_me", False))
         if not marks or self.area.isEmpty():
             return
         self.marks, self.shown_at = tuple(marks), time.monotonic()
@@ -1001,6 +1019,37 @@ class MarkLayer(QWidget):
         self.update()  # (the whole layer once: what was dropped is wiped wherever it was)
         self._dirty = self._mark_region(self._scale())
 
+    def set_me(self, pos) -> None:
+        """Your hero moved (or Doty lost track of it: None). Drawings on "me" follow, or come down: an
+        arrow from where you stood a moment ago would start from the wrong place."""
+        old = self.me
+        self.me = (float(pos[0]), float(pos[1])) if pos is not None else None
+        if not any(m.follows_me for m in self.marks) or self.me == old:
+            return
+        if self.me is None:
+            kept = tuple(m for m in self.marks if not m.follows_me)
+            if not kept:
+                self.clear()
+                return
+            self.marks = kept
+            self.update()
+            self._dirty = self._mark_region(self._scale())
+            return
+        before, s = self._dirty, self._scale()
+        self._dirty = self._mark_region(s)
+        now = self._pointer_rect(self._pointer_at(self._age(), s)[0], s)  # (the pointer follows the first mark)
+        self.update(before + self._dirty + self._pointer_was + now)  # where it was, and where it is now
+        self._pointer_was = now
+
+    def _win(self, mark, w: int, h: int) -> tuple[float, float, float, float, float]:
+        return mark.to_window(w, h, self.minimap_side, self.me)
+
+    def _width(self, s: float) -> float:
+        return max(0.5, min(8.0, self.cfg.mark_width)) * s
+
+    def _opacity(self) -> float:
+        return max(0.2, min(1.0, self.cfg.mark_opacity))
+
     def _age(self) -> float:
         return time.monotonic() - self.shown_at
 
@@ -1009,7 +1058,7 @@ class MarkLayer(QWidget):
 
     def _pointer_target(self, s: float) -> QPointF:
         first = self.marks[0]
-        x, y, _x2, _y2, unit = first.to_window(self.width(), self.height(), self.minimap_side)
+        x, y, _x2, _y2, unit = self._win(first, self.width(), self.height())
         off = unit * 0.85 if first.shape in ("circle", "point") else 10 * s
         return QPointF(x + off, y + off)
 
@@ -1024,14 +1073,14 @@ class MarkLayer(QWidget):
 
     def _mark_region(self, s: float) -> QRegion:
         """Everything the marks can touch while they draw in, ping and fade: each one's shape with its
-        glow, its label, and the rings that ripple out of a minimap circle."""
+        edge, its label, and the ring that ripples out of a minimap circle."""
         w, h = self.width(), self.height()
         region = QRegion()
-        pad = 12 * s
+        pad = 6 * s + self._width(s)
         for m in self.marks:
-            x, y, x2, y2, unit = m.to_window(w, h, self.minimap_side)
+            x, y, x2, y2, unit = self._win(m, w, h)
             if m.shape in ("circle", "point"):
-                r = unit * (2.7 if m.space == "minimap" else 1.0) + pad  # (the pings reach 2.6 radii)
+                r = unit * (PING_REACH + 0.1 if m.space == "minimap" else 1.0) + pad
                 box = QRectF(x - r, y - r, 2 * r, 2 * r)
             else:
                 box = QRectF(QPointF(x, y), QPointF(x2, y2)).normalized().adjusted(-30 * s, -30 * s, 30 * s, 30 * s)
@@ -1045,7 +1094,7 @@ class MarkLayer(QWidget):
     def _label_anchor(self, mark, w: int, h: int) -> tuple[QPointF, tuple[float, float] | None]:
         """Where a mark's label hangs: up and to the right of a circle or a box; past an arrow's tip, in the
         arrow's own direction (so it never covers the head)."""
-        x, y, x2, y2, unit = mark.to_window(w, h, self.minimap_side)
+        x, y, x2, y2, unit = self._win(mark, w, h)
         if mark.shape in ("circle", "point"):
             r = unit if mark.shape == "circle" else unit * 0.35
             return QPointF(x + r * 0.75, y - r * 0.75), None
@@ -1058,8 +1107,8 @@ class MarkLayer(QWidget):
     @staticmethod
     def _label_box(text: str, anchor: QPointF, w: int, h: int, s: float,
                    beyond: tuple[float, float] | None = None) -> QRectF:
-        fm = QFontMetricsF(display_font(round(15 * s), QFont.Bold, 0.8 * s))
-        pad = 8 * s
+        fm = QFontMetricsF(display_font(round(LABEL_PX * s), QFont.Bold, 0.8 * s))
+        pad = 6 * s
         box = QRectF(0, 0, fm.horizontalAdvance(text.upper()) + 2 * pad + 3 * s, fm.height() + pad * 0.8)
         if beyond is not None:
             ux, uy = beyond
@@ -1095,59 +1144,65 @@ class MarkLayer(QWidget):
         fade = 1.0 if age < self.ttl - FADE_S else max(0.0, (self.ttl - age) / FADE_S)
         p = QPainter(self)
         p.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing)
-        p.setOpacity(fade)
         w, h = self.width(), self.height()
         s = self._scale()
         for i, mark in enumerate(self.marks):
             t = _ease_out((age - DRAW_GAP_S * i - DRAW_AFTER_S) / DRAW_IN_S)  # one by one
             if t > 0:
-                self._paint_mark(p, mark, t, w, h, s, age)
+                self._paint_mark(p, mark, t, w, h, s, age, fade)
+        p.setOpacity(fade)
         self._paint_pointer(p, age, w, h, s)
         p.end()
 
-    def _pens(self, color: QColor, width: float, s: float) -> list[QPen]:
-        """Glow underneath, then a dark outline, then the color: readable on grass, snow or lava."""
-        glow = QColor(color)
-        glow.setAlpha(70)
-        pens = [QPen(glow, width + 9 * s), QPen(QColor(0, 0, 0, 210), width + 4 * s), QPen(color, width)]
-        for pen in pens:
-            pen.setCapStyle(Qt.RoundCap)
-            pen.setJoinStyle(Qt.RoundJoin)
-        return pens
+    @staticmethod
+    def _stroke(p: QPainter, path: QPainterPath, color: QColor, width: float, s: float) -> None:
+        """The line, and a hairline dark edge just outside it: readable on grass, snow or lava. The two are
+        filled side by side, never on top of each other, so a see-through line keeps its own color."""
+        stroker = QPainterPathStroker()
+        stroker.setCapStyle(Qt.RoundCap)
+        stroker.setJoinStyle(Qt.RoundJoin)
+        stroker.setWidth(width)
+        band = stroker.createStroke(path)
+        stroker.setWidth(width + 2 * EDGE_PX * s)
+        edge = stroker.createStroke(path).subtracted(band)
+        p.fillPath(edge, QColor(0, 0, 0, EDGE_ALPHA))
+        p.fillPath(band, color)
 
-    def _paint_mark(self, p: QPainter, mark, t: float, w: int, h: int, s: float, age: float) -> None:
-        x, y, x2, y2, unit = mark.to_window(w, h, self.minimap_side)
+    def _paint_mark(self, p: QPainter, mark, t: float, w: int, h: int, s: float, age: float,
+                    fade: float = 1.0) -> None:
+        x, y, x2, y2, unit = self._win(mark, w, h)
         # Enemy icons on the minimap are red: Doty's own minimap marks are bright yellow so they stand
         # apart, unless the mark is about a hero (then its team color says who it is).
         color = MINIMAP_COLOR if mark.space == "minimap" and mark.tone == "coach" else TONE.get(mark.tone,
                                                                                                TONE["coach"])
-        width = 5 * s
+        width = self._width(s)
+        p.setOpacity(fade * self._opacity())
         a, b = QPointF(x, y), QPointF(x2, y2)
         beyond = None
         if mark.shape in ("circle", "point"):
             r = unit if mark.shape == "circle" else unit * 0.35
             rect = QRectF(x - r, y - r, 2 * r, 2 * r)
-            for pen in self._pens(color, width, s):
-                p.setPen(pen)
-                p.setBrush(Qt.NoBrush)
-                p.drawArc(rect, 90 * 16, -int(360 * 16 * t))
+            ring = QPainterPath()
+            ring.arcMoveTo(rect, 90)
+            ring.arcTo(rect, 90, -360 * t)  # hollow: drawn round from the top
+            self._stroke(p, ring, color, width, s)
             if mark.shape == "point":
-                p.setPen(Qt.NoPen)
+                p.setPen(QPen(QColor(0, 0, 0, EDGE_ALPHA), EDGE_PX * s))
                 p.setBrush(color)
-                p.drawEllipse(QPointF(x, y), 4 * s * t, 4 * s * t)
-            if mark.space == "minimap" and t >= 1.0:  # two rings ripple out: movement catches the eye
-                for k in range(2):
-                    ping = (age - DRAW_IN_S - DRAW_AFTER_S - 0.3 * k) / 1.0
-                    if 0 < ping < 1:
-                        ring = QColor(color)
-                        ring.setAlpha(int(220 * (1 - ping)))
-                        p.setPen(QPen(ring, 3 * s))
-                        rr = r * (1 + 1.6 * ping)
-                        p.drawEllipse(QPointF(x, y), rr, rr)
+                p.drawEllipse(QPointF(x, y), 2.5 * s * t, 2.5 * s * t)
+            if mark.space == "minimap" and t >= 1.0:  # one faint ring ripples out: movement catches the eye
+                ping = (age - DRAW_IN_S - DRAW_AFTER_S) / 0.9
+                if 0 < ping < 1:
+                    faint = QColor(color)
+                    faint.setAlpha(int(140 * (1 - ping)))
+                    p.setPen(QPen(faint, max(1.0, width * 0.6)))
+                    p.setBrush(Qt.NoBrush)
+                    rr = r * (1 + (PING_REACH - 1) * ping)
+                    p.drawEllipse(QPointF(x, y), rr, rr)
             anchor = QPointF(x + r * 0.75, y - r * 0.75)
         elif mark.shape == "arrow":
             tip = a + (b - a) * t
-            self._arrow(p, a, tip, color, width, s, head=t > 0.6, pens=self._pens(color, width, s))
+            self._arrow(p, a, tip, color, width, s, head=t > 0.6)
             # Its label goes just past the tip, in the arrow's own direction, so it never covers the head.
             dx, dy = b.x() - a.x(), b.y() - a.y()
             length = math.hypot(dx, dy) or 1.0
@@ -1156,50 +1211,46 @@ class MarkLayer(QWidget):
             rect = QRectF(a, b).normalized()
             grow = QRectF(rect.center().x() - rect.width() / 2 * t, rect.center().y() - rect.height() / 2 * t,
                           rect.width() * t, rect.height() * t)
-            for pen in self._pens(color, width, s):
-                p.setPen(pen)
-                p.setBrush(Qt.NoBrush)
-                p.drawRect(grow)
+            path = QPainterPath()
+            path.addRect(grow)
+            self._stroke(p, path, color, width, s)
             anchor = rect.topRight()
         if mark.label and t > 0.5:
             p.save()
-            p.setOpacity(p.opacity() * min(1.0, (t - 0.5) * 2))
+            p.setOpacity(fade * max(self._opacity(), LABEL_MIN_OPACITY) * min(1.0, (t - 0.5) * 2))
             self._label(p, mark.label, anchor, color, w, h, s, beyond)
             p.restore()
 
     @staticmethod
-    def _arrow(p: QPainter, a: QPointF, b: QPointF, color: QColor, width: float, s: float, head: bool,
-               pens: list[QPen]) -> None:
+    def _arrow(p: QPainter, a: QPointF, b: QPointF, color: QColor, width: float, s: float, head: bool) -> None:
+        """A thin shaft with an open head (two short strokes), all one line."""
         dx, dy = b.x() - a.x(), b.y() - a.y()
         length = math.hypot(dx, dy) or 1.0
         ux, uy = dx / length, dy / length
-        size = 24 * s
-        shaft_end = QPointF(b.x() - ux * size * 0.7, b.y() - uy * size * 0.7) if head else b
-        for pen in pens:
-            p.setPen(pen)
-            p.drawLine(a, shaft_end)
+        size = min(14 * s, length * 0.5)
+        path = QPainterPath(a)
+        path.lineTo(b)
         if head:
-            left = QPointF(b.x() - ux * size - uy * size * 0.55, b.y() - uy * size + ux * size * 0.55)
-            right = QPointF(b.x() - ux * size + uy * size * 0.55, b.y() - uy * size - ux * size * 0.55)
-            p.setPen(QPen(QColor(0, 0, 0, 210), 3 * s, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-            p.setBrush(color)
-            p.drawPolygon(QPolygonF([b, left, right]))
+            path.moveTo(QPointF(b.x() - ux * size - uy * size * 0.6, b.y() - uy * size + ux * size * 0.6))
+            path.lineTo(b)
+            path.lineTo(QPointF(b.x() - ux * size + uy * size * 0.6, b.y() - uy * size - ux * size * 0.6))
+        MarkLayer._stroke(p, path, color, width, s)
 
     @staticmethod
     def _label(p: QPainter, text: str, anchor: QPointF, color: QColor, w: int, h: int, s: float,
                beyond: tuple[float, float] | None = None) -> None:
         """A small panel like the app's: dark, a colored edge on the left, condensed capitals. `beyond`
         (an arrow's direction) puts it past `anchor` that way instead of up and to the right of it."""
-        p.setFont(display_font(round(15 * s), QFont.Bold, 0.8 * s))
+        p.setFont(display_font(round(LABEL_PX * s), QFont.Bold, 0.8 * s))
         box = MarkLayer._label_box(text, anchor, w, h, s, beyond)
-        path = cut_path(box, 6 * s)
-        p.fillPath(path, QColor(9, 12, 16, 230))
-        p.setPen(QPen(color, 1.2 * s))
-        p.setBrush(Qt.NoBrush)  # (an arrow's head leaves its fill set: the outline would flood the label with it)
+        path = cut_path(box, 5 * s)
+        p.fillPath(path, QColor(9, 12, 16, 215))
+        p.setPen(QPen(color, 1.0 * s))
+        p.setBrush(Qt.NoBrush)
         p.drawPath(path)
-        p.fillRect(QRectF(box.left(), box.top(), 3 * s, box.height()), color)
+        p.fillRect(QRectF(box.left(), box.top(), 2 * s, box.height()), color)
         p.setPen(QColor(theme.TEXT))
-        p.drawText(box.adjusted(3 * s, 0, 0, 0), Qt.AlignCenter, text.upper())
+        p.drawText(box.adjusted(2 * s, 0, 0, 0), Qt.AlignCenter, text.upper())
 
     def _paint_pointer(self, p: QPainter, age: float, w: int, h: int, s: float) -> None:
         """Doty's marker: a cyan diamond with a DOTY tag that slides in beside the first mark.
