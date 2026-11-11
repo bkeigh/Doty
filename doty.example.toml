@@ -113,6 +113,16 @@ earcons = true        # short beeps when recording starts/stops
 # The Doty window (desktop / Start-menu shortcut, or `python -m doty app`).
 start_coaching_on_open = true
 close_to_tray = true  # closing the window keeps Doty coaching from the tray
+study = true          # build each hero's card (builds, skills, matchups) from public stats in the background
+
+[record]
+# A record of every match on this PC only (%LOCALAPPDATA%\Doty\records, not synced): the game data without
+# screenshots, Steam ID, names or match id, and every line Doty said. Nothing is sent anywhere.
+# `python -m doty.bench --latest` scores the coach on them. About 1 MB a match.
+enabled = true
+keep_matches = 30     # the oldest go beyond this many...
+keep_mb = 200         # ...or this much in all
+folder = ""           # "" = %LOCALAPPDATA%\Doty\records
 
 [hotkeys]
 enabled = true

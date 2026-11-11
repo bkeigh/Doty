@@ -17,6 +17,11 @@ def _no_real_kokoro(tmp_path_factory):
     """Tests never load the real 330 MB Kokoro model by accident: its folder is empty here."""
     os.environ["DOTY_KOKORO_DIR"] = str(tmp_path_factory.mktemp("kokoro-none"))
     os.environ["DOTY_ART"] = "0"  # no hero portraits or item icons from the internet either
+    # Match records (on by default) go to a throwaway folder, never the real one in %LOCALAPPDATA%.
+    from doty import config, match_record
+
+    records = tmp_path_factory.mktemp("records")
+    config.RECORD_DIR = match_record.RECORD_DIR = records
 
 
 @pytest.fixture(scope="session")

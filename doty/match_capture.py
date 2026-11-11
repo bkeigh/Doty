@@ -30,23 +30,47 @@ from .state import GameStateStore, Snapshot
 GSI_EVERY_S = 1.0
 MAX_FRAMES = 300  # per match: ~150 MB at 1440p, about 2 hours at one every 30 s
 PRIVATE_KEYS = {"steamid", "accountid", "name"}  # who you are: not needed to calibrate anything
+# Anywhere in a payload, a key that names a person or an account (Dota's own names, and the spellings other
+# GSI versions and tools use). A spectator's or a coach's feed lists all ten players.
+IDENTITY_KEYS = {"steamid", "steam_id", "steamid64", "accountid", "account_id", "personaname", "persona",
+                 "player_name", "playername", "nickname", "nick", "real_name", "realname", "profile", "avatar",
+                 "avatarurl", "avatar_url", "friend_id", "party_id", "lobby_id", "server_steam_id"}
+# In the player section only these texts stay: everything else Dota puts there is a number (kills, gold...), and
+# a text it adds in a later version is left out rather than risk it being a name.
+PLAYER_TEXT_KEPT = {"activity", "team_name"}
 
 
 def capture_folder(cfg: CaptureConfig) -> Path:
     return Path(cfg.folder) if cfg.folder else documents_dir() / "Doty" / "captures"
 
 
-def scrub(payload: dict[str, Any]) -> dict[str, Any]:
-    """The payload without the auth token or who you are (in "player", and in its per-player
-    sub-sections when Dota sends those)."""
-    out = {k: v for k, v in payload.items() if k != "auth"}
-    player = out.get("player")
-    if isinstance(player, dict):
-        player = {k: v for k, v in player.items() if k not in PRIVATE_KEYS}
-        for k, v in list(player.items()):
-            if isinstance(v, dict):
-                player[k] = {kk: vv for kk, vv in v.items() if kk not in PRIVATE_KEYS}
-        out["player"] = player
+def _drop_identity(value: Any, in_player: bool) -> Any:
+    if isinstance(value, dict):
+        out = {}
+        for k, v in value.items():
+            key = str(k).lower()
+            if key in IDENTITY_KEYS or "steam" in key or "account" in key:
+                continue
+            if in_player and (key == "name" or (isinstance(v, str) and key not in PLAYER_TEXT_KEPT)):
+                continue  # (in "player", "name" is the player's name; elsewhere it's a hero, item or ability)
+            out[k] = _drop_identity(v, in_player)
+        return out
+    if isinstance(value, list):
+        return [_drop_identity(v, in_player) for v in value]
+    return value
+
+
+def scrub(payload: dict[str, Any], keep_match: bool = True) -> dict[str, Any]:
+    """The payload without the auth token or who anyone is: Steam and account IDs and names wherever they appear,
+    and in the player section (yours, and every player's when Dota sends all ten) any text but the team and
+    activity. `keep_match=False` also hides the match id, which anyone can look up to see who played."""
+    out = {}
+    for k, v in payload.items():
+        if k == "auth":
+            continue
+        out[k] = _drop_identity(v, in_player=(k == "player"))
+    if not keep_match and isinstance(out.get("map"), dict) and "matchid" in out["map"]:
+        out["map"] = dict(out["map"], matchid="recorded")
     return out
 
 
