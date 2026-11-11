@@ -164,6 +164,8 @@ class OverlayConfig:
     position: list[float] = field(default_factory=list)
     size: float = 1.0  # card and text size on top of the automatic scaling with the game window
     draw: bool = True  # let the coach draw circles and arrows over the game to point things out
+    mark_width: float = 2.0  # the drawings' line, in px at 1080p (it scales with the window)
+    mark_opacity: float = 0.65  # how solid the drawings' lines are, 0..1 (their labels stay readable)
     # The live strip above the cards: countdowns to the next runes and objectives, and the item you're
     # building with the gold still to pay.
     strip: bool = True

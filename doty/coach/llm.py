@@ -682,7 +682,13 @@ class Coach:
         text = _tag_lines(text)
         self._apply_lineup(text, game)
         self._apply_draft(text)
-        drawn = tuple(marklib.parse(text, shot.get("sizes", {}) if isinstance(shot, dict) else {}))
+        # Named things are placed by code: "me" needs the game data's position; a minimap point naming a team
+        # snaps to a hero marker Doty sees, when the minimap reader has left fresh ones.
+        now_snap = self.store.current
+        drawn = tuple(marklib.parse(text, shot.get("sizes", {}) if isinstance(shot, dict) else {},
+                                    have_me=now_snap is not None and now_snap.position is not None,
+                                    team=(snap.team if snap else "") or "",
+                                    markers=marklib.fresh_markers(self.store.memory.get("minimap_markers"))))
         drawn = self._vet_marks(drawn, game, t0)
         shown = _strip_tags(text).strip()
         if visible and in_match and kind not in ("question", "watch", "draft"):

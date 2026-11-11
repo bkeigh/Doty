@@ -109,6 +109,7 @@ class Doty:
         self.running = False
         self._second: tuple | None = None  # the game second the once-a-second work last ran for
         self._marks_at: tuple | None = None  # (where your hero stood, when) as the screen drawings went up
+        self._me_sent: tuple | None = None  # your hero's position as last handed to the overlay
         self._voiced_ahead: set[str] = set()  # lines already handed to the voice to make ahead of time
         self._voiced_match = -1  # the match (store.generation) those lines belong to
         self._usual_mode: str | None = None  # "turbo" | "normal": what your recent matches were (None: not known)
@@ -195,6 +196,7 @@ class Doty:
         if snap.hero_id and not self.kb.has_hero_data(snap.hero_id):
             asyncio.get_running_loop().create_task(self.kb.ensure_hero(snap.hero_id))
         self._stale_marks(snap)
+        self._follow_me(snap)
         second = (snap.has_hero and snap.in_game, snap.clock)
         if second != self._second:  # once per game second: the overlay's strip, lines to voice ahead
             self._second = second
@@ -257,6 +259,15 @@ class Doty:
             self._marks_at = None
             if self.overlay is not None:
                 self.overlay.drop_marks("screen")
+
+    def _follow_me(self, snap) -> None:
+        """Drawings on your own hero ("me") are placed from the game data's position, so they move with you;
+        dead or without a position, they come down (the overlay drops them on None)."""
+        pos = snap.position if snap.has_hero and snap.alive else None
+        follow = getattr(self.overlay, "set_me", None)  # (stand-in overlays in tests may not have it)
+        if pos != self._me_sent and follow is not None:
+            self._me_sent = pos
+            follow(pos)
 
     def _each_second(self, snap) -> None:
         if self.overlay is not None:
