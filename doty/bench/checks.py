@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
 from ..coach import llm
+from ..knowledge import build
 from ..knowledge import constants as kconst
 
 if TYPE_CHECKING:
@@ -110,24 +111,10 @@ def contradicts_inventory(line: "Line", match: "Match") -> str | None:
     buys = kb.buy_mentions(line.text, ctx.hero)
     if not buys:
         return None
-    owned = set(ctx.owned)
-    have = kb.owned_with_parts(owned)
-    bad = {i for i in buys if i in owned or kb.second_boots(i, owned)
-           or (i in have and not _needed_for_more(kb, i, line, owned))}
+    # The coach's own rule (knowledge/build.already_have): a part of something built is fine when an item still
+    # being built needs it (an Ogre Axe went into Aghanim's Scepter; another one is half of Black King Bar).
+    bad = build.already_have(kb, buys, ctx.owned, ctx.hero, line.clock, line.text)
     return f"says to buy what the player already has (or a second pair of boots): {_names(kb, bad)}" if bad else ""
-
-
-def _needed_for_more(kb: "Knowledge", part: str, line: "Line", owned: set[str]) -> bool:
-    """A part of something the player built can still be worth buying again for another item (an Ogre Axe went
-    into Aghanim's Scepter; another one is half of Black King Bar). True when an item the player doesn't own and
-    the line names, or that is in the hero's build, is made with it."""
-    hero = line.ctx.hero if line.ctx else ""
-    wanted = set(kb.item_mentions(line.text, hero)) | set(kb.build_plan(hero, line.clock))
-    info = kb.heroes.get(hero)
-    if info:
-        wanted |= set(kb.typical_items(int(info["id"]), 10))
-    built = kb.owned_with_parts(owned)
-    return any(part in kb.owned_with_parts({w}) for w in wanted - {part} if w not in built)
 
 
 @checker("not_affordable", 3, 'says "buy X now" or "you can afford X" without the gold')
@@ -179,6 +166,21 @@ def passed_on(line: "Line", match: "Match") -> str | None:
         return None
     bad = buys & set(ctx.skipped)
     return f"pushes an item the player passed on: {_names(kb, bad)}" if bad else ""
+
+
+@checker("weak_case", 3, "pushes a counter item that answers little of this enemy lineup")
+def weak_case(line: "Line", match: "Match") -> str | None:
+    """Knowledge.item_case against the five enemies as they stood (all five known: with one missing, the hero the
+    item answers may be that one). A real match: Black King Bar, 57 times, against right-click heroes."""
+    kb = _kb(match)
+    ctx = line.ctx
+    if kb is None or ctx is None or not ctx.enemies or len(ctx.enemies) < 5:
+        return None
+    buys = kb.buy_mentions(line.text, ctx.hero)
+    if not buys:
+        return None
+    bad = {i for i in buys if (case := kb.item_case(i, list(ctx.enemies))) is not None and case.weak}
+    return f"pushes an item that answers little of this lineup: {_names(kb, bad)}" if bad else ""
 
 
 @checker("item_overuse", 2, f"names one item more than {MAX_ITEM_NAMES} times with no part of it bought since",
@@ -234,18 +236,11 @@ def format_leak(line: "Line", match: "Match") -> str | None:
     m = CONTROL_TAG.search(line.text)
     if m:
         return f'contains the control tag "{m.group(0)}"'
-    m = llm.MID_CORRECTION.search(line.text)
+    # The coach's own patterns: "Wait for Omniknight before fighting" is an instruction, not a second thought.
+    m = llm.MID_CORRECTION.search(line.text) or llm.SELF_CORRECTION.search(line.text)
     if m:
         return f'changes its mind mid-line ("{m.group(0).strip()}")'
-    for m in llm.SELF_CORRECTION.finditer(line.text):
-        # ("Wait for Omniknight before fighting" is an instruction, not a second thought.)
-        if not WAIT_INSTRUCTION.match(line.text, m.end()):
-            return f'changes its mind mid-line ("{m.group(0).strip()}")'
     return ""
-
-
-WAIT_INSTRUCTION = re.compile(r"\s*(for|until|till|at|near|under|in|behind|on|here|there|by|with|a\s+(moment|second|few))\b",
-                              re.IGNORECASE)
 
 
 # Places, runes and other things a buy-word can point at that aren't items or heroes ("Grab the Bounty rune").
@@ -358,7 +353,7 @@ def timing(line: "Line", match: "Match") -> str | None:
 # 4. how often ---------------------------------------------------------------------------------------------------------
 @checker("repeats", 1, "near-identical to a line heard just before", spoken_only=True)
 def repeats(line: "Line", match: "Match") -> str | None:
-    words = llm._content_words(line.text)
+    words = llm.content_words(line.text)
     if len(words) < 2:
         return None
     window = DANGER_REPEAT_S if _danger(line) else REPEAT_WINDOW_S
@@ -371,9 +366,7 @@ def repeats(line: "Line", match: "Match") -> str | None:
         before = _buy_targets(prev.text)
         if buys and before and buys != before:
             continue  # ("Buy Void Stone: a part of Battle Fury", then "Buy Broadsword: ...": the next step, not a repeat)
-        common = len(words & llm._content_words(prev.text))
-        # The coach's own measure (llm.Coach._repeats): against the new line's words.
-        if common >= 2 and common >= llm.REPEAT_OVERLAP * len(words):
+        if llm.says_again(words, llm.content_words(prev.text)):  # (the coach's own measure, Coach._repeats)
             return f'repeats "{_short(prev.text)}" from {line.clock - prev.clock} s before'
     return ""
 

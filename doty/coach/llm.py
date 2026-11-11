@@ -211,7 +211,7 @@ class Coach:
         if adv.source == "rules" and adv.final:
             self.recent_alerts.append(adv.text)
             if adv.speak and adv.display and adv.priority <= self.spoken_max:  # (shown-only isn't heard)
-                self._heard.append((time.monotonic(), _content_words(adv.text + " " + adv.spoken)))
+                self._heard.append((time.monotonic(), content_words(adv.text + " " + adv.spoken)))
                 # "You can afford Black King Bar" pointed the player at it too: unless the old "remind" way is
                 # on, the coach's next push of it is already a second one (an argument, see own_way).
                 key = adv.key or ""
@@ -222,17 +222,11 @@ class Coach:
     def _repeats(self, text: str, within: float = REPEAT_S) -> bool:
         """The line says again what was said out loud in the last REPEAT_S ("Buy a TP scroll" for the
         twentieth time): it's noted in the feed instead of spoken."""
-        words = _content_words(text)
+        words = content_words(text)
         if len(words) < 2:
             return False
         now = time.monotonic()
-        for when, heard in self._heard:
-            # Measured against the new line: a short alert ("Power rune in 15") shares two words with many
-            # new tips ("Take the power rune, then gank bottom with Lion") that say much more.
-            common = len(words & heard)
-            if now - when <= within and common >= 2 and common >= REPEAT_OVERLAP * len(words):
-                return True
-        return False
+        return any(now - when <= within and says_again(words, heard) for when, heard in self._heard)
 
     # subjects and the player's own build --------------------------------------------
     def _off(self, topic: str) -> bool:
@@ -438,7 +432,7 @@ class Coach:
                     continue  # (three "walk back to your tower" calls in nine seconds, in a real match)
                 self._pushed(adv.text, snap)
                 self.said.append(adv.text)
-                self._heard.append((time.monotonic(), _content_words(adv.text)))
+                self._heard.append((time.monotonic(), content_words(adv.text)))
                 self.bus.publish(adv)
         if not self.enabled:
             return
@@ -847,7 +841,7 @@ class Coach:
             if in_match and shown and not _is_waiting(shown) and self.cfg.speak_up != "never":
                 # (the death answer, then the look before respawning, mustn't say the same thing twice)
                 self.said.append(shown)
-                self._heard.append((time.monotonic(), _content_words(shown)))
+                self._heard.append((time.monotonic(), content_words(shown)))
                 self._pushed(shown, snap)
         total = (time.perf_counter() - t0) * 1000.0
         ttft = f"{self.last_ttft_ms:.0f}" if self.last_ttft_ms else "?"
@@ -901,7 +895,7 @@ class Coach:
         say = (say or mode == "every") and mode != "never" and not repeat
         if say:
             self.said.append(text)
-            self._heard.append((time.monotonic(), _content_words(text)))
+            self._heard.append((time.monotonic(), content_words(text)))
             self._pushed(text, self.store.current)
             # The tip's age counts: a reply that took long has less time left to be heard before it's stale.
             left = WATCH_STALE_S - (time.perf_counter() - t0)
@@ -1129,10 +1123,11 @@ class Coach:
         times, to a player wearing Phase Boots."""
         if self.kb is None or snap is None or not self.kb.items:
             return set()
-        owned = snap.all_item_names()
-        have = self.kb.owned_with_parts(owned)
-        return {i for i in self.kb.buy_mentions(text, snap.hero_name)
-                if i in have or self.kb.second_boots(i, owned)}
+        buys = self.kb.buy_mentions(text, snap.hero_name)
+        if not buys:
+            return set()
+        # (a part of something built is fine when an item still being built needs it: knowledge/build.py)
+        return buildlib.already_have(self.kb, buys, snap.all_item_names(), snap.hero_name, snap.clock, text)
 
     def _unwanted(self, text: str, snap: Snapshot | None, call: "triggerlib.Trigger | None" = None) -> str:
         """Why a line about buying isn't wanted ('' if it's fine): it pushes an item the player passed on this
@@ -1149,6 +1144,13 @@ class Coach:
         passed = (buys | afford) & set(self.kb.skipped)
         if passed:
             return f"pushes an item you passed on: {', '.join(sorted(self.kb.item_name(i) for i in passed))}"
+        # A counter item that answers little of this lineup (knowledge/judgement.py: a weak case, judged once all
+        # five enemies are known). A real match: Black King Bar, 57 times, against right-click heroes. (An answer
+        # to the player's own question never comes through here: asked about it, the coach may answer.)
+        weak = {i for i in buys | afford if self.kb.weak_here(i)}
+        if weak:
+            return f"pushes an item that answers little of this lineup: " \
+                   f"{', '.join(sorted(self.kb.item_name(i) for i in weak))}"
         return ""
 
     def _has_tp_already(self, text: str, snap: Snapshot | None) -> str:
@@ -1194,7 +1196,8 @@ class Coach:
 
         off = topics_off(self.suggest)
         if "items" in off:
-            for key in ("next_item", "popular_next_items", "typical_items", "next_item_odds", "passed_on"):
+            for key in ("next_item", "popular_next_items", "typical_items", "next_item_odds", "passed_on",
+                        "counter_item_cases"):
                 summary.pop(key, None)
         if "skills" in off:
             for key in ("unspent_skill_points", "next_skill", "talent_tiers_not_picked", "pro_skill_order"):
@@ -1390,7 +1393,11 @@ def _strip_tags(text: str) -> str:
 
 WATCH_TAG = re.compile(r"^\s*(SAY|QUIET)\s*:\s*", re.IGNORECASE)
 LATER_TAG = re.compile(r"(?<![A-Za-z])(SAY|QUIET):\s*")  # a second, corrected answer ("Wait... SAY: ...")
-SELF_CORRECTION = re.compile(r"(?:\n|(?<=[.!?])\s)\s*(?:Wait|Actually|Correction)\b[,:.]?", re.IGNORECASE)
+# A second thought after a finished sentence ("... Wait, correct that: learn Bash.") is cut off. "Wait" only counts
+# as one when a pause or a correction word follows it: "Wait for your team" and "Wait until Luna is here" are
+# instructions, and cutting them would leave half the tip (the bench caught it).
+SELF_CORRECTION = re.compile(r"(?:\n|(?<=[.!?])\s)\s*(?:Wait(?=\s*[,:.;—–-]|\s+(?:no|sorry|scratch|"
+                             r"correct|actually|i\s+mean)\b)|Actually|Correction)\b[,:.]?", re.IGNORECASE)
 # A change of mind inside a sentence ("buy Tranquil... no: once back, buy a TP scroll", from a real match): what
 # comes before it is the abandoned half, and what comes after is the tip.
 MID_CORRECTION = re.compile(r"(?:\.{2,}|\u2026|\s[\u2014\u2013-]|,)\s*(?:no|wait|scratch\s+that|i\s+mean|actually|"
@@ -1459,7 +1466,7 @@ before after until about all any some each every one two three both other others
 right next first last soon keep make take use""".split())
 
 
-def _content_words(text: str) -> frozenset[str]:
+def content_words(text: str) -> frozenset[str]:
     """The words that carry a line's meaning, lowercased, plurals folded ("runes" -> "rune")."""
     out = set()
     for w in re.findall(r"[a-z']+", text.lower()):
@@ -1470,3 +1477,15 @@ def _content_words(text: str) -> frozenset[str]:
             w = w[:-1]
         out.add(w)
     return frozenset(out)
+
+
+def says_again(words: frozenset[str], before: frozenset[str]) -> bool:
+    """A line (its `content_words`) says again what an earlier one said: at least two words in common, and most of
+    the new line's words (REPEAT_OVERLAP). Measured against the new line: a short alert ("Power rune in 15") shares
+    two words with many new tips ("Take the power rune, then gank bottom with Lion") that say much more. The coach
+    (Coach._repeats) and the bench's repeat check both use this."""
+    common = len(words & before)
+    return common >= 2 and common >= REPEAT_OVERLAP * len(words)
+
+
+_content_words = content_words  # (the old name)

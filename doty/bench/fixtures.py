@@ -21,7 +21,8 @@ Fixture format (one JSON object per file, format 1):
         "items": ["item_boots_of_bearing"],  # held items (inventory, backpack, stash): keys, or names as shown
         "tp": true,                        # a TP scroll in the TP slot
         "passed_on": ["item_black_king_bar"],  # items passed on this game (keys or names)
-        "heroes": ["npc_dota_hero_lion"]   # everyone in the match, only when the lineup was confirmed
+        "heroes": ["npc_dota_hero_lion"],  # everyone in the match, only when the lineup was confirmed
+        "enemies": ["npc_dota_hero_lion", ...]  # the five enemies, only when all five were confirmed
       },
       "expect": "fail",                    # what the bench must say about the line: "fail" or "pass"
       "checks": ["contradicts_inventory"], # with "fail": these checkers must fail it ([]: none catches it yet)
@@ -119,7 +120,9 @@ def _context(fx: dict[str, Any], kb) -> Context:
         items = tuple(k for k in (_item_key(n, kb) for n in st["items"]) if k)
     passed = st.get("passed_on")
     heroes = st.get("heroes")
+    enemies = tuple(h for h in (_hero_key(n, kb) for n in st.get("enemies") or []) if h)
     return Context(
+        enemies=enemies if len(enemies) >= 5 else None,
         clock=int(fx.get("clock") or 0), hero=str(fx.get("hero") or ""),
         owned=frozenset(items) if items is not None else None, items=items,
         gold=st.get("gold"), has_tp=st.get("tp"), alive=st.get("alive"), fighting=st.get("fighting"),
@@ -193,9 +196,12 @@ def coach_verdict(fx: dict[str, Any], kb) -> str | None:
         store = GameStateStore()
         snap = store.ingest(payload_from_fixture(fx, kb))
         saved = dict(kb.skipped)
+        lineup = (tuple(kb.enemies), kb.lineup_complete)
         kb.skipped.clear()
         kb.skipped.update({k: "fixture" for k in (_item_key(n, kb) for n in (fx.get("state") or {}).get("passed_on")
                                                                          or []) if k})
+        enemies = [h for h in (_hero_key(n, kb) for n in (fx.get("state") or {}).get("enemies") or []) if h]
+        kb.set_enemies(enemies, complete=len(enemies) >= 5)
         try:
             coach = Coach(CoachConfig(), store, AdviceBus(), kb)
             line = str(fx.get("line") or "")
@@ -206,6 +212,7 @@ def coach_verdict(fx: dict[str, Any], kb) -> str | None:
         finally:
             kb.skipped.clear()
             kb.skipped.update(saved)
+            kb.set_enemies(*lineup)
         return "drops" if dropped else "keeps"
     except Exception:
         return None

@@ -1,0 +1,19 @@
+{
+ "fixture": 1,
+ "kind": "watch",
+ "clock": 1200,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "Buy Black King Bar now, you have the gold.",
+ "said": true,
+ "state": {
+  "alive": true,
+  "fighting": false,
+  "gold": 4500,
+  "items": ["item_power_treads"],
+  "tp": true,
+  "passed_on": ["item_black_king_bar"]
+ },
+ "expect": "fail",
+ "checks": ["passed_on"],
+ "note": "synthetic: an item on the player's never-suggest list (Settings, or said out loud) is out of every match's build, as passed on"
+}

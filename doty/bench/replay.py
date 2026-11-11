@@ -170,6 +170,8 @@ def context_of(snap: Snapshot | None, store: GameStateStore, kb=None, heroes: It
     ctx.gold = spendable(snap, game_mode.of(store.memory))
     if kb is not None:
         ctx.skipped = frozenset(kb.skipped)
+        if getattr(kb, "lineup_complete", False):
+            ctx.enemies = tuple(kb.enemies)
     if heroes:
         ctx.heroes = frozenset(heroes)
     else:
@@ -196,6 +198,7 @@ class Replay:
         self.engine = RuleEngine(self.store, self.bus, self.cfg.rules, kb, rules=None if rules else [])
         self.engine.level_of = lambda: level
         self.engine.suggest = self.cfg.suggest
+        self.engine.prefs = self.cfg.coach  # (as the app: "When I go my own way", never-suggest, hero builds)
         for rule in self.engine.rules:
             rule.evaluate = _tagged(rule.evaluate, rule.id)  # (which rule said each line)
         self.coach = None

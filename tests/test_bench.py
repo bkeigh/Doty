@@ -417,11 +417,14 @@ def test_fixture_statuses():
 
 
 def test_the_committed_fixtures_still_hold(capsys):
+    from .test_coach_etiquette import _bench_kb  # (KB plus the enemies' ability data, for the weak_case fixtures)
+
+    kb = _bench_kb()
     found = sorted(DATA.glob("*.json"))
     assert found
     for path in found:
         fx = fixtures.load_fixture(path)
         assert fx["fixture"] == fixtures.FORMAT
-        assert fixtures.run_fixture(fx, KB)["status"] == "ok", path.name
+        assert fixtures.run_fixture(fx, kb)["status"] == "ok", path.name
     assert bench_main(["--no-kb", "--fixtures", str(DATA / "*.json")]) in (0, 1)  # (no item data: runs, judges less)
     assert "tp_scroll_held" in capsys.readouterr().out

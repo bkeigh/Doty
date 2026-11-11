@@ -29,6 +29,9 @@ class Context:
     fighting: bool | None = None  # GameStateStore.in_fight() at that moment
     skipped: frozenset[str] | None = None  # items the player passed on this game (Knowledge.skipped)
     heroes: frozenset[str] | None = None  # the heroes in this match (npc names), once the lineup is confirmed
+    # The enemy heroes (npc names) once all five are confirmed (Knowledge.enemies with lineup_complete): what a
+    # counter item's case (Knowledge.item_case) is judged against. None while not all are known.
+    enemies: tuple[str, ...] | None = None
     snap: "Snapshot | None" = None  # the raw snapshot, when the input has one (replays)
 
 
