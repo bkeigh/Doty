@@ -1,0 +1,19 @@
+{
+ "fixture": 1,
+ "kind": "death",
+ "clock": 520,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "You charged in alone and got stunned. Respawn, buy a TP scroll and stay with your team.",
+ "said": true,
+ "state": {
+  "alive": false,
+  "fighting": false,
+  "gold": 300,
+  "items": ["item_power_treads", "item_magic_wand"],
+  "tp": true,
+  "passed_on": []
+ },
+ "expect": "fail",
+ "checks": ["tp_nag"],
+ "note": "synthetic, after the real case: the player held a TP scroll at every death and was told to buy one"
+}
