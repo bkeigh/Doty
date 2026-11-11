@@ -23,6 +23,10 @@ def _no_real_kokoro(tmp_path_factory):
 
     records = tmp_path_factory.mktemp("records")
     config.RECORD_DIR = match_record.RECORD_DIR = records
+    # The focus history (knowledge/focus.py) too: tests never read or write the real one.
+    from doty.knowledge import focus
+
+    focus.HISTORY_FILE = tmp_path_factory.mktemp("focus") / "focus.json"
 
 
 @pytest.fixture(autouse=True)

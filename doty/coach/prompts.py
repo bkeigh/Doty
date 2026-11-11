@@ -246,6 +246,15 @@ def state_summary(snap: Snapshot, store: GameStateStore, kb: "Knowledge | None",
     role = store.memory.get("role")
     if role is not None and role.label:
         summary["role"] = role.label
+    focus_plan = store.memory.get("focus_plan") or {}  # this game's practice goal (rules/focus.py)
+    if focus_plan.get("key"):
+        from ..knowledge.focus import TOPICS
+
+        target = focus_plan.get("target")
+        summary["practice_focus"] = (TOPICS[focus_plan["key"]].title
+                                     + (f" ({focus_plan['item_name']} by {mmss(int(focus_plan.get('at') or 0))})"
+                                        if focus_plan.get("item_name") else
+                                        f" (target {target:g})" if isinstance(target, (int, float)) else ""))
     if mode.turbo:
         summary["game_mode"] = game_mode.prompt_note(mode)
     soon = coming_up(snap.clock, turbo=mode.turbo)
