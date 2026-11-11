@@ -90,7 +90,7 @@ class Reason:
     facts: frozenset
 
 
-def item_reason(kb: "Knowledge | None", item: str, hero: str, enemies: list[str]) -> Reason | None:
+def item_reason(kb: Knowledge | None, item: str, hero: str, enemies: list[str]) -> Reason | None:
     """THE place the reason for arguing comes from (one function, so it can be wired to `Knowledge.item_case`).
 
     With `kb.item_case(item, enemies)` (an ItemCase with .score 0..1 and .reason, a short clause; optionally
@@ -127,7 +127,7 @@ def item_reason(kb: "Knowledge | None", item: str, hero: str, enemies: list[str]
     return Reason("", frozenset({"usual_build"})) if item in usual else None
 
 
-def enemies_of(store: "GameStateStore", snap: "Snapshot") -> list[str]:
+def enemies_of(store: GameStateStore, snap: Snapshot) -> list[str]:
     """The enemy heroes known so far (the lineup read off the top bar), by name."""
     lineup = store.memory.get("lineup") or {}
     team = (snap.team or "").lower() if snap is not None else ""
@@ -137,7 +137,7 @@ def enemies_of(store: "GameStateStore", snap: "Snapshot") -> list[str]:
 
 
 # when it may be said --------------------------------------------------------------------------------------------
-def buying_moment(snap: "Snapshot", kb: "Knowledge", item: str, store: "GameStateStore") -> bool:
+def buying_moment(snap: Snapshot, kb: Knowledge, item: str, store: GameStateStore) -> bool:
     """A moment the player can act on an item: dead (the shop is open), in base, or the gold covers a real part
     of it right now."""
     if snap is None:
@@ -150,11 +150,11 @@ def buying_moment(snap: "Snapshot", kb: "Knowledge", item: str, store: "GameStat
     return kb.next_buy(item, snap.item_list(), gold) is not None
 
 
-def _argued(store: "GameStateStore") -> dict[str, frozenset]:
+def _argued(store: GameStateStore) -> dict[str, frozenset]:
     return store.memory.setdefault("own_way_argued", {})
 
 
-def may_argue(store: "GameStateStore", kb: "Knowledge | None", item: str, snap: "Snapshot", prefs: Any,
+def may_argue(store: GameStateStore, kb: Knowledge | None, item: str, snap: Snapshot, prefs: Any,
               asked: bool = False) -> Reason | None:
     """The reason Doty may give now for an item the player isn't building, or None to stay quiet. Only in
     "once": never for an item the player never wants or said they won't buy, only with a reason, only once per
@@ -173,7 +173,7 @@ def may_argue(store: "GameStateStore", kb: "Knowledge | None", item: str, snap: 
     return reason
 
 
-def argued(store: "GameStateStore", item: str, reason: Reason) -> int:
+def argued(store: GameStateStore, item: str, reason: Reason) -> int:
     """Note that Doty argued for `item` with this reason. Returns how many times it has now (for the alert key)."""
     seen = _argued(store)
     seen[item] = reason.facts
@@ -182,11 +182,11 @@ def argued(store: "GameStateStore", item: str, reason: Reason) -> int:
     return counts[item]
 
 
-def was_argued(store: "GameStateStore", item: str) -> bool:
+def was_argued(store: GameStateStore, item: str) -> bool:
     return item in store.memory.get("own_way_argued", {})
 
 
-def argument(kb: "Knowledge", item: str, reason: Reason) -> tuple[str, str]:
+def argument(kb: Knowledge, item: str, reason: Reason) -> tuple[str, str]:
     """(card, spoken) for the one argument about an item the player went past."""
     name = kb.item_name(item)
     if reason.text:
@@ -197,7 +197,7 @@ def argument(kb: "Knowledge", item: str, reason: Reason) -> tuple[str, str]:
 
 
 # the player's standing preferences ------------------------------------------------------------------------------
-def honour(kb: "Knowledge | None", prefs: Any, snap: "Snapshot | None", store: "GameStateStore") -> None:
+def honour(kb: Knowledge | None, prefs: Any, snap: Snapshot | None, store: GameStateStore) -> None:
     """Apply the player's standing preferences to this match's build, cheaply, on every update: the items they
     never want suggested leave the build once a match (so "bring back" still works for one game), and their
     own build for this hero leads its plan (again after the coach's BUILD line or a new match cleared it)."""
