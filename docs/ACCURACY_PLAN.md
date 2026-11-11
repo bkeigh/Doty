@@ -130,6 +130,71 @@ picture adds nothing (`NEXT_PLAN.md` 1.3), and move anything the AI says often a
 5. **Playbooks, techniques and replay analysis.** This is the long road to a coach a pro would use, and it
    only pays off once 1 to 4 make the basics trustworthy.
 
+## Decided while talking it through (2026-11-10, after the first pass)
+
+These came out of a design conversation with the player. None is built yet.
+
+1. **Disagree once, with a reason; and make it a setting.** When Doty disagrees with the player's build
+   it says so at most once per item per match, at a buying moment, and only with a reason from this game.
+   With no such reason it says nothing. After that it follows the player. This is the default of a
+   setting ("When I go my own way": follow me silently / say it once with a reason / keep reminding me),
+   and it replaces today's three pushes and two "you can afford" calls.
+2. **Your instructions to the coach.** A free-text box in Settings, like custom instructions in a chat
+   app ("I play position 4, I always build Boots of Bearing on Spirit Breaker, no BKB talk unless they
+   have three stuns"). Free text only reaches the AI, and the instant rules do most of the talking, so on
+   saving, the AI turns the text into settings the code enforces (items never to suggest, a build per
+   hero, topics off, how much it talks) and shows the player what it understood. Whatever can't be made
+   a setting goes into the prompt as style. "Remember that" by voice adds to the same list.
+3. **Is this counter item worth it, calculated.** `abilities.json` already marks every spell's damage
+   type and whether it goes through BKB (checked: Omnislash and Quill Spray pierce it; Impale and Laguna
+   Blade don't). Score BKB by the enemy disables and magic damage it would block, and do the same for
+   break, healing reduction, Linken's and the other counters. This supplies the "reason" in point 1.
+4. **Follow what the player is already buying.** Parts held that point at an item make it the target
+   even when it isn't in Doty's plan; read the quick-buy panel by matching item icons, the way the top
+   bar's portraits are matched.
+5. **The AI as strategist.** It writes a short plan for the match at the start and at each death (how
+   you win, your job, what to watch, item conditions); the instant rules talk live, set up by that plan;
+   the player can see and veto it.
+6. **Drawings: lighter and exact.** Today a mark is a 5 px line inside a dark outline and a glow, about
+   14 px across, and the AI picks its position in pixels on a shrunken screenshot that is 2 to 4 seconds
+   old.
+   - Look: a thin line (about 2 px), a hairline dark edge, no glow, 60 to 70% opaque, hollow rings,
+     smaller labels, quicker fade. Offer a thickness and opacity setting.
+   - Position: the AI names the thing ("circle Lion", "arrow to my bottom tier-1 tower") and code places
+     it: heroes from the minimap reader, the player's hero from the game data's position, towers, runes
+     and Roshan from fixed map coordinates. A point the AI does give snaps to the nearest thing Doty can
+     see, or isn't drawn.
+   - Scope: map things go on the minimap only. On the main view, draw only on fixed parts of the HUD
+     (shop, item slots, abilities), since the camera moves under anything else.
+
+## More ideas from the same conversation (not built)
+
+In plain words, what would take the coach from "reminders" to "gets a beginner good":
+
+7. **A card per hero.** What this hero wants at each stage of the game, its power spikes, its combos and
+   the mistakes people make on it. Built from real data (ability numbers, how high-rank players build it
+   in each role, how fast they farm it), written once per patch and checked, so the coach reads from the
+   card instead of making it up mid-game.
+8. **A card per enemy.** At the draft, for each enemy hero: the one or two things that kill you and what
+   answers them, worked out from their abilities. This is the "threat list" for the match.
+9. **Really read the map.** Calibrate the minimap reader on the player's own screen so Doty knows who is
+   showing and where. Then the calls that matter get simple and exact: "three missing and you're past the
+   river: back", "nobody is top: take the tower".
+10. **Read the scoreboard.** Enemy items and levels by matching icons, the same way portraits are matched.
+    That tells the coach who is stronger right now, which is the whole fight-or-don't question.
+11. **Teach one thing per game.** Pick a single focus from the player's last few games (last hits by ten
+    minutes, dying with no TP, buyback), coach mostly that, grade it afterwards and track it across games.
+    Harder topics unlock as the easy ones stick. This is the part that turns a beginner into a good player.
+12. **Benchmarks by rank.** "Players one rank above you have this item by 14:00; you got it at 17:00."
+    Honest, specific and motivating.
+13. **Only the best line.** Score every possible thing to say by how much it changes what the player
+    should do in the next thirty seconds, and say only the top one, at a quiet moment unless it's danger.
+    A "why?" hotkey expands the last tip for people who want the reasoning.
+14. **Learn from the player.** A thumbs-up and thumbs-down hotkey, plus noticing which advice is followed,
+    so the coach leans towards what this player finds useful.
+15. **Keep every fix fixed.** Every recorded game and every "Wrong tip?" report becomes a test that each
+    new version is replayed against, with one accuracy score per release.
+
 ## What I need from you
 
 1. **Play one game with capture and recording on** (Settings > Advanced > Capture matches). Still the most
