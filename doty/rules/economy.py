@@ -107,8 +107,12 @@ class AffordableBuildItem(Rule):
 
 
 class StashItems(Rule):
+    """Items bought while away from the shop sit in the stash until the courier brings them. Said once per stash
+    (the same items waiting), again only when the stash changes or after a long while: the bench found it every 60
+    seconds for minutes on end."""
+
     id = "stash_items"
-    cooldown_s = 60.0
+    cooldown_s = 300.0  # (per stash: a new item in it is a new key, said at once)
     DWELL_S = 8.0
 
     def evaluate(self, ctx: RuleContext) -> Iterable[Advice]:
@@ -120,8 +124,9 @@ class StashItems(Rule):
             return
         since = ctx.mem.setdefault("stash_since", s.received_t)
         if s.received_t - since >= self.DWELL_S:
+            waiting = ",".join(sorted(it.name for it in s.stash))
             yield Advice("Items waiting in stash — send the courier", Priority.NORMAL, "economy",
-                         key="stash_items", speech="Courier your stash")
+                         key=f"stash_items:{waiting}", speech="Courier your stash")
 
 
 def rules() -> list[Rule]:

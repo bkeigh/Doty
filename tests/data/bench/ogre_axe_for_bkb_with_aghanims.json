@@ -1,0 +1,19 @@
+{
+ "fixture": 1,
+ "kind": "watch",
+ "clock": 1500,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "Buy Ogre Axe now, towards Black King Bar.",
+ "said": true,
+ "state": {
+  "alive": true,
+  "fighting": false,
+  "gold": 1200,
+  "items": ["item_power_treads", "item_ultimate_scepter"],
+  "tp": true,
+  "passed_on": []
+ },
+ "expect": "pass",
+ "checks": [],
+ "note": "synthetic: the Ogre Axe inside Aghanim's Scepter doesn't count towards Black King Bar; the coach used to drop this line"
+}

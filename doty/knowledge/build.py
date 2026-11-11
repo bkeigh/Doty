@@ -91,6 +91,34 @@ def lineup(snap: Snapshot, store: GameStateStore, kb: "Knowledge") -> None:
             mem["seen"] = None  # (the target may change with the lineup: look again at once)
 
 
+def already_have(kb: "Knowledge", items, owned, hero: str = "", clock: int = 0, text: str = "") -> set[str]:
+    """Of the `items` a line says to buy, the ones the player already has: held, built into something they hold,
+    or a second pair of boots. Except a part that an item they're still building needs: an Ogre Axe went into
+    their Aghanim's Scepter, and another one is half of the Black King Bar they're on. One answer for the coach's
+    vetting (coach/llm.Coach._already_have) and the bench's check (bench/checks.contradicts_inventory)."""
+    owned = set(owned)
+    have = kb.owned_with_parts(owned)
+    return {i for i in items if i in owned or kb.second_boots(i, owned)
+            or (i in have and not still_needed(kb, i, owned, hero, clock, text))}
+
+
+def still_needed(kb: "Knowledge", part: str, owned, hero: str = "", clock: int = 0, text: str = "") -> bool:
+    """`part` goes into an item the player doesn't have and is building or being pointed at: one the line names,
+    the item they're building now (`next_target`), the build plan, or the hero's usual items."""
+    owned = set(owned)
+    wanted = set(kb.item_mentions(text, hero)) if text else set()
+    if hero:
+        wanted |= set(kb.build_plan(hero, clock))
+        target = kb.next_target(hero, clock, list(owned))
+        if target:
+            wanted.add(target)
+        info = kb.heroes.get(hero)
+        if info:
+            wanted |= set(kb.typical_items(int(info["id"]), 10))
+    built = kb.owned_with_parts(owned)
+    return any(part in kb.owned_with_parts({w}) for w in wanted - {part} if w not in built)
+
+
 def note(kb: "Knowledge", item: str, why: str = BOUGHT_OTHER) -> Advice:
     """The line for the app's feed when an item leaves the build (shown, not said: it's not worth an
     interruption, but the player should be able to see why Doty stopped mentioning it)."""

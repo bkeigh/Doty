@@ -1,0 +1,19 @@
+{
+ "fixture": 1,
+ "kind": "watch",
+ "clock": 900,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "Farm the jungle. Wait for your team before you fight.",
+ "said": true,
+ "state": {
+  "alive": true,
+  "fighting": false,
+  "gold": 300,
+  "items": ["item_power_treads"],
+  "tp": true,
+  "passed_on": []
+ },
+ "expect": "pass",
+ "checks": [],
+ "note": "synthetic: \"Wait for ...\" is an instruction, not a change of mind; the coach used to cut the tip there"
+}

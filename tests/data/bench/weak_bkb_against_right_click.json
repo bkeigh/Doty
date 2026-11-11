@@ -1,0 +1,21 @@
+{
+ "fixture": 1,
+ "kind": "watch",
+ "clock": 1500,
+ "hero": "npc_dota_hero_luna",
+ "line": "Buy Black King Bar now, you have the gold.",
+ "said": true,
+ "state": {
+  "alive": true,
+  "fighting": false,
+  "gold": 5000,
+  "items": ["item_power_treads"],
+  "tp": true,
+  "passed_on": [],
+  "enemies": ["npc_dota_hero_bristleback", "npc_dota_hero_troll_warlord", "npc_dota_hero_sniper",
+              "npc_dota_hero_ursa", "npc_dota_hero_phantom_assassin"]
+ },
+ "expect": "fail",
+ "checks": ["weak_case"],
+ "note": "synthetic, after the real case: Black King Bar pushed again and again against heroes whose damage goes through it"
+}

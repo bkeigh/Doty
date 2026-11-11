@@ -4,7 +4,6 @@ who had judged it unnecessary against that lineup."""
 
 import json
 import time
-from dataclasses import dataclass
 
 import pytest
 from aiohttp.test_utils import TestServer
@@ -29,13 +28,12 @@ BLINK, MANTA = "item_blink", "item_manta"
 BKB_TIP = "Buy Black King Bar as soon as you can."
 
 
-@dataclass
-class Case:
-    """What another part of Doty will give as Knowledge.item_case: how strong the case for an item is."""
+def Case(score, reason, answers=()):  # noqa: N802
+    """A judgement.ItemCase with numbers a test controls exactly (cases worked out from real ability data are in
+    the tests at the end: test_the_real_case_*)."""
+    from doty.knowledge.judgement import ItemCase
 
-    score: float
-    reason: str
-    facts: tuple = ()
+    return ItemCase("item_any", score, reason, list(answers))
 
 
 def _coach(kb, store, way="once", **cfg):
@@ -129,11 +127,13 @@ def test_once_needs_a_reason_from_this_match():
 
     def case(item, enemies):
         seen.append((item, tuple(enemies)))
-        return Case(0.8, "Lion and Lina chain-stun you.", ("Lion", "Lina")) if item == BLINK else None
+        return Case(0.8, "Lion and Lina chain-stun you.", (("Lion", "Earth Spike"), ("Lina", "Light Strike Array"))) \
+            if item == BLINK else None
 
     kb.item_case = case
     reason = own_way.item_reason(kb, BLINK, JUGG, ["Lion", "Lina"])
-    assert reason.text == "Lion and Lina chain-stun you" and reason.facts == frozenset({"Lion", "Lina"})
+    assert reason.text == "Lion and Lina chain-stun you"
+    assert reason.facts == frozenset({("Lion", "Earth Spike"), ("Lina", "Light Strike Array")})
     assert coach._overpushed(tip, rich) == set() and seen[-1] == (BLINK, ("Lion", "Lina"))
     summary: dict = {}
     coach._settings_into(summary, rich)
@@ -144,16 +144,23 @@ def test_once_needs_a_reason_from_this_match():
     summary = {}
     coach._settings_into(summary, rich)
     assert "may_argue_once" not in summary
-    # It reopens only when the facts behind the reason change: a new enemy in the case.
+    # The same answers in other words aren't new facts...
+    kb.item_case = lambda item, enemies: Case(0.8, "Lina and Lion stun you.",
+                                              (("Lina", "Light Strike Array"), ("Lion", "Earth Spike")))
+    assert coach._overpushed(tip, rich) == {BLINK}
+    # ...a new enemy spell in the case is: it reopens.
     kb.item_case = lambda item, enemies: Case(0.8, "Lion, Lina and Shadow Shaman disable you.",
-                                              ("Lion", "Lina", "Shadow Shaman"))
+                                              (("Lion", "Earth Spike"), ("Lina", "Light Strike Array"),
+                                               ("Shadow Shaman", "Shackles")))
     assert coach._overpushed(tip, rich) == set()
     # A weak case is no reason at all.
     kb.item_case = lambda item, enemies: Case(0.2, "Lion has a stun.")
     assert coach._overpushed(tip, rich) == {BLINK}
-    assert own_way.item_reason(kb, BKB, JUGG, []) is None  # (weighed and weak: not even the usual-build mention)
+    assert own_way.item_reason(kb, BKB, JUGG, ["Lion"]) is None  # (weighed and weak: not even the usual-build mention)
+    kb.item_case = lambda item, enemies: Case(0.5, "Lion has a stun.")  # (middling: not enough to argue)
+    assert own_way.item_reason(kb, BLINK, JUGG, ["Lion"]) is None and own_way.MIN_CASE_SCORE == 0.6
     kb.item_case = lambda item, enemies: 1 / 0  # (a broken case is no reason, never a crash)
-    assert own_way.item_reason(kb, BLINK, JUGG, []) is None
+    assert own_way.item_reason(kb, BLINK, JUGG, ["Lion"]) is None
 
 
 def test_follow_drops_a_second_push_from_an_answer_being_read():
@@ -188,6 +195,7 @@ def _afford_run(monkeypatch, way, case=None):
     kb.custom_plan[JUGG] = [BKB, MANTA]
     if case is not None:
         kb.item_case = case
+        kb.set_enemies(["Lion", "Lina"])  # (some enemies known: the case is judged against them)
     rule = AffordableBuildItem()
     engine, rec = _engine(kb, store, way, rules=[rule, own_way.OwnWay()])
     clock = [1000.0]
@@ -220,18 +228,19 @@ def test_three_ways_for_you_can_afford_it(monkeypatch):
 
 def test_the_rules_argue_once_with_the_reason_and_again_only_when_the_facts_change(monkeypatch):
     kb, store, rec = _afford_run(monkeypatch, "once", case=lambda item, enemies: (
-        Case(0.9, "Lion and Lina chain-stun you", ("Lion", "Lina")) if item == BKB else None))
+        Case(0.9, "Lion and Lina chain-stun you", (("Lion", "Earth Spike"), ("Lina", "Light Strike Array"))) if item == BKB else None))
     argued = [a for a in rec.items if a.key.startswith("own_way")]
     assert len(argued) == 1 and argued[0].text.startswith("Your call, but Black King Bar is worth a thought: Lion "
                                                           "and Lina chain-stun you.")
     engine, rec2 = _engine(kb, store, "once", rules=[own_way.OwnWay()])
     engine.on_snapshot(_feed(store, 50.0, clock=950, gold=4500, items=["item_power_treads"]))
     assert rec2.items == []  # said once: nothing new
-    kb.item_case = lambda item, enemies: Case(0.9, "Lion, Lina and Leshrac lock you down", ("Lion", "Lina", "Leshrac"))
+    kb.item_case = lambda item, enemies: Case(0.9, "Lion, Lina and Leshrac lock you down",
+                                              (("Lion", "Earth Spike"), ("Leshrac", "Split Earth")))
     engine.on_snapshot(_feed(store, 51.0, clock=951, gold=4500, items=["item_power_treads"]))
     assert len(rec2.items) == 1 and "Leshrac" in rec2.items[0].text
     # Not while saving with no gold for it, alive, out in the lane: it waits for a buying moment.
-    kb.item_case = lambda item, enemies: Case(0.9, "Four stuns now", ("4",))
+    kb.item_case = lambda item, enemies: Case(0.9, "Four stuns now", (("Lion", "Hex"),))
     engine.on_snapshot(_feed(store, 52.0, clock=952, gold=200, items=["item_power_treads"]))
     assert len(rec2.items) == 1
 
@@ -244,6 +253,7 @@ def test_no_reason_no_argument_for_a_counter_item():
     assert list(own_way.OwnWay().evaluate(ctx)) == []
     kb.skip(BKB, build.SAID_SO)  # (the player said so: settled, even with a case)
     kb.item_case = lambda item, enemies: Case(0.9, "they chain-stun you")
+    kb.set_enemies(["Lion"])
     assert [a.key for a in own_way.OwnWay().evaluate(ctx)] == [f"own_way:{BLINK}:1"]
     assert list(own_way.OwnWay().evaluate(ctx)) == []
 
@@ -508,3 +518,257 @@ def test_settings_have_the_own_way_choice_and_the_instructions(qapp, tmp_path):
     assert load_config(tmp_path / "doty.toml").coach.never_suggest == [BKB]
     assert "Never suggest Black King Bar" in _boxes(win.settings_page)
     win.close()
+
+
+# the real item judgement (knowledge/judgement.py) ---------------------------------------------------------------
+def _spells_kb():
+    """Real Knowledge with the enemy heroes' ability data (test_item_judgement's synthetic abilities.json)."""
+    from .test_item_judgement import _kb as spells
+
+    return spells()
+
+
+def _right_click():
+    from .test_item_judgement import BB, PA, SNIPER, TROLL, URSA
+
+    return [BB, TROLL, SNIPER, URSA, PA]  # Black King Bar blocks next to nothing of theirs
+
+
+def test_the_real_case_gives_the_reason_and_its_facts():
+    from doty.knowledge import judgement
+
+    from .test_item_judgement import BANE, PA, SPELLS
+
+    kb, store = _spells_kb(), GameStateStore()
+    kb.set_enemies(SPELLS, complete=True)
+    case = kb.case_here(BKB)
+    reason = own_way.item_reason(kb, BKB, JUGG, [])
+    assert case.strong and reason.text == case.reason.rstrip(".")  # what's said: the case's own short reason
+    assert reason.facts == frozenset(case.answers) and ("Lion", "Hex") in reason.facts
+    # Before the confirmed lineup is in, the coach's names for the enemies do (item_case takes names too).
+    kb.set_enemies([])
+    named = own_way.item_reason(kb, BKB, JUGG, ["Lion", "Lina"])
+    assert named.text.startswith("it blocks Lion's Earth Spike") and ("Lina", "Light Strike Array") in named.facts
+    # Facts are the (hero, ability) pairs: the same enemies in another order are the same case; swapping Bane for
+    # Phantom Assassin drops what Bane's spells added, so an argument made would reopen.
+    kb.set_enemies(SPELLS, complete=True)
+    first = own_way.item_reason(kb, BKB, JUGG, [])
+    own_way.argued(store, BKB, first)
+    kb.set_enemies(list(reversed(SPELLS)), complete=True)
+    assert own_way.item_reason(kb, BKB, JUGG, []).facts == first.facts
+    kb.set_enemies([PA if h == BANE else h for h in SPELLS], complete=True)
+    second = own_way.item_reason(kb, BKB, JUGG, [])
+    assert second.facts != first.facts and not any(h == "Bane" for h, _a in second.facts)
+    # A weak case is no reason; nor is a middling one (MIN_CASE_SCORE is judgement.STRONG).
+    kb.set_enemies(_right_click(), complete=True)
+    assert kb.case_here(BKB).weak and own_way.item_reason(kb, BKB, JUGG, []) is None
+    assert own_way.MIN_CASE_SCORE == judgement.STRONG
+
+
+def test_the_rules_argue_with_the_real_reason(monkeypatch):
+    from .test_item_judgement import SPELLS
+
+    kb, store = _spells_kb(), GameStateStore()
+    kb.custom_plan[JUGG] = [BKB, MANTA]
+    kb.set_enemies(SPELLS, complete=True)
+    rule = AffordableBuildItem()
+    engine, rec = _engine(kb, store, "once", rules=[rule, own_way.OwnWay()])
+    clock = [1000.0]
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+    for _ in range(3):
+        for tick in range(3):
+            engine.on_snapshot(_feed(store, clock[0] + tick, clock=900, gold=4500, items=["item_power_treads"]))
+        clock[0] += rule.cooldown_s + 1
+    argued = [a for a in rec.items if a.key.startswith("own_way")]
+    assert [a.text for a in rec.items].count("You can afford Black King Bar (4,050)") == 1  # once mode: one call
+    assert len(argued) == 1 and "it blocks Lion's Earth Spike and Hex and Lina's Light Strike Array" in argued[0].text
+
+
+def test_a_weak_counter_item_is_vetoed_unless_asked():
+    kb, store = _spells_kb(), GameStateStore()
+    coach, _heard = _coach(kb, store, "remind")  # (in every mode)
+    snap = _feed(store, 1.0, clock=900, gold=5000, items=["item_power_treads"])
+    kb.set_enemies(_right_click()[:4], complete=False)
+    assert coach._unwanted("Buy Black King Bar now.", snap) == ""  # four of five known: the fifth may need it
+    kb.set_enemies(_right_click(), complete=True)
+    assert "answers little of this lineup: Black King Bar" in coach._unwanted("Buy Black King Bar now.", snap)
+    assert "answers little" in coach._vet_tip("watch", "Buy Black King Bar now.", snap, snap, time.perf_counter(), True)
+    said = "You fought alone. Buy Black King Bar when you respawn. Fight next to your team."
+    assert coach._without_bad_sentences(said, snap, complete=True) == "You fought alone. Fight next to your team."
+    coach._arm_triggers("TRIGGER: afford black_king_bar => Finish Black King Bar now.", snap)
+    assert coach.triggers.active == []
+    assert coach._unwanted("Use Black King Bar before you jump.", snap) == ""  # (not a buy)
+
+
+async def test_asked_about_a_weak_item_the_coach_may_answer(fake_ai):
+    from doty.sim import ScriptedMatch
+
+    from .conftest import TOKEN
+    from .test_coach_stream import _wait_inflight
+
+    kb, store = _spells_kb(), GameStateStore()
+    kb.set_enemies(_right_click(), complete=True)
+    heard, bus = Recorder(), AdviceBus()
+    bus.subscribe(heard)
+    coach = Coach(CoachConfig(), store, bus, kb)
+    await coach.start()
+    try:
+        match = ScriptedMatch()
+        match.step(900)
+        store.ingest(match.payload(TOKEN))
+        fake_ai.reply = "Skip it: buy Black King Bar only if they add stuns; their damage goes through it."
+        coach._launch("question", visible=True, question="Should I buy Black King Bar?")
+        await _wait_inflight(coach)
+    finally:
+        await coach.close()
+    final = [a for a in heard.items if a.final and a.display][-1]
+    assert final.text == fake_ai.reply
+
+
+def test_counter_item_cases_leave_with_item_advice():
+    from doty.config import SuggestConfig
+
+    kb, store = _spells_kb(), GameStateStore()
+    kb.set_enemies(_right_click(), complete=True)
+    snap = _feed(store, 1.0, clock=900, gold=500, items=["item_power_treads"])
+    summary = prompts.state_summary(snap, store, kb, [])
+    assert summary["counter_item_cases"]["Black King Bar"].startswith("weak")
+    coach, _heard = _coach(kb, store)
+    coach.suggest = SuggestConfig(items=False)
+    coach._settings_into(summary, snap)
+    assert "counter_item_cases" not in summary
+
+
+# vetting bugs the bench found ---------------------------------------------------------------------------------
+def test_a_part_an_item_still_being_built_needs_isnt_already_owned():
+    """Buying Ogre Axe for Black King Bar while holding Aghanim's Scepter (which has an Ogre Axe inside) is fine.
+    The coach and the bench give the same answer (knowledge/build.already_have)."""
+    from doty.bench import CHECKERS, Context, Line, Match
+
+    from .test_bench import _kb as bench_kb
+
+    kb, store = bench_kb(), GameStateStore()
+    coach, _heard = _coach(kb, store)
+    aghs = "item_ultimate_scepter"
+
+    def both(line, owned, plan=None):
+        kb.custom_plan.clear()
+        if plan:
+            kb.custom_plan[JUGG] = plan
+        snap = _feed(store, 1.0, clock=900, gold=2000, items=owned)
+        coach_says = bool(coach._already_have(line, snap))
+        m = Match("t", [Line(clock=900, text=line, ctx=Context(clock=900, hero=JUGG, owned=frozenset(owned)))], kb=kb)
+        bench_says = bool(CHECKERS["contradicts_inventory"].run(m.lines[0], m))
+        assert coach_says == bench_says, (line, owned, plan)
+        return coach_says
+
+    assert not both("Buy Ogre Axe for Black King Bar.", [aghs])  # the line's own item needs it
+    assert not both("Buy Ogre Axe now.", [aghs], plan=[BKB])  # the item being built needs it
+    assert both("Buy Ogre Axe now.", [aghs])  # nothing still to build needs it: it's in the Scepter already
+    assert both("Buy Ogre Axe now.", [BKB], plan=[BKB])  # (Black King Bar is built: that one is done)
+    assert both("Buy Phase Boots now.", ["item_boots_of_bearing"])  # a second pair of boots, as before
+    assert not both("Buy Black King Bar now.", ["item_power_treads"])
+
+
+def test_wait_for_your_team_is_an_instruction_not_a_second_thought():
+    from doty.bench import CHECKERS, Context, Line, Match
+    from doty.coach.llm import parse_watch
+
+    for line in ("Farm the jungle. Wait for your team before Roshan.", "Push mid. Wait until Luna is with you.",
+                 "Stay back. Wait at your tier two for the smoke."):
+        assert parse_watch("SAY: " + line) == (True, line)
+        m = Match("t", [Line(clock=600, text=line, ctx=Context(clock=600))])
+        assert CHECKERS["format_leak"].run(m.lines[0], m) == ""
+    # Real second thoughts are still cut, and still caught.
+    assert parse_watch("SAY: Learn Charge now.\n\nWait, correct that: learn Bash.")[1] == "Learn Charge now."
+    assert parse_watch("SAY: Push top. Wait - no, back off.")[1] == "Push top."
+    assert parse_watch("SAY: Push top. Actually, farm.")[1] == "Push top."
+    assert parse_watch("SAY: Respawn, buy Tranquil... no: buy Phase Boots.")[1] == "Buy Phase Boots."
+    for bad in ("Learn Charge now.\n\nWait, correct that: learn Bash.", "Buy Tranquil... no: buy Phase Boots."):
+        m = Match("t", [Line(clock=600, text=bad, ctx=Context(clock=600))])
+        assert CHECKERS["format_leak"].run(m.lines[0], m)
+
+
+def test_the_repeat_measure_is_public_and_shared():
+    from doty.coach import llm
+
+    assert llm.content_words is llm._content_words  # (the old name still works)
+    assert llm.content_words("Bounty runes in 15s") == {"bounty", "rune"}
+    assert llm.says_again(llm.content_words("Walk back to your tower now."),
+                          llm.content_words("Walk back to your tower."))
+    assert not llm.says_again(llm.content_words("Take the power rune, then gank bottom with Lion"),
+                              llm.content_words("Power rune in 15"))
+
+
+# the rules' cadence ---------------------------------------------------------------------------------------------
+def test_the_stash_is_said_once_per_stash(monkeypatch):
+    from doty.rules.economy import StashItems
+
+    kb, store = _kb(), GameStateStore()
+    engine, rec = _engine(kb, store, rules=[StashItems()])
+    clock = [1000.0]
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+    for s in range(0, 600, 2):  # ten minutes with the same item waiting
+        clock[0] = 1000.0 + s
+        engine.on_snapshot(_feed(store, 1000.0 + s, clock=600 + s, items=["item_power_treads"], stash=["item_gem"]))
+    assert len(rec.items) == 2  # once, then once more after the long gap (300 s)
+    for s in range(600, 640, 2):  # something new in the stash: said again at once
+        clock[0] = 1000.0 + s
+        engine.on_snapshot(_feed(store, 1000.0 + s, clock=600 + s, items=["item_power_treads"],
+                                 stash=["item_gem", "item_ogre_axe"]))
+    assert len(rec.items) == 3
+
+
+# the bench --------------------------------------------------------------------------------------------------------
+BAD_ANSWERS = [  # what a model really said in the two games (docs/ACCURACY_PLAN.md), at this match's moments
+    {"kind": "death", "clock": 280, "reply": "You fought alone and died. Buy Black King Bar when you respawn."},
+    {"kind": "watch", "clock": 700, "reply": "SAY: Farm the jungle. Wait for your team before you fight."},
+    {"kind": "watch", "clock": 1000, "reply": "SAY: Buy Black King Bar now, you have the gold."},
+    {"kind": "watch", "clock": 1300, "reply": "SAY: Buy Manta Style next, then group with your team."},
+]
+
+
+def _bench_kb():
+    from .test_bench import _kb as bench_kb
+
+    kb, spells = bench_kb(), _spells_kb()
+    for npc, hero in spells.heroes.items():
+        kb.heroes.setdefault(npc, hero)
+    kb.hero_abilities, kb.ability_info = spells.hero_abilities, spells.ability_info
+    kb.items.setdefault("item_manta", {"id": 147, "dname": "Manta Style", "cost": 4850})
+    return kb
+
+
+def test_a_replay_with_the_real_mistakes_says_none_of_them(monkeypatch):
+    """The scripted match, the coach answering with the bad lines of the two real games: a counter item that
+    answers nothing of this lineup, an item on the never-suggest list, and a "Wait for your team" that used to be
+    cut in half. None of the bad ones is heard, the instruction is heard whole, and nothing scores severity 3."""
+    from doty.bench import CHECKERS, Replay, ScriptedBackend, score, scripted_payloads
+
+    enemies = _right_click()
+    # (the scripted match has no top bar to read: the lineup is as if all five were confirmed)
+    monkeypatch.setattr(build, "lineup", lambda snap, store, kb: kb.set_enemies(enemies, complete=True))
+    cfg = Config()
+    cfg.coach.never_suggest = ["item_manta"]
+    kb = _bench_kb()
+    match = Replay(kb, cfg=cfg, backend=ScriptedBackend(BAD_ANSWERS)).run(scripted_payloads(end_clock=1400))[0]
+    heard = [x.text for x in match.lines if x.source == "coach" and x.said]
+    assert "Farm the jungle. Wait for your team before you fight." in heard
+    assert "You fought alone and died." in heard
+    assert not any("Black King Bar" in t or "Manta Style" in t for t in heard)
+    card = score.score_match(match)
+    assert [f for f in card["fails"] if CHECKERS[f["checker"]].severity == 3] == []
+
+
+def test_the_committed_fixtures_for_these_mistakes_hold():
+    from doty.bench import fixtures
+
+    from .test_bench import DATA
+
+    kb = _bench_kb()
+    names = {"weak_bkb_against_right_click": ("fail", "drops"), "never_suggest_item_pushed": ("fail", "drops"),
+             "ogre_axe_for_bkb_with_aghanims": ("pass", "keeps"), "wait_for_your_team": ("pass", "keeps")}
+    for name, (expect, coach) in names.items():
+        fx = fixtures.load_fixture(DATA / f"{name}.json")
+        result = fixtures.run_fixture(fx, kb)
+        assert fx["expect"] == expect and result["status"] == "ok" and result["coach"] == coach, (name, result)

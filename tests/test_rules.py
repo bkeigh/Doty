@@ -39,7 +39,8 @@ def test_tormentor_side_uses_spawn_time_not_now(harness):
 def test_scripted_match_triggers_every_rule(harness):
     cfg, store, engine, rec = harness
     play_scripted(store, engine)
-    keys = {part for k in rec.keys for part in k.split("+")}  # (spawns at the same time share one line)
+    # (spawns at the same time share one line; "stash_items:<what's in it>" is one call per stash)
+    keys = {part.split(":")[0] for k in rec.keys for part in k.split("+")}
     expected = {
         "bounty@0", "water@120", "water@240", "power@360", "wisdom@420", "tormentor@1200",
         "neutral_t2@900", "low_hp", "missing_tp", "stash_items", "skill_point", "lvl6",

@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterable
 
 from ..advice import Advice, Priority
-from ..knowledge import build
+from ..knowledge import build, judgement
 from ..knowledge import mode as game_mode
 from .base import Rule, RuleContext
 
@@ -43,8 +43,10 @@ OWN_WAYS = (ONCE, FOLLOW, REMIND)
 DEFAULT = ONCE
 # Why an item left the build when it's one the player never wants suggested (Knowledge.skipped's value).
 NEVER = "never"
-# kb.item_case(...).score from which a case is strong enough to argue (0..1).
-MIN_CASE_SCORE = 0.5
+# kb.item_case(...).score from which a case is a reason to argue: judgement.STRONG. The one argument has to rest on
+# something clear about this lineup; a middling case (between judgement.WEAK and STRONG) is a thing for the coach
+# to weigh when asked, not a reason to tell a player they're wrong. A weak one (< WEAK) vetoes the item (coach/llm).
+MIN_CASE_SCORE = judgement.STRONG
 POPULAR_N = 10  # "the hero's usual items": the first this many of Knowledge.typical_items
 
 
@@ -91,23 +93,26 @@ class Reason:
 
 
 def item_reason(kb: Knowledge | None, item: str, hero: str, enemies: list[str]) -> Reason | None:
-    """THE place the reason for arguing comes from (one function, so it can be wired to `Knowledge.item_case`).
+    """THE place the reason for arguing comes from: `Knowledge.item_case` (knowledge/judgement.py).
 
-    With `kb.item_case(item, enemies)` (an ItemCase with .score 0..1 and .reason, a short clause; optionally
-    .facts, the enemy heroes or spells it rests on): a strong enough case is the reason; a weak one means there's
-    no reason, so nothing is said. Without it (not built yet, or it returns None): an item from the hero's usual
-    build may be argued for once without a reason clause; a situational or counter item is not argued for at all.
-    `enemies`: the enemy heroes' names as the lineup has them."""
+    The case is judged against the enemies Doty has confirmed this match (`kb.case_here`, npc names kept by
+    knowledge/build.lineup); before those are known, against `enemies`, the names the coach's lineup holds.
+    Only a strong case (score >= MIN_CASE_SCORE) is a reason: its `.reason` is what's said, and its `.answers`, the
+    (enemy hero, ability) pairs it rests on, are the facts (the argument reopens only when those change, not when
+    the wording does). A weaker case is no reason: nothing is said. No case at all (no ability data, no enemies
+    known, or not a counter item): an item from the hero's usual build may be argued for once without a reason
+    clause; anything else is not argued for."""
     if kb is None or not item:
         return None
-    weigh = getattr(kb, "item_case", None)
     case = None
-    if callable(weigh):
-        try:
-            case = weigh(item, list(enemies))
-        except Exception as exc:  # (a broken case is no reason, never a crash in the rules)
-            print(f"[doty] item_case({item}) failed: {exc!r}")
-            case = None
+    try:
+        if getattr(kb, "enemies", ()):
+            case = kb.case_here(item)
+        elif enemies:
+            case = kb.item_case(item, list(enemies))
+    except Exception as exc:  # (a broken case is no reason, never a crash in the rules)
+        print(f"[doty] item_case({item}) failed: {exc!r}")
+        case = None
     if case is not None:
         try:
             score = float(getattr(case, "score", 0) or 0)
@@ -116,12 +121,11 @@ def item_reason(kb: Knowledge | None, item: str, hero: str, enemies: list[str]) 
         text = str(getattr(case, "reason", "") or "").strip().rstrip(".")
         if score < MIN_CASE_SCORE or not text:
             return None
-        facts = getattr(case, "facts", None)
         try:
-            facts = frozenset(facts) if facts else frozenset({text})
+            facts = frozenset(tuple(a) for a in (getattr(case, "answers", None) or ()))
         except TypeError:
-            facts = frozenset({text})
-        return Reason(text, facts)
+            facts = frozenset()
+        return Reason(text, facts or frozenset({text}))
     info = kb.heroes.get(hero) if hero else None
     usual = set(kb.typical_items(int(info["id"]), POPULAR_N)) if info else set()
     return Reason("", frozenset({"usual_build"})) if item in usual else None
