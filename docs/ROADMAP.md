@@ -314,6 +314,40 @@ numbers in `ACCURACY_PLAN.md`.
 - **The build never runs out,** and items hardly anyone buys on the hero aren't in it.
 - Tests: `tests/test_own_build.py`.
 
+## Built in the twelfth pass (judgement, your way, hero cards, records and the bench; 2026-11-11)
+
+One rule throughout: the AI supplies judgement, code supplies the facts. Details in `ARCHITECTURE.md`
+("Judgement from the AI, facts from code"); status against the plan in `ACCURACY_PLAN.md`.
+
+- **Counter items judged against the lineup** (`knowledge/judgement.py`). Black King Bar, Linken's, Pipe,
+  Monkey King Bar, Silver Edge and the other situational items each get a score and a short reason from what
+  the enemies' spells do ("it blocks Lion's Earth Spike and Hex"). No ability data, no verdict. A weak one
+  leaves the build once all five enemies are known; only a strong, hard-data one is ever added to it. The parts
+  in your bag decide the item you're building, in Doty's plan or not.
+- **"When I go my own way"** (Settings > Alerts): say it once, with a reason from this game (the default),
+  follow me silently, or keep reminding me. The rules and the coach share one record, so you hear an argument
+  once.
+- **Your instructions to the coach** (Settings > AI coach): free text the AI reads on every look as your
+  preferences. On saving, what can be a setting (items never to suggest, your build on a hero, subjects off,
+  how much it talks) becomes one, so the rules obey it too, with or without the AI.
+- **Hero cards** (`knowledge/cards.py`, `knowledge/study.py`): per hero and patch, from public statistics only:
+  builds by position, item timings with win rates, last-hit pace by rank, skill order, matchups, game length.
+  The coach reads the card in every look, the build follows it for your role, and the 10:00 and 20:00 farm
+  checks compare you with your rank and the one above. A background thread studies heroes politely (your
+  match's heroes first; at most 1,200 requests a day); off in Settings > Advanced.
+- **Drawings: thin, see-through, and placed by code.** A 2 px line at 65% (both settings, Settings > Overlay).
+  The coach names a tower, rune, Roshan pit, your hero or a HUD slot and Doty places it; a mark on your hero
+  follows you. Map and HUD positions aren't yet checked against a real frame.
+- **A record of every match, on this PC** (`match_record.py`, on by default): the game data without identity,
+  and every line Doty showed; no screenshots; the last 30 matches or 200 MB; "Delete records" in Settings >
+  Advanced. `SECURITY.md` says exactly what is kept.
+- **The bench** (`python -m doty.bench`): scores every line Doty says against the game as it stood, on match
+  records, captures, past session logs or the scripted match. The first numbers are in `ACCURACY_PLAN.md`.
+- **Smaller:** the session log names the rule behind each line; the build's self-test turns off the study, the
+  record and the game-mode lookup explicitly; `doty.example.toml` lists the new settings.
+- Tests: `tests/test_item_judgement.py`, `tests/test_coach_etiquette.py`, `tests/test_bench.py`,
+  `tests/test_match_record.py`, `tests/test_drawings.py`, `tests/test_cards.py`, `tests/test_card_wiring.py`.
+
 ## Linux (partly done, November 2026: built and tested on Windows, not yet run on a Linux desktop)
 
 Doty runs from source on Linux, with every Windows code path left as it was (`sys.platform` checks;
@@ -350,6 +384,14 @@ Still to do:
 
 ## Next
 
+- **In progress, not merged (documented once they land):** a speech budget with a "why?" hotkey, enemy threat
+  cards, and a "focus of the game" teaching feature.
+- **One real game with this version, then one with capture mode on** (`ACCURACY_PLAN.md`, "What I need from
+  you"): the first scores the coach on today's version; the second checks the drawings' map and HUD positions
+  (`hud.HUD_CALIBRATED`) and the screen readers against real frames.
+- **Show the last game's score in the app's recap** (`bench.records.last_game_summary` is written, not wired).
+- **A score per release:** run the bench on a fixed set of match records for each version and keep the number.
+- **The AI as strategist** (`ACCURACY_PLAN.md` point 5): a match plan the instant rules follow and you can veto.
 - **Polish the translations:** a native speaker's pass over each catalog (they were machine-translated). Still
   English on purpose: hero, item and ability names, mic and language names. Still English by oversight: a few rare
   error and debug lines built at runtime (developer details, OpenDota error text).
@@ -367,19 +409,19 @@ Still to do:
    Doty uses for every hero, instead of hundreds of requests: works offline and can't hit a rate limit.
 6. **Spoken lines from a fixed list.** Live tips picked from ~60 pre-voiced lines ("Push top", "Buy BKB")
    would play instantly even on the CPU voice; the free-text tip would stay on the card.
-7. **Code signing (before a wide release).** So Windows SmartScreen stops warning on first run.
+7. **Code signing (before a wide release).** So Windows SmartScreen stops warning on first run. The route is
+   SignPath Foundation, signing what GitHub Actions builds (`RELEASING.md`).
 
 ## Open-source release checklist
 
-- [ ] **License.** Recommended: GPL-3.0. Doty loads eSpeak NG (GPLv3) in its own process and the installer
-      ships it, so a GPL license keeps the whole package simple. Everything else it uses (MIT, Apache-2.0,
-      LGPL PySide6, BSD) is compatible with GPL-3.0. This is the owner's call (and not legal advice).
-- [ ] **Repository:** create it on GitHub, push, add a description and topics (dota2, coach, overlay,
-      game-state-integration), then set `app.update_repo` so the updater works.
+- [x] **License:** GPL-3.0 or later (`LICENSE`). Doty loads eSpeak NG (GPLv3) in its own process and the
+      installer ships it, so a GPL license keeps the whole package simple.
+- [x] **Repository:** public on GitHub; `app.update_repo` points at it, so the updater works.
 - [x] No API keys or personal settings in the files (`doty.toml`, `dist/`, `build/` and the venv are in
-      `.gitignore`; keys live in Windows' user environment).
+      `.gitignore`; keys live in Windows Credential Manager).
 - [ ] Remove `docs/brand/legacy/` (old generated art Doty no longer uses) to keep the repo small.
-- [ ] **Release:** attach `DotySetup-<version>.exe` and its `.sha256` to a GitHub Release (the updater
-      needs both). Not code-signed yet, so Windows SmartScreen will warn on first run (see RELEASING.md).
+- [x] **Release:** `DotySetup-<version>.exe` and its `.sha256` on a GitHub Release (the updater needs both).
+      From the release after 0.1.1, GitHub Actions builds them from the tag as a draft (`RELEASING.md`).
+- [ ] **Code signing** through SignPath Foundation. Until then Windows SmartScreen warns on first run.
 - [x] A short guide for players: [GUIDE.md](GUIDE.md), linked from the README.
 - [x] `CONTRIBUTING.md` and issue templates ("A tip was wrong", "Something's broken").

@@ -42,7 +42,8 @@ Every card is colour-coded, so you know what it is before you read it.
 - **An AI coach that points.** It circles the hero on your minimap and draws an arrow back to your tower.
 - **Ask out loud.** Hold Mouse 5, say *"can I fight now?"*, let go.
 - **Draft help.** Counter picks and bans from millions of public games at your rank.
-- **Builds and counters** for every hero, by game phase.
+- **Builds and counters** for every hero, by role and game phase, studied from public match data for this patch.
+- **Your way.** Tell it how you play. It disagrees once, with a reason from this game, then follows your build.
 - **Post-game review.** What killed you, and what to fix next game.
 
 ## Get it
@@ -68,7 +69,7 @@ Doty only uses what you could see yourself.
 
 - Never reads the game's memory.
 - Never presses a key for you.
-- Never looks up who's in your lobby. All its stats are about heroes, never players.
+- Never looks up who's in your lobby. Its stats are about heroes; the only player it looks up is you (your public profile and recent matches).
 - No telemetry, and no key of its own: the AI coach runs on your key, kept in Windows Credential Manager.
 
 It runs on Valve's official **Game State Integration**.
@@ -486,6 +487,12 @@ Copy `doty.example.toml` to `doty.toml` and edit it. The main knobs:
 - `voice.engine` (`auto`, `kokoro`, `elevenlabs`, `windows`), `voice.kokoro_voice` (`af_heart`,
   `am_michael`, `bm_george`, …; see `doty/kokoro.py`), `voice.eleven_voice`, `voice.voice` (Windows),
   `voice.rate`, `voice.min_priority`.
+- `coach.own_way`: when you build differently, `once` (default: one argument per item, with a reason from this
+  game), `follow` or `remind`. `coach.instructions`: your own words to the coach; Settings turns what it can into
+  `coach.never_suggest` and `coach.hero_builds`.
+- `overlay.mark_width` and `overlay.mark_opacity`: the drawings' line (2 px at 1080p) and how solid it is (0.65).
+- `app.study`: study heroes' public statistics in the background (on). `record.enabled`: keep a record of each
+  match on this PC (on; `record.keep_matches`, `record.keep_mb`). [SECURITY.md](SECURITY.md) says what's in it.
 
 After changing `[gsi]`, re-run `doty install` and restart Dota.
 
@@ -498,7 +505,7 @@ After changing `[gsi]`, re-run `doty install` and restart Dota.
 | Save calls | The instant you're bursted (or silenced mid-fight), the save item you have ready: "Glimmer yourself", "BKB now", "Manta the silence"; no AI needed |
 | Survival | Low HP while losing HP, "Get out now" on a burst with no save item to press, no TP scroll, death streaks, no buyback (gold or cooldown) late |
 | Economy | The next item part by part ("Buy Ogre Axe", then "Finish Black King Bar": parts you hold count), unspent gold (buyback kept from 30:00), items stuck in the stash, shop while dead |
-| Progression | Unspent skill point, level 6, last-hit pace at 10 and 20 minutes vs the hero's OpenDota median (not for supports: Doty works out your role from your lane and last hits) |
+| Progression | Unspent skill point, level 6, last hits at 10 and 20 minutes vs players of your hero, role and rank and the rank above (from the hero's card; the hero's OpenDota median until the card is studied; not for supports, and quiet in Turbo) |
 | Live strip (overlay) | Countdowns to the next runes and objectives, and the item you're building with the gold still to pay and when you'll have it |
 | Matchup | The game plan (which lineup a long game favours, from public win rates by game length), the enemy's usual power spikes, "two of them are dead: push" |
 | Coach (Claude) | Lane plan at the horn, why you died (from your last seconds: HP, stuns, unused items), "what now?", 5-minute plan + build (with how your next item's win rate falls off the later it lands), answers to spoken questions, instant calls it prepares (back off when low, push when two are dead) |
@@ -519,6 +526,10 @@ The tests cover:
 - the coach's streaming pipeline, run against a local fake of the Claude streaming API so no key is needed
 - push-to-talk, including a real Whisper transcription of a question spoken by Windows TTS
   (this one is skipped until a Whisper model has been downloaded)
+
+**The bench** scores what Doty says, line by line, against the game as it stood:
+`python -m doty.bench --scripted` (the demo match, rules only), `python -m doty.bench --latest` (your most
+recent match records), or a session log. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Code signing policy
 
