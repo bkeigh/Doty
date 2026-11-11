@@ -72,8 +72,16 @@ def _hero_lean(kb: "Knowledge | None", hero_npc: str) -> str:
 
 
 def observe(snap: "Snapshot", store: "GameStateStore", kb: "Knowledge | None" = None) -> Role | None:
-    """Call on every game-data update: watches the lane and keeps `store.memory["role"]` current. Cheap (a few
-    comparisons; the role is worked out once per game second while it can still change)."""
+    """Call on every game-data update: watches the lane and keeps `store.memory["role"]` current (and
+    `kb.role`, which the build follows). Cheap (a few comparisons; the role is worked out once per game second
+    while it can still change)."""
+    role = _observe(snap, store, kb)
+    if kb is not None:
+        kb.role = role
+    return role
+
+
+def _observe(snap: "Snapshot", store: "GameStateStore", kb: "Knowledge | None") -> Role | None:
     mem = store.memory
     if not snap.has_hero or not snap.in_game or snap.custom_game:
         return mem.get("role")

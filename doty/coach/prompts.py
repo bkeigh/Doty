@@ -58,6 +58,7 @@ Reading the state JSON:
 - "own_way" says how the player wants you to handle their own build choices. When it is there, an item you already pointed them at once is their call: don't bring it up again, unless it is in "may_argue_once", which gives the one reason from this game you may give, once, in a single short clause ("Your call, but Black King Bar: Lion and Lina chain-stun you."). Then follow their build.
 - Buying "now": only tell the player to buy something now when "next_item" says "eta": "affordable now", or it is the part named in "buy_now", or their "gold" plainly covers it. Otherwise say what to save for. Tell them to buy a Town Portal Scroll only when "tp" is "none", and once: Doty's own alert already says it.
 - "next_item_odds": for the player's next core items, how often this hero's players win when it's finished by each time (OpenDota). When the win rate falls off sharply and the player can't make the earlier time, a cheaper item that lands sooner, or a different one, may be the better buy; say so.
+- "hero_card" is what public match data says about playing this hero now, studied by Doty for the player's role, rank and game mode: the build players of that role finish and by when, item timings with win rates, last hits players of their rank and the rank above have, power spikes, the skill order, matchups against this lineup (with sample sizes) and game length. It is your source for builds, timings, pace and matchups: never use your own memory of Dota numbers (item timings, win rates, last-hit targets, patch values), which is out of date; when the card doesn't say, give the advice without a number. Name the patch only when the player asks.
 - "your_abilities" says what each of the player's abilities does: use it to understand how they work together. "pro_skill_order" is the order pro players level them on this patch.
 - "next_skill": when there are unspent points, this is the skill to take (the pro order from where the player is now). Say that one; don't invent your own order.
 - "Match brief" (when given, before the screenshots) lists who is in this game, which side a long game favours ("Timing"), and for each enemy what their abilities do, their cooldowns, which go through Black King Bar, whether their effect can be dispelled ("dispel: any" = a basic dispel such as Manta Style, Lotus Orb, Eul's on yourself or Nullifier and Diffusal on them removes it; "strong only" = only a strong dispel; "none" = nothing removes it), and when their players usually finish their big items. Use it to judge threats, itemize, and time fights (fight before an enemy's spike lands, or play safe after). "Answers to their lineup" are the items that counter these enemies, with why and against whom, already narrowed to what the player's hero can sensibly buy: prefer them over a generic build when the player keeps dying to that thing. "Allies' big spells" are the long-cooldown spells on the player's team: fights go best when they're ready. "Changed lately" lines are Valve's patch notes from the last few patches: trust them over what you remember of a hero.
@@ -284,14 +285,40 @@ def state_summary(snap: Snapshot, store: GameStateStore, kb: "Knowledge | None",
         summary["roshan"] = f"no kill seen yet; {timings.roshan_pit(snap.clock)}"
     if snap.clock >= 1140 and not mode.turbo:  # (Turbo's Tormentor time isn't known: nothing said about it)
         summary["tormentor_side"] = timings.tormentor_side(snap.clock)
+    card = hero_card(snap, store, kb, mode)
+    if card:
+        summary["hero_card"] = card
     if kb:
         summary.update(kb.summary_for_prompt(snap.hero_name, snap.clock, snap.all_item_names()))
     summary.update(lineup_summary(store.memory.get("lineup"), snap.team, snap.hero_id, kb,
-                                  store.memory.get("lineup_complete", False)))
+                                  store.memory.get("lineup_complete", False), card=bool(card)))
     dead = dead_now(store, snap.team, kb)
     if dead:
         summary["dead_now"] = dead
     return summary
+
+
+def _enemy_names(lineup: dict[str, list[str]] | None, team: str) -> list[str]:
+    team = (team or "").lower()
+    if not lineup or team not in ("radiant", "dire"):
+        return []
+    return [n for n in lineup.get("dire" if team == "radiant" else "radiant", []) if n]
+
+
+def hero_card(snap: Snapshot, store: GameStateStore, kb: "Knowledge | None",
+              mode: game_mode.Mode = game_mode.NORMAL) -> str:
+    """The player's hero card (knowledge/cards.py) for their role (knowledge/roles.py), rank (kb.bracket), this
+    game's mode and the enemies known so far: '' before the hero has been studied."""
+    if kb is None or not snap.hero_id:
+        return ""
+    from ..knowledge import cards
+
+    try:
+        return cards.prompt_block(snap.hero_id, store.memory.get("role"), getattr(kb, "bracket", 0), mode,
+                                  _enemy_names(store.memory.get("lineup"), snap.team), kb.cache_dir)
+    except Exception as exc:  # (a damaged card file must never cost the coach its look)
+        print(f"[doty] couldn't read the hero card: {exc!r}")
+        return ""
 
 
 def _item_text(item, item_name) -> str:
@@ -401,6 +428,7 @@ def match_brief(lineup: dict[str, list[str]] | None, team: str, own_npc: str, kb
              + ("" if complete else " (Not all known yet.)")]
     if timing:  # the game plan, as GamePlan decided it once (so the brief never contradicts the card)
         lines.append(timing)
+    lines += _card_lines(own_npc, enemies, kb)
     answers = _answers(enemies, own_npc, kb)
     if answers:
         lines.append("Answers to their lineup: " + "; ".join(answers) + ".")
@@ -430,18 +458,62 @@ ANSWERS_MAX = 4
 BIG_SPELL_CD = 60.0  # an ally's spell with a cooldown this long decides fights (Ravage, Black Hole, Chronosphere)
 
 
+def _card_lines(own_npc: str, enemies: list[str], kb: "Knowledge") -> list[str]:
+    """From the player's hero card: how their hero does against each of these enemies in public games at their
+    rank and mode (only clear effects, with games and a reason where the spells show one), and whether it wins
+    short or long games. Neither depends on the role, so the brief stays the same all match. [] without a card."""
+    own_id = int((kb.heroes.get(own_npc) or {}).get("id") or 0) if own_npc else 0
+    if not own_id:
+        return []
+    from ..knowledge import cards
+
+    try:
+        view = cards.card(own_id, None, getattr(kb, "bracket", 0), kb.mode, enemies, kb.cache_dir)
+    except Exception as exc:  # (a damaged card file must never cost the brief)
+        print(f"[doty] couldn't read the hero card: {exc!r}")
+        return []
+    if not view:
+        return []
+    out = []
+    mu = view.get("matchups") or {}
+    if mu:
+        where = f"public {'Turbo' if view['mode'] == 'turbo' else 'ranked'} games, " \
+                f"{cards.BRACKET_NAMES.get(mu['bracket'], 'all ranks')}, patch {view['patch']}"
+        shown = [f"{r['name']} {r['delta'] * 100:+.1f} win-rate points ({r['n']:,} games)"
+                 + cards.reason_text(r["why"]) for r in mu.get("lineup") or []]
+        out.append(f"Your matchups against them ({where}): "
+                   + ("; ".join(shown) if shown else "no clear edge either way against any of them") + ".")
+    gl = view.get("game_length") or {}
+    if gl:
+        lean = {"late": "wins more of the long games", "early": "wins more of the short games"}.get(
+            gl["lean"], "no clear lean between short and long games")
+        out.append(f"Your hero and game length: {lean} (under {gl['early_end_s'] // 60} min {gl['early'][0]:.0%}, "
+                   f"over {gl['late_start_s'] // 60} min {gl['late'][0]:.0%}).")
+    return out
+
+
 def _answers(enemies: list[str], own_npc: str, kb: "Knowledge") -> list[str]:
-    """The counter items this enemy lineup calls for (knowledge/counters.py), most-needed first, kept to
-    what the player's hero can sensibly buy: "Black King Bar (stuns, silences and hexes: Lion, Lina)"."""
+    """The counter items this enemy lineup calls for (knowledge/counters.py), kept to what the player's hero can
+    sensibly buy: "Black King Bar (stuns, silences and hexes: Lion, Lina)". Each is weighed against the lineup's
+    spells (`kb.item_case`): one whose case is weak is left out, and strong ones lead, with what they answer."""
     own_id = int((kb.heroes.get(own_npc) or {}).get("id") or 0) if own_npc else 0
     bought = (kb.bought_items(own_id) if own_id else None) or set()
-    found = [(f"item_{key}", why, who) for key, why, who in counters.counter_items(enemies)
-             if not kb.items or f"item_{key}" in kb.items]
+    found = []
+    for rank, (key, why, who) in enumerate(counters.counter_items(enemies)):
+        item = f"item_{key}"
+        if kb.items and item not in kb.items:
+            continue
+        case = kb.item_case(item, enemies) if hasattr(kb, "item_case") else None
+        if case is not None and case.weak:
+            continue  # (the table names it, but the lineup's spells say it answers little here)
+        strong = case is not None and case.strong
+        text = f"{kb.item_name(item)} ({case.reason if strong else why[0].lower() + ': ' + ', '.join(who[:3])})"
+        found.append((not strong, rank, item, text))
+    found.sort()
     # Only the answers this hero's players actually buy (Monkey King Bar on a carry, not Shiva's Guard); with
     # none of those, or no data for the hero, the two most-needed ones as they are.
-    mine = [entry for entry in found if entry[0] in bought]
-    return [f"{kb.item_name(item)} ({why[0].lower()}: {', '.join(who[:3])})"
-            for item, why, who in (mine[:ANSWERS_MAX] or found[:2])]
+    mine = [entry for entry in found if entry[2] in bought]
+    return [text for _weak, _rank, _item, text in (mine[:ANSWERS_MAX] or found[:2])]
 
 
 def _big_spells(allies: list[str], kb: "Knowledge") -> list[str]:
@@ -461,8 +533,9 @@ def _big_spells(allies: list[str], kb: "Knowledge") -> list[str]:
 
 
 def lineup_summary(lineup: dict[str, list[str]] | None, team: str, hero_id: int,
-                   kb: "Knowledge | None", complete: bool = True) -> dict[str, Any]:
-    """Allies, enemies and matchups as far as they're confirmed; otherwise a request to read them."""
+                   kb: "Knowledge | None", complete: bool = True, card: bool = False) -> dict[str, Any]:
+    """Allies, enemies and matchups as far as they're confirmed; otherwise a request to read them. With a hero
+    card (`card`), the matchups are the card's (by rank, with sample sizes), not OpenDota's thin pro table."""
     if not lineup or not any(lineup.values()):
         return {"lineup": "unknown: read it from the top bar and add a LINEUP line"}
     team = (team or "").lower()
@@ -476,7 +549,7 @@ def lineup_summary(lineup: dict[str, list[str]] | None, team: str, hero_id: int,
         out["lineup_complete"] = False
         out["lineup_note"] = ("only heroes confirmed by two reads are listed; others are not known yet. "
                               "Read the top bar and add a LINEUP line.")
-    if team in ("radiant", "dire") and kb and hero_id:
+    if team in ("radiant", "dire") and kb and hero_id and not card:
         vs = kb.matchups_vs(hero_id, out["enemies"])
         if vs:
             out["your_matchups"] = vs

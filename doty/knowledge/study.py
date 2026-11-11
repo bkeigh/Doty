@@ -420,6 +420,46 @@ def study_in_background(current: Iterable[int] = (), favourites: Iterable[int] =
     return {"built": built, "stopped": "stopped"}
 
 
+FIRST_GAP_S = 20.0  # between steps for the match's heroes and the player's own
+REST_GAP_S = 90.0  # between steps for every other hero: slowly (about two requests a minute)
+IDLE_S = 600.0  # everything current: look again this much later (a lineup may have come in, a patch landed)
+HELD_S = 1800.0  # the day's budget spent, or OpenDota failing: wait this long
+
+
+def watch(current: Callable[[], Iterable[int]], favourites: Callable[[], Iterable[int]], stop: threading.Event,
+          cache_dir: Path = CACHE_DIR, study: Study | None = None, calls_per_step: int = 3,
+          first_gap_s: float = FIRST_GAP_S, rest_gap_s: float = REST_GAP_S, idle_s: float = IDLE_S,
+          held_s: float = HELD_S) -> None:
+    """The app's background study, on its own daemon thread until `stop` is set: a few requests at a time for the
+    heroes of the current match (`current()`, asked again before every step, so a lineup read mid-game moves its
+    heroes to the front), then the player's most-played heroes (`favourites()`: hero ids only), then, slowly,
+    every other hero. Never raises: offline or failing, it waits and tries again later."""
+    study = study or Study(cache_dir, sleep=lambda s: stop.wait(s))
+    while not stop.is_set():
+        try:
+            first = priority(current(), favourites())
+            result = study.run(first, max_calls=calls_per_step, stop=stop)
+            if result["stopped"] == "step_budget":
+                stop.wait(first_gap_s)
+                continue
+            if result["stopped"] in ("day_budget", "paused_after_errors"):
+                stop.wait(held_s)
+                continue
+            rest = [h for h in study.hero_ids() if h not in first]
+            result = study.run(rest, max_calls=calls_per_step, stop=stop)
+            if result["stopped"] == "step_budget":
+                stop.wait(rest_gap_s)
+            elif result["stopped"] in ("day_budget", "paused_after_errors"):
+                stop.wait(held_s)
+            else:
+                stop.wait(idle_s)
+        except Paused:
+            stop.wait(held_s)
+        except Exception as exc:  # (never take the app down: the cards are a bonus)
+            study.log(f"[doty] study: {exc!r}")
+            stop.wait(held_s)
+
+
 # --- command line ---------------------------------------------------------------------------------------------
 def _resolve(names: list[str], cache_dir: Path) -> list[int]:
     out = []
