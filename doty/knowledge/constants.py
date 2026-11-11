@@ -28,7 +28,7 @@ from typing import Any
 import aiohttp
 
 from ..config import CACHE_DIR
-from . import curves
+from . import curves, judgement
 from . import mode as game_mode
 
 CONSTANTS_BASE = "https://raw.githubusercontent.com/odota/dotaconstants/master/build"
@@ -144,6 +144,17 @@ MADE_INTO = re.compile(r"\s+(into|to make|to finish)\b", re.IGNORECASE)
 BUY_REACH = 4  # words between the buy word and the item ("buy Yasha and then" Manta Style)
 
 
+def ability_entry(v: dict[str, Any]) -> dict[str, Any]:
+    """What Doty keeps of one dotaconstants ability (the file is ~2 MB): what the coach reads, and what the item
+    judgement reads (judgement.ability_facts: damage type, disable, single-target...)."""
+    behavior = v.get("behavior") if isinstance(v.get("behavior"), list) else [v.get("behavior")]
+    return {"dname": str(v.get("dname") or ""), "desc": str(v.get("desc") or ""),
+            "innate": bool(v.get("is_innate")), "hidden": "Hidden" in behavior,
+            "cd": _last_number(v.get("cd")), "bkb": str(v.get("bkbpierce") or "") == "Yes",
+            "dispel": DISPEL_WORDS.get(str(v.get("dispellable") or ""), ""),
+            "passive": "Passive" in behavior, **judgement.ability_facts(v)}
+
+
 def _name_pattern(names) -> "re.Pattern | None":
     """One regex for whole-word matches of any of `names`, longest first."""
     names = sorted({n for n in names if n}, key=len, reverse=True)
@@ -164,6 +175,14 @@ class Knowledge:
         # Items the player passed on this match (knowledge/build.py: they bought other things instead, could
         # afford it and didn't, or said so): item -> why. Never the build's next item again, never suggested.
         self.skipped: dict[str, str] = {}
+        # The other team as far as Doty knows it (npc names confirmed off the top bar; knowledge/build.py sets it on
+        # every update), and whether all five are known: only then does the build follow the item judgement.
+        self.enemies: tuple[str, ...] = ()
+        self.lineup_complete = False
+        self._cases: dict[tuple, dict[str, judgement.ItemCase]] = {}  # enemies -> each counter item's case
+        self._offers: dict[tuple, list[str]] = {}  # (hero, enemies) -> strong counter items its players buy
+        self._parts_index: dict[str, list[str]] = {}  # part -> the finished items made from it (see held_target)
+        self._parts_key: tuple = ()
         self._boots: frozenset[str] = frozenset()  # every pair of boots (see _boots_pairs)
         self._boots_key: tuple = ()
         self.hero_abilities: dict[str, dict[str, Any]] = {}  # npc name -> {abilities, talents, facets}
@@ -229,16 +248,9 @@ class Knowledge:
             self.hero_abilities = {k: v for k, v in hero_abilities.items() if isinstance(v, dict)}
         if isinstance(abilities, dict):  # keep only what the coach reads (the file is ~2 MB)
             wanted = {a for h in self.hero_abilities.values() for a in h.get("abilities", [])}
-            self.ability_info = {
-                name: {"dname": str(v.get("dname") or ""), "desc": str(v.get("desc") or ""),
-                       "innate": bool(v.get("is_innate")),
-                       "hidden": "Hidden" in (v.get("behavior") if isinstance(v.get("behavior"), list)
-                                              else [v.get("behavior")]),
-                       "cd": _last_number(v.get("cd")), "bkb": str(v.get("bkbpierce") or "") == "Yes",
-                       "dispel": DISPEL_WORDS.get(str(v.get("dispellable") or ""), ""),
-                       "passive": "Passive" in (v.get("behavior") if isinstance(v.get("behavior"), list)
-                                                else [v.get("behavior")])}
-                for name, v in abilities.items() if isinstance(v, dict) and (name in wanted or not wanted)}
+            self.ability_info = {name: ability_entry(v) for name, v in abilities.items()
+                                 if isinstance(v, dict) and (name in wanted or not wanted)}
+        self._cases.clear()  # (the item judgement reads the abilities)
         if isinstance(ability_ids, dict):
             self.ability_ids = {str(k): str(v) for k, v in ability_ids.items()}
         if isinstance(patches, list) and patches and isinstance(patches[-1], dict):
@@ -562,14 +574,21 @@ class Knowledge:
         of the phase before (so a player who is behind is pointed at the core they skipped, not at late-game
         items on top of nothing). A stepping stone (Perseverance) stands in the plan as the item its players
         build it into (Battle Fury), like `typical_items`. In Turbo the phases come twice as early. Callers
-        leave out what the player owns. (Rules ask on every update: kept until the data changes.)"""
+        leave out what the player owns. (Rules ask on every update: kept until the data changes.)
+
+        Once the whole enemy lineup is known, a counter item whose case against it is weak is left out (Black
+        King Bar against Juggernaut and Bristleback), and a strong one the plan lacks comes second, after the
+        item at the head of the plan (see `item_case`)."""
         popular = self._popular_plan(hero_npc, clock)
         custom = self.custom_plan.get(hero_npc)
-        if not custom:
-            return popular
         # The coach's plan is three or four items: once they're bought (or passed on), the build goes on with
         # what the hero's players buy, instead of running out.
-        return custom + [i for i in popular if i not in custom]
+        plan = custom + [i for i in popular if i not in custom] if custom else popular
+        if not self.lineup_complete:
+            return plan
+        plan = [i for i in plan if not self.weak_here(i)]
+        offers = [i for i in self.counter_offers(hero_npc) if i not in plan]
+        return plan[:1] + offers[:1] + plan[1:]
 
     def _popular_plan(self, hero_npc: str, clock: int) -> list[str]:
         """What this hero's players buy most in this phase of the game (see `build_plan`)."""
@@ -620,7 +639,8 @@ class Knowledge:
         (with repeats), `gold` what's free to spend.
 
         Each entry is {"item", "name", "cost", "left"} (`left`: gold still to pay, counting the parts you
-        hold). The first also has "short" (what your gold doesn't cover yet), "buy" (the item, or the part of
+        hold), and "why" for a counter item with a strong case against the enemy lineup (`item_case`'s
+        reason). The first also has "short" (what your gold doesn't cover yet), "buy" (the item, or the part of
         it your gold covers now; None while you save), "buy_cost" and "finish". Gold goes to one thing at a
         time, so only the first can ever be "buy now"."""
         target = self.next_target(hero_npc, clock, owned)
@@ -645,6 +665,9 @@ class Knowledge:
                     boots = True
             out.append({"item": item, "name": self.item_name(item), "cost": self.item_cost(item),
                         "left": self.cost_left(item, owned)})
+            case = self.case_here(item)
+            if case is not None and case.strong:  # a counter item: why it's worth it against this lineup
+                out[-1]["why"] = case.reason
         first = out[0]
         buy = self.next_buy(target, owned, gold)
         first.update(short=max(0, first["left"] - gold), buy=buy["buy"] if buy else None,
@@ -676,6 +699,132 @@ class Knowledge:
 
     def unskip(self, item: str) -> bool:
         return self.skipped.pop(item, None) is not None
+
+    def held_target(self, owned) -> str | None:
+        """The item the parts you hold point at, in Doty's plan or not: you're building it, so it's the one to
+        talk about finishing (Tranquil Boots and a Drum of Endurance in the bag: Boots of Bearing, "1,800 to
+        finish"). None when what you hold doesn't clearly point anywhere.
+
+        A part points at an item when you hold its recipe, two or more of its parts, or a part that goes into
+        nothing else (and isn't an item in its own right, like Tranquil Boots or Yasha). A part shared by several
+        items (an Ogre Axe) is no evidence on its own. Of several items, the one with the most gold already in it
+        wins. Never an item you passed on, nor a second pair of boots."""
+        names = set(owned)
+        # (Plain Boots of Speed are a part of every pair of boots: holding them isn't a start on any one.)
+        held = [i for i in owned if i != "item_boots"]
+        index = self._part_index()
+        candidates = {big for part in set(held) for big in index.get(part, ())}
+        if not candidates:
+            return None
+        have = self.owned_with_parts(names)
+        best: tuple[tuple[int, int], str] | None = None
+        for item in sorted(candidates):
+            if item in have or item in self.skipped or self.second_boots(item, names):
+                continue
+            mine = [p for p in dict.fromkeys(self.parts_of(item)) if p in names and p != "item_boots"]
+            recipe = any(p.startswith("item_recipe_") for p in mine)
+            only_here = [p for p in mine if len(index.get(p, ())) == 1 and not self._is_build_target(p)
+                         and self.item_cost(p) >= PART_MIN_COST]
+            if not (recipe or len(mine) >= 2 or only_here):
+                continue
+            left = self.cost_left(item, held)
+            paid = self.item_cost(item) - left
+            if paid > 0 and (best is None or (paid, -left) > best[0]):
+                best = ((paid, -left), item)
+        return best[1] if best else None
+
+    def _part_index(self) -> dict[str, list[str]]:
+        """part -> the finished items it goes straight into (a recipe goes into exactly one). Built once per item
+        list."""
+        key = (id(self.items), len(self.items))
+        if self._parts_key != key:
+            index: dict[str, list[str]] = {}
+            for item in self.items:
+                if self._is_build_target(item):
+                    for part in dict.fromkeys(self.parts_of(item)):
+                        index.setdefault(part, []).append(item)
+            self._parts_index, self._parts_key = index, key
+        return self._parts_index
+
+    # the enemy lineup, and whether a counter item is worth it against it -------------------------------------
+    def set_enemies(self, enemies, complete: bool = False) -> None:
+        """The other team as Doty knows it: npc names confirmed off the top bar (knowledge/build.py sets it on
+        every update). `complete` once all five are known."""
+        self.enemies = tuple(enemies)
+        self.lineup_complete = bool(complete) and len(self.enemies) >= 5
+
+    def item_case(self, item: str, enemies: list[str]) -> "judgement.ItemCase | None":
+        """Whether `item` is worth buying against these enemies (npc names or hero names): a score from 0 to 1, a
+        short reason to say ("it blocks Lion's Earth Spike and Hex and Lina's Light Strike Array") and the
+        (hero, ability) pairs it answers, all computed from the enemies' ability data (knowledge/judgement.py).
+        None for an item that isn't bought for the lineup (Battle Fury, Power Treads). Kept per lineup."""
+        npcs: list[str] = []
+        for name in enemies:
+            npc = name if name in self.heroes or name.startswith("npc_dota_hero_") else self.find_hero(name)
+            if npc and npc not in npcs:
+                npcs.append(npc)
+        key = (tuple(sorted(npcs)), id(self.ability_info), len(self.ability_info), id(self.items), len(self.items))
+        hit = self._cases.get(key)
+        if hit is None:
+            if len(self._cases) > 32:  # (a match has one lineup, a few while it's being read: never many)
+                self._cases.clear()
+            hit = self._cases[key] = judgement.cases(self, npcs)
+        return hit.get(item if item.startswith("item_") else f"item_{item}")
+
+    def case_here(self, item: str) -> "judgement.ItemCase | None":
+        """`item_case` against this match's enemies, as far as they're known (None while none are)."""
+        return self.item_case(item, list(self.enemies)) if self.enemies else None
+
+    def weak_here(self, item: str) -> bool:
+        """`item` is a counter item that answers little of this match's lineup. Only said once all five enemies
+        are known: with one unknown, the hero it answers may be the one missing."""
+        if not self.lineup_complete:
+            return False
+        case = self.case_here(item)
+        return case is not None and case.weak
+
+    def counter_offers(self, hero_npc: str) -> list[str]:
+        """Counter items with a strong case against the whole known lineup that this hero's players do buy,
+        best case first ([] until all five enemies are known, or without item data for the hero)."""
+        hero = self.heroes.get(hero_npc)
+        if not self.lineup_complete or not hero:
+            return []
+        hero_id = int(hero["id"])
+        pop = self.item_popularity.get(hero_id)
+        key = (hero_npc, self.enemies, id(pop), len(pop or ()), id(self.items), len(self.items),
+               id(self.ability_info), len(self.ability_info))
+        hit = self._offers.get(key)
+        if hit is None:
+            bought = self.bought_items(hero_id) or set()
+            cases = [c for i in judgement.ITEMS if (c := self.case_here(i)) is not None
+                     and c.strong and c.item in bought]
+            hit = [c.item for c in sorted(cases, key=lambda c: -c.score)]
+            if len(self._offers) > 32:
+                self._offers.clear()
+            self._offers[key] = hit
+        return hit
+
+    def cases_for_prompt(self, hero_npc: str, clock: int, owned: set[str] | None = None) -> dict[str, str]:
+        """The counter items the coach should weigh against this lineup, compactly: item name -> "strong
+        (0.8): it blocks ...". Only items that matter to this player (in the plan, bought by the hero's
+        players, or offered), not ones they have. Strong cases are given once any enemy is known (they're
+        facts about those heroes); weak ones only once all five are (an unknown hero might be what it answers)."""
+        if not self.enemies:
+            return {}
+        hero = self.heroes.get(hero_npc)
+        bought = (self.bought_items(int(hero["id"])) if hero else None) or set()
+        relevant = (set(self._popular_plan(hero_npc, clock)) | set(self.custom_plan.get(hero_npc) or ()) | bought
+                    | set(self.counter_offers(hero_npc)))
+        have = self.owned_with_parts(set(owned or ()))
+        out: dict[str, str] = {}
+        for short in judgement.ITEMS:
+            item = f"item_{short}"
+            case = self.case_here(item)
+            if case is None or item not in relevant or item in have or item in self.skipped:
+                continue
+            if case.strong or (case.weak and self.lineup_complete):
+                out[self.item_name(item)] = f"{'strong' if case.strong else 'weak'} ({case.score:.1f}): {case.reason}"
+        return out
 
     def _is_build_target(self, item: str) -> bool:
         """Finished items only: popularity lists include components (Broadsword
@@ -917,13 +1066,20 @@ class Knowledge:
         return {"item": item, "buy": part, "cost": cost, "left": left, "finish": False}
 
     def next_target(self, hero_npc: str, clock: int, owned) -> str | None:
-        """The item you're building now: the one in the plan you've started paying for (you hold a part of
-        it), else the first one you don't have. A second pair of boots is never it. (So a cheap early item you
-        skipped doesn't stay "next" while you're three parts into Battle Fury.)"""
+        """The item you're building now: the one the parts you hold clearly point at, in the plan or not
+        (`held_target`: Tranquil Boots and a Drum of Endurance make it Boots of Bearing); else the one in the plan
+        you've started paying for (you hold a part of it); else the first one you don't have. A second pair of
+        boots is never it. (So a cheap early item you skipped doesn't stay "next" while you're three parts into
+        Battle Fury.)"""
         names = set(owned)
         have = self.owned_with_parts(names)
         todo = [i for i in self.build_plan(hero_npc, clock)
                 if i not in have and i not in self.skipped and not self.second_boots(i, names)]
+        held_for = self.held_target(owned)
+        if held_for is not None:
+            # A step on the way to an item in the plan is that item (a Blade of Alacrity points at Yasha; with
+            # Manta Style in the plan, Manta is what you're building).
+            return next((i for i in todo if held_for in self.owned_with_parts({i})), held_for)
         # (Plain Boots of Speed are a part of every pair of boots: holding them isn't a start on any one.)
         held = [i for i in owned if i != "item_boots"]
         for item in todo:
@@ -937,9 +1093,9 @@ class Knowledge:
 
     def _usual_from_here(self, hero_npc: str, clock: int) -> list[str]:
         """The hero's usual items that still make sense at this point: once the laning stage is over, not the
-        cheap early ones (an Urn of Shadows at 30:00)."""
+        cheap early ones (an Urn of Shadows at 30:00), nor a counter item with a weak case against this lineup."""
         hero = self.heroes.get(hero_npc)
-        usual = self.typical_items(int(hero["id"]), 10) if hero else []
+        usual = [i for i in (self.typical_items(int(hero["id"]), 10) if hero else []) if not self.weak_here(i)]
         if self.mode.as_normal(clock) < PHASES[2][1]:
             return usual
         return [i for i in usual if self.item_cost(i) >= CARRY_OVER_MIN_COST or self._boots_upgrade(i)]
@@ -1096,12 +1252,16 @@ class Knowledge:
         have = self.owned_with_parts(names)
 
         def open_(item: str) -> bool:
-            return item not in have and item not in self.skipped and not self.second_boots(item, names)
+            return (item not in have and item not in self.skipped and not self.second_boots(item, names)
+                    and not self.weak_here(item))
 
         plan = [self.item_name(i) for i in self.build_plan(hero_npc, clock) if open_(i)][:PLAN_PER_PHASE]
         out: dict[str, Any] = {"popular_next_items": plan}
         if self.skipped:  # their build is their call: the coach is told, so it stops bringing these up
             out["passed_on"] = [self.item_name(i) for i in self.skipped if i not in have]
+        cases = self.cases_for_prompt(hero_npc, clock, names)
+        if cases:  # what each counter item answers in this lineup, computed from their spells
+            out["counter_item_cases"] = cases
         hero = self.heroes.get(hero_npc)
         if hero:
             typical = [self.item_name(i) for i in self.typical_items(int(hero["id"])) if open_(i)]

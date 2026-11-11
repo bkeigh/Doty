@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..advice import Advice, Priority
+from ..lineup import SIDES, other
 from ..state import GameStateStore, Snapshot
 
 if TYPE_CHECKING:
@@ -49,6 +50,7 @@ def observe(snap: Snapshot, store: GameStateStore, kb: "Knowledge | None") -> li
     (now in `kb.skipped`), usually none."""
     if kb is None:
         return []
+    lineup(snap, store, kb)
     mem = store.memory.get("build")
     if mem is None:  # a new match (its memory is empty): last game's passed-on items aren't this game's
         mem = store.memory["build"] = {"marks": {}, "seen": None}
@@ -73,6 +75,20 @@ def observe(snap: Snapshot, store: GameStateStore, kb: "Knowledge | None") -> li
     if total - mark >= max(SKIP_TIMES_COST * cost, SKIP_MIN_SPENT) and kb.skip(target, BOUGHT_OTHER):
         return [target]
     return []
+
+
+def lineup(snap: Snapshot, store: GameStateStore, kb: "Knowledge") -> None:
+    """Tell the knowledge who the other team is, as far as Doty has confirmed it off the top bar (the same
+    votes rules/matchup.py reads), so the build can weigh counter items against them (`Knowledge.item_case`).
+    A new match (empty memory) has no enemies yet."""
+    tracker = store.memory.get("lineup_votes")
+    team = (snap.team or "").lower()
+    enemies = tracker.confirmed(other(team)) if tracker is not None and team in SIDES else []
+    if tuple(enemies) != kb.enemies or (len(enemies) >= 5) != kb.lineup_complete:
+        kb.set_enemies(enemies, complete=len(enemies) >= 5)
+        mem = store.memory.get("build")
+        if mem is not None:
+            mem["seen"] = None  # (the target may change with the lineup: look again at once)
 
 
 def note(kb: "Knowledge", item: str, why: str = BOUGHT_OTHER) -> Advice:
