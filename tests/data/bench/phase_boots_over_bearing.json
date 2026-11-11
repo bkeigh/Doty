@@ -1,0 +1,19 @@
+{
+ "fixture": 1,
+ "kind": "watch",
+ "clock": 1213,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "Buy Phase Boots now, you have the gold.",
+ "said": true,
+ "state": {
+  "alive": true,
+  "fighting": false,
+  "gold": 3000,
+  "items": ["item_boots_of_bearing", "item_invis_sword"],
+  "tp": true,
+  "passed_on": []
+ },
+ "expect": "fail",
+ "checks": ["contradicts_inventory"],
+ "note": "synthetic, after the real case: Phase Boots pushed to a player wearing Boots of Bearing"
+}

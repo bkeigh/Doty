@@ -1,0 +1,19 @@
+{
+ "fixture": 1,
+ "kind": "watch",
+ "clock": 900,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "Save for Black King Bar and farm the jungle near your tower.",
+ "said": true,
+ "state": {
+  "alive": true,
+  "fighting": false,
+  "gold": 453,
+  "items": ["item_power_treads"],
+  "tp": true,
+  "passed_on": []
+ },
+ "expect": "pass",
+ "checks": [],
+ "note": "synthetic: a plan without \"now\" is fine at any gold"
+}

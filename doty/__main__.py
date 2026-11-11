@@ -203,6 +203,11 @@ def cmd_shortcut(args, cfg) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["bench"]:  # the bench has its own options (python -m doty.bench is the same thing)
+        from .bench.__main__ import main as bench_main
+
+        return bench_main(argv[1:])
     p = argparse.ArgumentParser(prog="doty", description="Doty — real-time Dota 2 coach")
     p.add_argument("--config", help="path to doty.toml")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -254,6 +259,9 @@ def main(argv: list[str] | None = None) -> int:
     sp.add_argument("--no-desktop", action="store_true", help="Start menu only")
     sp.add_argument("--remove", action="store_true", help="remove the shortcuts")
     sp.set_defaults(fn=cmd_shortcut)
+
+    # (listed here for --help; its own options are parsed by doty.bench, see the top of main)
+    sub.add_parser("bench", help="score Doty's lines on recorded matches and past games (doty bench --help)")
 
     sub.add_parser("doctor", help="check your setup").set_defaults(fn=cmd_doctor)
     sub.add_parser("voices", help="list Windows speech voices (none on Linux)").set_defaults(fn=cmd_voices)
