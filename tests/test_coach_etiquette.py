@@ -722,7 +722,7 @@ def test_the_stash_is_said_once_per_stash(monkeypatch):
 # the bench --------------------------------------------------------------------------------------------------------
 BAD_ANSWERS = [  # what a model really said in the two games (docs/ACCURACY_PLAN.md), at this match's moments
     {"kind": "death", "clock": 280, "reply": "You fought alone and died. Buy Black King Bar when you respawn."},
-    {"kind": "watch", "clock": 700, "reply": "SAY: Farm the jungle. Wait for your team before you fight."},
+    {"kind": "watch", "clock": 760, "reply": "SAY: Farm the jungle. Wait for your team before you fight."},
     {"kind": "watch", "clock": 1000, "reply": "SAY: Buy Black King Bar now, you have the gold."},
     {"kind": "watch", "clock": 1300, "reply": "SAY: Buy Manta Style next, then group with your team."},
 ]

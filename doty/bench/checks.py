@@ -27,6 +27,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
+from .. import speech
 from ..coach import llm
 from ..knowledge import build
 from ..knowledge import constants as kconst
@@ -94,8 +95,7 @@ def _owned_items(line: "Line") -> list[str] | None:
 
 def _danger(line: "Line") -> bool:
     """A call about staying alive: never noise, whenever and however often it comes."""
-    return (line.priority <= 1 or line.category == "survival" or line.category == "danger"
-            or bool(llm.RETREAT.search(line.text)))
+    return speech.danger(line.priority, line.category, line.text)  # (the speech gate's own test)
 
 
 STATED_GOLD = re.compile(r"(?<![\d,])(\d{1,2},\d{3}|\d{2,5})\s+gold\b", re.IGNORECASE)
@@ -375,21 +375,28 @@ def repeats(line: "Line", match: "Match") -> str | None:
 def rate(line: "Line", match: "Match") -> str | None:
     if _danger(line):
         return None
+    budget = _talk(match).per_min if match.talk else RATE_BUDGET
     heard = sum(1 for prev in match.lines[:line.index + 1]
                 if prev.said and not _danger(prev) and line.clock - RATE_WINDOW_S < prev.clock <= line.clock)
-    return f"line {heard} heard in a minute (budget {RATE_BUDGET})" if heard > RATE_BUDGET else ""
+    return f"line {heard} heard in a minute (budget {budget})" if heard > budget else ""
 
 
 @checker("coach_budget", 1, f"an unprompted coach line within {COACH_GAP_S} s of the last one", spoken_only=True)
 def coach_budget(line: "Line", match: "Match") -> str | None:
     if line.source != "coach" or line.category not in ("coach", "trigger") or _danger(line):
         return None
+    gap = _talk(match).coach_gap_s if match.talk else COACH_GAP_S
     for prev in reversed(match.lines[:line.index]):
-        if line.clock - prev.clock >= COACH_GAP_S:
+        if line.clock - prev.clock >= gap:
             break
         if prev.said and prev.source == "coach" and prev.category in ("coach", "trigger") and not _danger(prev):
             return f"{line.clock - prev.clock} s after the coach's last line"
     return ""
+
+
+def _talk(match: "Match") -> speech.Talk:
+    """The budget the match was played with ("How much Doty talks", speech.TALK)."""
+    return speech.TALK.get(match.talk or "normal", speech.TALK["normal"])
 
 
 def _buy_targets(text: str) -> frozenset[str]:

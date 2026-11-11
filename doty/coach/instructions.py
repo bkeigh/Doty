@@ -280,4 +280,8 @@ def apply(cfg: Any, reading: Reading, never_before: list[str] | None = None,
             setattr(cfg.suggest, topic, False)
     if reading.speak_up:
         coach.speak_up = reading.speak_up
+        # "Talk less" / "talk more" is about everything said out loud, not only the coach's looks (speech.py).
+        talk = {"important": "less", "every": "more"}.get(reading.speak_up)
+        if talk:
+            coach.talk = talk
     coach.instructions_style = list(reading.style)

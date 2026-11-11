@@ -51,6 +51,14 @@ SPEAK_UP = [
     ("every", "Every look"),
     ("never", "Never (feed only)"),
 ]
+# "How much Doty talks" (CoachConfig.talk; speech.py). (The Coach page's presets set `speak_up`: what a live look
+# offers; this decides what is heard.)
+TALK = [
+    ("", "Automatic (by your experience)"),
+    ("less", "Less: only what matters most"),
+    ("normal", "Normal"),
+    ("more", "More"),
+]
 # "When I go my own way" (CoachConfig.own_way; rules/own_way.py).
 OWN_WAY = [
     ("once", "Say it once, with a reason"),
@@ -1701,11 +1709,13 @@ class SettingsPage(QWidget):
                 if isinstance(control, Switch):
                     control.setChecked(not on)
                 setattr(self.draft.suggest, what[1], not on)
-            else:
-                value = what[1] if on else what[2]
-                if isinstance(control, QComboBox) and control.findData(value) >= 0:
-                    control.setCurrentIndex(control.findData(value))
-                coach.speak_up = value
+            else:  # ("speak", speak_up read, speak_up before, talk read, talk before)
+                coach.speak_up = what[1] if on else what[2]
+                talk = what[3] if on else what[4]
+                control = next((r.control for r, keys, _tab in self._tracked if ("coach", "talk") in keys), None)
+                if isinstance(control, QComboBox) and control.findData(talk) >= 0:
+                    control.setCurrentIndex(control.findData(talk))
+                coach.talk = talk
         self._dirty()
 
     def _reading_kb(self):
@@ -1758,7 +1768,7 @@ class SettingsPage(QWidget):
     def _read_instructions(self, text: str) -> None:
         """Saved new instructions: read them into settings, in the background (the AI may take a few seconds)."""
         cfg = self.ctl.cfg
-        before = (list(cfg.coach.never_suggest), dict(cfg.coach.hero_builds), cfg.coach.speak_up)
+        before = (list(cfg.coach.never_suggest), dict(cfg.coach.hero_builds), cfg.coach.speak_up, cfg.coach.talk)
         if not text.strip():
             self._read_extra, self._read_note = {}, ""
             self.ctl.set_preferences(instructions_style=[])
@@ -1775,16 +1785,17 @@ class SettingsPage(QWidget):
         """A reading is in: into the saved (and running) settings at once, with no restart, and shown to untick."""
         from ..coach import instructions
 
-        reading, (never, builds, speak_was) = result
+        reading, (never, builds, speak_was, talk_was) = result
         cfg = copy.deepcopy(self.ctl.cfg)
         instructions.apply(cfg, reading, never, builds)
         self._read_extra = {"topics": list(reading.topics_off)}
         if reading.speak_up:
-            self._read_extra["speak"] = (reading.speak_up, speak_was)
+            self._read_extra["speak"] = (reading.speak_up, speak_was, cfg.coach.talk, talk_was)
         self._read_note = tr("Read by the AI.") if reading.by == "ai" else tr("Read by Doty itself, without the AI.")
         self.ctl.set_preferences(suggest={t: False for t in reading.topics_off},
                                  never_suggest=cfg.coach.never_suggest, hero_builds=cfg.coach.hero_builds,
-                                 speak_up=cfg.coach.speak_up, instructions_style=cfg.coach.instructions_style)
+                                 speak_up=cfg.coach.speak_up, talk=cfg.coach.talk,
+                                 instructions_style=cfg.coach.instructions_style)
 
     def _on_preferences_changed(self) -> None:
         """The never-suggest list or a reading changed outside the page: shown at once. With nothing unsaved the page
@@ -2271,8 +2282,6 @@ class SettingsPage(QWidget):
                 "sooner and cost less. Your questions and plans always use the main model.",
                 self._combo(d.coach, "watch_model", [("claude-haiku-5-5", "Fast: Haiku 5.5 (recommended)"),
                                                      ("", "Same as the main model")])),
-            row(Glyph.CHAT, "When it talks", "Everything also shows in the feed.",
-                self._combo(d.coach, "speak_up", SPEAK_UP)),
             row(SG.EYE, "Let the coach see your screen", "Sends the Dota window with each look. Off: game data only.",
                 self._switch(d.coach, "use_screenshot")),
         ]), follows=True)
@@ -2281,6 +2290,10 @@ class SettingsPage(QWidget):
                 "reminders. Also on the Learn tab.", self._level_combo(d)),
             row(SG.STAR, "Your rank", "Draft help and builds use games at this rank.",
                 self._combo(d.coach, "bracket", [(k, v) for k, v in BRACKETS.items()])),
+            # (the rules and the coach together, so not behind the AI's switch; see speech.py)
+            row(Glyph.CHAT, "How much Doty talks", "Out loud, the alerts and the coach together. Danger calls and "
+                "answers you asked for are always said, and everything still shows in the feed.",
+                self._combo(d.coach, "talk", TALK)),
         ]))
         # (not behind the main switch: what Doty takes from them is enforced by the rules too, with the AI off)
         card.add(SettingsGroup("Your instructions", [self._instructions_row(d)]))
