@@ -97,7 +97,12 @@ class Doty:
         from .match_capture import MatchCapture
         from .review import MatchRecorder
 
+        from .match_record import MatchRecord, tag_rules
+
         self.capture = MatchCapture(cfg.capture, grab=grab_window, foreground=dota_is_foreground)
+        # The light record of every match (game data and what Doty said; no screenshots), on this PC only.
+        self.record = MatchRecord(cfg.record, self.store, voiced_max=cfg.voice.min_priority)
+        tag_rules(self.engine)  # (each line says which rule made it: the session log, the record, the bench)
         # The post-game review: deaths and what led to them, item timings, farm pace, three things to work on.
         self.review = MatchRecorder(self.kb)
         self.listen = VoiceInput(cfg.listen, self.bus, self.coach, self.voice,
@@ -134,6 +139,7 @@ class Doty:
         self.bus.subscribe(self.coach.note_alert)
         self.bus.subscribe(self.voice.on_advice)
         self.bus.subscribe(self.review.on_advice)
+        self.bus.subscribe(self.record.on_advice)
         self.bus.subscribe(self._note_marks)
 
     # sinks ---------------------------------------------------------------------
@@ -159,10 +165,15 @@ class Doty:
         if self._log is None:
             LOG_DIR.mkdir(parents=True, exist_ok=True)
             self._log = self._log_path.open("a", encoding="utf-8")
+        from .match_record import rule_of
+
         self._log.write(json.dumps({
             "t": time.time(), "clock": snap.clock if snap else None, "source": adv.source,
             "category": adv.category, "priority": int(adv.priority), "text": adv.text,
             "latency_ms": None if adv.latency_ms is None else round(adv.latency_ms, 2),
+            # Which rule said it, whether it was meant to be heard, and which match of this session it belongs
+            # to (a count, not the game's id): what the bench needs to score the line.
+            "rule": rule_of(adv), "speak": adv.speak, "match": self.store.generation,
         }) + "\n")
         self._log.flush()
 
@@ -180,6 +191,8 @@ class Doty:
     def _on_payload(self, payload: dict, received_t: float) -> None:
         self._match_gone = False
         snap = self.store.ingest(payload, received_t)
+        if self.record.on:  # (before the rules: a line is recorded after the update it came from)
+            self.record.on_payload(payload, snap)
         # The review sees each update first: before the rules, so a line the death itself triggers (the death
         # streak) isn't counted as a warning given before it; and before the mode is set for this update, so a
         # match that ended without a post-game screen is closed under its own mode, not the next match's.
@@ -197,7 +210,9 @@ class Doty:
         self.kb.bracket = int(getattr(self.cfg.coach, "bracket", 0) or 0)
         # The player's own build: an item they were pointed at and bought around leaves it (knowledge/build.py).
         for item in build.observe(snap, self.store, self.kb):
-            self.bus.publish(build.note(self.kb, item))
+            note = build.note(self.kb, item)
+            note.rule_id = "build"
+            self.bus.publish(note)
         self.engine.on_snapshot(snap)
         self.coach.on_snapshot(snap)
         if self.capture.on:
@@ -894,6 +909,7 @@ class Doty:
         self.voice.stop()
         self.hotkeys.stop()
         self.capture.close()
+        self.record.close()
         if self.overlay is not None:
             self.overlay.close()
             self.overlay.deleteLater()

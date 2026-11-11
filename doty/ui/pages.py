@@ -789,6 +789,40 @@ class IconBadge(QWidget):
         p.end()
 
 
+def study_progress(cache_dir=None) -> str:
+    """"Studied 84 of 127 heroes for 7.41f": how many hero cards are current for this patch (knowledge/cards.py),
+    from the files alone. '' before anything is known. Reads a hundred small files: call it off the GUI thread."""
+    import json as _json
+    from pathlib import Path
+
+    from ..config import CACHE_DIR
+    from ..knowledge import cards
+
+    base = Path(cache_dir or CACHE_DIR)
+    try:
+        heroes = _json.loads((base / "heroes.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        heroes = {}
+    folder = base / cards.CARDS_DIR
+    found = sorted(folder.glob("card_*.json")) if folder.is_dir() else []
+    total = len(heroes) if isinstance(heroes, dict) else 0
+    if not total and not found:
+        return ""
+    patch, _when = cards.current_patch(base)
+    done = 0
+    for path in found:
+        try:
+            card = _json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(card, dict) and not cards.is_stale(card, patch):
+            done += 1
+    total = max(total, done)
+    if patch:
+        return tr("Studied {done} of {total} heroes for {patch}.", done=done, total=total, patch=patch)
+    return tr("Studied {done} of {total} heroes.", done=done, total=total)
+
+
 class SettingsRow(QWidget):
     """One setting: its icon on a soft disc, its name and what it does, and the control on the right (under the
     words when the row is too narrow for both). A row you changed but haven't saved gets an amber edge."""
@@ -2196,6 +2230,9 @@ class SettingsPage(QWidget):
         else:
             self._base = copy.deepcopy(self.ctl.cfg)  # what the page started from, to save only your changes
             self.draft = d = copy.deepcopy(self.ctl.cfg)
+            preview = getattr(self.ctl, "preview_drawing", None)
+            if preview is not None:  # (a discarded try of the drawing sliders goes back to what's saved)
+                preview(d.overlay.mark_width, d.overlay.mark_opacity)
         # A rebuild (save, discard, coming back to the page) keeps your place and Advanced open if it was.
         was_at = self.scroll.verticalScrollBar().value() if self.scroll.widget() is not None else 0
         was_open = getattr(self, "_advanced", None) is not None and self._advanced.is_open
@@ -2376,10 +2413,11 @@ class SettingsPage(QWidget):
         on = self._switch(d.overlay, "enabled")
         card.add(SettingsGroup("", [row(SG.CARDS, "Show cards over Dota", "Needs Borderless Window mode in Dota's "
                                         "video settings.", on)], self._color))
+        draw = self._switch(d.overlay, "draw")
         card.add(SettingsGroup("", [
             row(SG.POINTER, "Let the coach point things out", "It can circle a hero, draw an arrow to safety or box "
-                "an item right on your screen, with a pointer that shows where to look.",
-                self._switch(d.overlay, "draw")),
+                "an item right on your screen, with a pointer that shows where to look.", draw),
+            *self._drawing_rows(d, draw),
             row(SG.GAUGE, "Live strip above the cards", "Countdowns to the next runes and objectives, and the item "
                 "you're building with the gold still to pay.", self._switch(d.overlay, "strip")),
             row(SG.RESIZE, "Size", "On top of the automatic sizing.",
@@ -2461,6 +2499,7 @@ class SettingsPage(QWidget):
                 "screenshots while Dota is the active window.", self._switch(d.coach, "screen_only")),
             row(SG.MAP, "Minimap side", "Match Dota's HUD setting so the coach reads the right corner.",
                 self._combo(d.coach, "minimap_side", [("left", "Left (default)"), ("right", "Right")])),
+            self._study_row(d),
         ]))
         card.add(SettingsGroup("Display and data", [
             row(SG.ANTENNA, "Hide from streams and recordings", "OBS, Discord and other screen capture won't see the "
@@ -2468,6 +2507,8 @@ class SettingsPage(QWidget):
             row(SG.CHART, "Show technical details", "Timings on the Coach page, in the feed and on each alert card: "
                 "updates a second, milliseconds to each card, the speech model.",
                 self._switch(d.overlay, "show_latency")),
+            row(SG.CHART, "Keep a record of each match", self._record_hint(d), self._record_row(d),
+                [("record", "enabled")]),
             row(SG.VIDEO, "Capture matches", self._capture_hint(), self._capture_row(d), [("capture", "enabled")]),
         ]))
 
@@ -2575,6 +2616,102 @@ class SettingsPage(QWidget):
                    SG.CHECKLIST)
         if attention:
             set_icon_color(self.setup_btn._icon, AMBER)
+
+    # the coach's drawings --------------------------------------------------------------------------------------
+    def _drawing_rows(self, d, draw: Switch) -> list[SettingsRow]:
+        """How thick and how solid the coach's drawings are (OverlayConfig.mark_width, mark_opacity). They change
+        the drawings on screen as you move them (saving keeps them); greyed out while drawing is off."""
+        def live() -> None:
+            self.ctl.preview_drawing(d.overlay.mark_width, d.overlay.mark_opacity)
+
+        width = self._slider(2, 12, int(round(max(1.0, min(6.0, d.overlay.mark_width)) * 2)),
+                             lambda v: f"{v / 2:g} px",
+                             lambda v: (setattr(d.overlay, "mark_width", v / 2), live()))
+        opacity = self._slider(30, 100, int(round(max(0.3, min(1.0, d.overlay.mark_opacity)) * 100)),
+                               lambda v: f"{v}%", lambda v: (setattr(d.overlay, "mark_opacity", v / 100), live()),
+                               step=5)
+        rows = [self.setting_row(SG.EDIT, "Drawing thickness", "The line of the circles and arrows, at 1080p (it "
+                                 "grows with your game window).", width, [("overlay", "mark_width")]),
+                self.setting_row(SG.EYE, "Drawing opacity", "Lower lets more of the game show through. Labels "
+                                 "stay readable.", opacity, [("overlay", "mark_opacity")])]
+
+        def follow(on: bool) -> None:
+            for r in rows:
+                r.setEnabled(on)
+        follow(draw.isChecked())
+        draw.toggled.connect(follow)
+        self._drawing = rows
+        return rows
+
+    # the match record and hero study ------------------------------------------------------------------------------
+    def _record_hint(self, d) -> str:
+        from ..match_record import record_folder
+
+        return tr("Keeps each match's game data (no screenshots, no Steam ID, name or match id) and every line Doty "
+                  "said, in {folder} on this PC, so its coaching can be checked and improved. Nothing is sent "
+                  "anywhere, and it isn't in Documents, so OneDrive doesn't sync it. Keeps the last {n} matches, "
+                  "{mb} MB at most. Delete records removes them all.",
+                  folder=str(record_folder(d.record)), n=d.record.keep_matches, mb=d.record.keep_mb)
+
+    def _record_row(self, d) -> QWidget:
+        box = QWidget()
+        lay = QHBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(8)
+        delete = button("Delete records", "link")
+        delete.clicked.connect(lambda _c=False: self._delete_records(delete))
+        self._delete_records_btn = delete
+        lay.addWidget(delete)
+        lay.addWidget(self._switch(d.record, "enabled"))
+        return box
+
+    def _delete_records(self, btn) -> None:
+        """Two clicks: the first asks, the second deletes (they can't be brought back)."""
+        if not getattr(btn, "_armed", False):
+            btn._armed = True
+            set_button(btn, "Click again to delete")
+            QTimer.singleShot(4000, lambda: self._disarm(btn))
+            return
+        btn._armed = False
+        n = self.ctl.delete_records()
+        set_button(btn, "Delete records")
+        self.toast.show_message(tr("Deleted {n} match records.", n=n) if n != 1 else tr("Deleted 1 match record."))
+
+    @staticmethod
+    def _disarm(btn) -> None:
+        try:
+            if getattr(btn, "_armed", False):
+                btn._armed = False
+                set_button(btn, "Delete records")
+        except RuntimeError:  # rebuilt meanwhile
+            pass
+
+    study_status = Signal(str)
+
+    def _study_row(self, d) -> SettingsRow:
+        """Study heroes in the background (AppConfig.study), with how far it has got: read from the card files on
+        a worker thread (a hundred small files: never on the screen's thread)."""
+        r = self.setting_row(SG.CAP, "Study heroes in the background", "While Doty runs, it builds a card for each "
+                             "hero from public statistics for this patch (builds, skills, matchups), so the coach "
+                             "knows a hero before you play it.", self._switch(d.app, "study"))
+        status = label("", "faint", wrap=True)
+        status.setStyleSheet("font-size: 8.5pt;")
+        status.hide()
+        r.texts.addWidget(status)
+        self._study_label = status
+        if not getattr(self, "_study_wired", False):
+            self.study_status.connect(self._on_study_status)
+            self._study_wired = True
+        threading.Thread(target=lambda: self.study_status.emit(study_progress()), daemon=True,
+                         name="doty-study-status").start()
+        return r
+
+    def _on_study_status(self, text: str) -> None:
+        try:
+            self._study_label.setText(text)
+            self._study_label.setVisible(bool(text))
+        except (RuntimeError, AttributeError):
+            pass
 
     @staticmethod
     def _capture_hint() -> str:

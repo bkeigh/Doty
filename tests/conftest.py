@@ -18,6 +18,11 @@ def _no_real_kokoro(tmp_path_factory):
     os.environ["DOTY_KOKORO_DIR"] = str(tmp_path_factory.mktemp("kokoro-none"))
     os.environ["DOTY_ART"] = "0"  # no hero portraits or item icons from the internet either
     os.environ["DOTY_STUDY"] = "0"  # nor the app's background study of public match data
+    # Match records (on by default) go to a throwaway folder, never the real one in %LOCALAPPDATA%.
+    from doty import config, match_record
+
+    records = tmp_path_factory.mktemp("records")
+    config.RECORD_DIR = match_record.RECORD_DIR = records
 
 
 @pytest.fixture(autouse=True)

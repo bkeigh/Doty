@@ -31,6 +31,7 @@ def user_dirs(platform: str = sys.platform, env=os.environ, home: Path | None = 
 APPDATA_DIR, _LOCAL_DIR = user_dirs()
 CACHE_DIR = _LOCAL_DIR / "cache"
 LOG_DIR = _LOCAL_DIR / "logs"
+RECORD_DIR = _LOCAL_DIR / "records"  # match records (match_record.py): this PC only, not synced
 
 
 @dataclass
@@ -246,6 +247,23 @@ class AppConfig:
     # You've chosen a language (the first-run choice, the flag in the top bar, or Settings); until then the
     # choice is offered once when Doty opens.
     language_picked: bool = False
+    # Study heroes in the background: build each hero's card (builds, skills, matchups for this patch) from
+    # public statistics while Doty runs (knowledge/study.py), so the coach knows them before you play them.
+    study: bool = True
+
+
+@dataclass
+class RecordConfig:
+    """A light record of every match, on this PC only: the game data (no screenshots; no Steam ID, account ID,
+    names or match id) and every line Doty said, so its coaching can be checked against what really happened
+    (`python -m doty.bench --latest`). Kept in RECORD_DIR, which isn't in Documents, so OneDrive doesn't sync it.
+    About 1 MB a match once packed. The oldest records go once there are more than `keep_matches` or they add up
+    to more than `keep_mb`."""
+
+    enabled: bool = True
+    keep_matches: int = 30
+    keep_mb: int = 200
+    folder: str = ""  # "" = RECORD_DIR
 
 
 @dataclass
@@ -304,6 +322,7 @@ class Config:
     listen: ListenConfig = field(default_factory=ListenConfig)
     app: AppConfig = field(default_factory=AppConfig)
     capture: CaptureConfig = field(default_factory=CaptureConfig)
+    record: RecordConfig = field(default_factory=RecordConfig)
     source_path: Path | None = None
     load_problem: str = ""  # why the settings file couldn't be read as written (shown in the app)
 

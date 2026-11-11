@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import bisect
 import contextlib
+import gzip
 import io
 import json
 import re
@@ -37,6 +38,7 @@ from ..coach.backends import Backend
 from ..config import Config
 from ..knowledge import build, roles
 from ..knowledge import mode as game_mode
+from ..match_record import rule_of, spoken, tag_rules
 from ..rules import RuleEngine
 from ..rules.economy import spendable
 from ..sim import ScriptedMatch
@@ -68,19 +70,29 @@ class SimClock:
 
 # inputs -------------------------------------------------------------------------------------------------------------
 def read_recording(path: Path) -> Iterator[tuple[float, dict]]:
-    """(wall time, payload) from a capture folder (its gsi.jsonl) or a gsi.record_dir recording: both write one
-    {"t": unix time, "payload": {...}} per line. A line that doesn't parse (a file cut off mid-write) is skipped."""
+    """(wall time, payload) from a capture folder (its gsi.jsonl), a match record (gsi.jsonl.gz, or gsi.jsonl while
+    its match is still on) or a gsi.record_dir recording: all write one {"t": unix time, "payload": {...}} per
+    line. A line that doesn't parse (a file cut off mid-write) is skipped."""
     path = Path(path)
     if path.is_dir():
-        path = path / "gsi.jsonl"
-    with path.open(encoding="utf-8") as fh:
-        for raw in fh:
+        path = path / "gsi.jsonl" if (path / "gsi.jsonl").exists() else path / "gsi.jsonl.gz"
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, "rt", encoding="utf-8") as fh:
+        for raw in _lines(fh):
             try:
                 entry = json.loads(raw)
             except ValueError:
                 continue
             if isinstance(entry, dict) and isinstance(entry.get("payload"), dict):
                 yield float(entry.get("t") or 0.0), entry["payload"]
+
+
+def _lines(fh) -> Iterator[str]:
+    """A file's lines; a packed file cut off mid-write ends where it was cut instead of failing."""
+    try:
+        yield from fh
+    except (EOFError, OSError):
+        return
 
 
 def scripted_payloads(end_clock: int = 26 * 60 + 30, dt: float = 1.0,
@@ -198,9 +210,8 @@ class Replay:
         self.engine = RuleEngine(self.store, self.bus, self.cfg.rules, kb, rules=None if rules else [])
         self.engine.level_of = lambda: level
         self.engine.suggest = self.cfg.suggest
-        self.engine.prefs = self.cfg.coach  # (as the app: "When I go my own way", never-suggest, hero builds)
-        for rule in self.engine.rules:
-            rule.evaluate = _tagged(rule.evaluate, rule.id)  # (which rule said each line)
+        self.engine.prefs = self.cfg.coach  # (as the app does: items never to suggest, the player's own builds)
+        tag_rules(self.engine)  # (which rule said each line)
         self.coach = None
         if backend is not None:
             from ..coach import Coach
@@ -277,7 +288,7 @@ class Replay:
         if kb is not None:
             for item in build.observe(snap, store, kb):
                 note = build.note(kb, item)
-                note.bench_rule = "build"
+                note.rule_id = "build"
                 self.bus.publish(note)
         self.engine.on_snapshot(snap)
         if self.coach is not None:
@@ -287,7 +298,8 @@ class Replay:
             if not m.lines and m.start_clock == m.end_clock == 0:
                 m.start_clock = m.end_clock = snap.clock
             m.start_clock, m.end_clock = min(m.start_clock, snap.clock), max(m.end_clock, snap.clock)
-            second = (store.generation, snap.clock)
+            # (without the rules, the lines come from a log or record: each update can be the one a line came from)
+            second = (store.generation, snap.clock) if self.engine.rules else id(snap)
             if second != self._second:
                 self._second = second
                 self.timeline.append((wall_t, store.generation, self._context(snap)))
@@ -318,25 +330,14 @@ class Replay:
             return
         self._seen.add(adv.id)
         snap = self.store.current
-        voiced = self.cfg.voice.min_priority
-        spoken = (adv.source == "coach" and adv.category == "coach" and adv.priority <= 2) or (
-            adv.speak and adv.priority <= voiced)
-        rule = getattr(adv, "bench_rule", "") or (f"coach:{adv.category}" if adv.source == "coach" else "")
         m = self._match()
-        m.lines.append(Line(clock=snap.clock if snap else 0, text=text, source=adv.source, rule=rule,
-                            priority=int(adv.priority), category=adv.category, spoken=bool(spoken),
+        m.lines.append(Line(clock=snap.clock if snap else 0, text=text, source=adv.source, rule=rule_of(adv),
+                            priority=int(adv.priority), category=adv.category,
+                            spoken=spoken(adv, self.cfg.voice.min_priority),
                             ctx=self._context(snap), index=len(m.lines)))
 
     def matches(self) -> list[Match]:
         return [m for m in self._matches.values() if m.lines or m.end_clock > m.start_clock]
-
-
-def _tagged(evaluate, rule_id: str):
-    def run(ctx):
-        for adv in evaluate(ctx):
-            adv.bench_rule = rule_id
-            yield adv
-    return run
 
 
 def attach_states(lines: list[Line], timeline: list[tuple[float, int, Context]], max_gap_s: float = 5.0) -> int:

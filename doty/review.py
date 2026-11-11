@@ -116,6 +116,9 @@ class Review:
     # usually do). Public statistics; only shown when the gap is real.
     item_odds: list[tuple[str, float, float]] = field(default_factory=list)
     bought: list[tuple[str, int]] = field(default_factory=list)  # (item key, clock): to pick a match back up
+    # Every item that arrived, parts and consumables included, once per copy: (item key, clock). What the bench
+    # needs to know what you held when a line was said (`bought` has only the big items).
+    purchases: list[tuple[str, int]] = field(default_factory=list)
     deaths: list[Death] = field(default_factory=list)
     lh_per_min_10: float | None = None
     benchmark_lh_per_min: float | None = None  # the hero's median over whole games (OpenDota)
@@ -137,6 +140,7 @@ class Review:
         d["item_pace"] = [tuple(i) for i in d.get("item_pace") or []]
         d["item_odds"] = [tuple(i) for i in d.get("item_odds") or []]
         d["bought"] = [tuple(i) for i in d.get("bought") or []]
+        d["purchases"] = [tuple(i) for i in d.get("purchases") or []]
         d["deaths"] = [Death.from_dict(x) for x in d.get("deaths") or []]
         # (reviews saved before `demo` existed: the scripted match's id says so)
         d["demo"] = bool(d.get("demo")) or str(d.get("match_id") or "").startswith(DEMO_MATCH)
@@ -331,6 +335,8 @@ class MatchRecorder:
         self._seen_items: set[str] = set()
         self._items: list[tuple[str, int]] = []
         self._bought: list[tuple[str, int]] = []  # (item key, clock) for the same items, for timings
+        self._purchases: list[tuple[str, int]] = []  # (item key, clock) for every copy of every item that arrived
+        self._held: Counter[str] | None = None  # what was held at the last update (None: not seen yet)
         self._minutes: list[dict[str, int]] = []
         self._deaths: list[Death] = []
 
@@ -421,6 +427,7 @@ class MatchRecorder:
         self._deaths = list(old.deaths)
         self._items = list(old.items)
         self._bought = list(old.bought)
+        self._purchases = list(old.purchases)
         self._seen_items |= {key for key, _clock in old.bought}
         self._minutes = list(old.minutes)
         self._duration = max(self._duration, old.duration)
@@ -482,6 +489,17 @@ class MatchRecorder:
         self._deaths.append(death)
 
     def _check_items(self, snap: Snapshot) -> None:
+        if snap.has_items_section:
+            # Every copy that arrived since the last update (a second Ogre Axe too). Doty joining a game late, or
+            # picking a saved match back up, doesn't know when the items already held were bought: those aren't
+            # new purchases.
+            held = Counter(snap.item_list() + ([snap.teleport.name] if snap.teleport else []))
+            if self._held is None and snap.clock <= JOINED_LATE_S and not self._purchases:
+                self._held = Counter()
+            if self._held is not None:
+                for item, n in sorted(held.items()):
+                    self._purchases += [(item, snap.clock)] * max(0, n - self._held[item])
+            self._held = held
         for it in snap.inventory + snap.backpack + snap.stash:
             if it.name in self._seen_items:
                 continue
@@ -547,6 +565,7 @@ class MatchRecorder:
             xpm=_int(p.get("xpm")),
             items=list(self._items),
             bought=list(self._bought),
+            purchases=list(self._purchases),
             deaths=list(self._deaths),
             minutes=list(self._minutes),
             saved_at=time.time(),
