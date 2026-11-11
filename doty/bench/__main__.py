@@ -1,5 +1,7 @@
 """python -m doty.bench: score Doty's lines on recorded matches, past session logs, or the scripted match.
 
+    python -m doty.bench --latest [N]                     # the N most recent match records (match_record.py)
+    python -m doty.bench RECORD_FOLDER                    # one match record
     python -m doty.bench CAPTURE_FOLDER_OR_RECORDING.jsonl [--answers answers.json] [--json out.json]
     python -m doty.bench session-*.jsonl                  # what was really said in past games
     python -m doty.bench RECORDING --said session.jsonl   # what was said, judged against the recorded game
@@ -49,6 +51,9 @@ def main(argv: list[str] | None = None) -> int:
                                 description="Score every line Doty says against the game at that moment.")
     p.add_argument("inputs", nargs="*", help="capture folders, game-data recordings (.jsonl) or session logs")
     p.add_argument("--scripted", action="store_true", help="replay the scripted demo match")
+    p.add_argument("--latest", nargs="?", type=int, const=1, metavar="N",
+                   help="score the N most recent match records (default 1)")
+    p.add_argument("--records", help="folder of match records (default: Doty's own)")
     p.add_argument("--minutes", type=float, default=26.5, help="length of the scripted match")
     p.add_argument("--answers", help="replay the AI coach with these recorded answers (.json list or .jsonl)")
     p.add_argument("--said", help="a session log: score its lines against the recording's game state")
@@ -104,9 +109,24 @@ def main(argv: list[str] | None = None) -> int:
         kb = _kb(args, [8])  # (the scripted match plays Juggernaut)
         payloads = scripted_payloads(end_clock=int(args.minutes * 60))
         matches += Replay(kb, backend=backend, label="scripted").run(payloads)
+    from .records import is_record, latest, read_info, record_match
+
     inputs = _expand(args.inputs)
+    if args.latest:
+        found = latest(Path(args.records) if args.records else None, args.latest)
+        if not found:
+            print("[bench] no match records yet: play a match with Doty running (Settings > Advanced > "
+                  "Keep a record of each match)", file=sys.stderr)
+        inputs += found
+    records = [f for f in inputs if is_record(f)]
     logs = [f for f in inputs if f.is_file() and is_session_log(f)]
-    recordings = [f for f in inputs if f not in logs]
+    recordings = [f for f in inputs if f not in logs and f not in records]
+    if records:
+        kb = _kb(args, {int(read_info(f).get("hero_id") or 0) for f in records} - {0})
+        for folder in records:
+            m = record_match(folder, kb)
+            if m is not None:
+                matches.append(m)
     if logs:
         reviews = Path(args.reviews) if args.reviews else logs[0].parent.parent / "reviews"
         kb = _kb(args, _hero_ids_from_reviews(reviews))

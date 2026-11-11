@@ -56,7 +56,9 @@ def split_matches(rows: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
             continue
         t = float(row.get("t") or 0.0)
         new = (last_clock is None or clock < last_clock - NEW_MATCH_BACK_S
-               or (last_t is not None and t - last_t > NEW_MATCH_GAP_S))
+               or (last_t is not None and t - last_t > NEW_MATCH_GAP_S)
+               # (newer logs number the session's matches: a change is a new match, whatever the clock does)
+               or ("match" in row and out and out[-1] and row["match"] != out[-1][-1].get("match", row["match"])))
         if new:
             out.append([])
         out[-1].append(row)
@@ -104,7 +106,8 @@ def _contexts(review: dict[str, Any] | None, kb):
         return lambda clock: Context(clock=clock)
     hero = str(review.get("hero") or "")
     bought = []
-    for entry in review.get("bought") or []:
+    # Every purchase, parts included (newer reviews), else the big items only.
+    for entry in review.get("purchases") or review.get("bought") or []:
         if isinstance(entry, (list, tuple)) and len(entry) == 2:
             bought.append((str(entry[0]), int(entry[1])))
     if not bought and kb is not None:  # (older reviews: only display names)
@@ -140,17 +143,32 @@ def log_matches(path: Path, kb=None, reviews_dir: Path | None = None, min_minute
             continue
         ctx_at = _contexts(review, kb)
         m = Match(label=f"{path.stem}#{n}", kind="log", kb=kb, start_clock=start, end_clock=end)
-        m.notes.append("session log: no game state; whether a line was voiced is estimated from its priority")
+        m.notes.append("session log: no game state" + ("" if any("speak" in r for r in segment) else
+                                                       "; whether a line was voiced is estimated from its priority"))
         m.notes.append("with its review: purchase times and TP at deaths" if review else
                        "no review found: inventory and TP checks skipped")
         for row in segment:
-            clock = int(row["clock"])
-            m.lines.append(Line(clock=clock, text=str(row["text"]).strip(), source=str(row.get("source") or ""),
-                                rule="", priority=int(row.get("priority") or 3),
-                                category=str(row.get("category") or "general"), spoken=None,
-                                ctx=ctx_at(clock), index=len(m.lines), t=float(row.get("t") or 0.0)))
+            m.lines.append(line_from_row(row, ctx_at(int(row["clock"])), len(m.lines)))
         out.append(m)
     return out
+
+
+def line_from_row(row: dict[str, Any], ctx: Context | None, index: int, voiced_max: int = 3) -> Line:
+    """A line as a session log or a match record wrote it. Newer files say which rule said it and whether it was
+    meant to be heard ("spoken" in a record, "speak" in a session log); older ones don't, and then a line at
+    NORMAL priority or above counts as said."""
+    priority = int(row.get("priority") or 3)
+    source, category = str(row.get("source") or ""), str(row.get("category") or "general")
+    if isinstance(row.get("spoken"), bool):
+        spoken = row["spoken"]
+    elif isinstance(row.get("speak"), bool):
+        coach_card = source == "coach" and category == "coach" and priority <= 2  # (voiced a sentence at a time)
+        spoken = coach_card or (row["speak"] and priority <= voiced_max)
+    else:
+        spoken = None
+    return Line(clock=int(row.get("clock") or 0), text=str(row.get("text") or "").strip(), source=source,
+                rule=str(row.get("rule") or ""), priority=priority, category=category, spoken=spoken, ctx=ctx,
+                index=index, t=float(row.get("t") or 0.0))
 
 
 def is_session_log(path: Path) -> bool:
