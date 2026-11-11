@@ -25,6 +25,7 @@ from .. import marks as marklib
 from ..advice import Advice, AdviceBus, Priority
 from ..config import CoachConfig
 from .. import triggers as triggerlib
+from ..knowledge import build as buildlib
 from ..knowledge import mode as game_mode
 from ..lineup import Lineup, other
 from ..rules.economy import spendable
@@ -49,8 +50,37 @@ BUILD_LINE = re.compile(r"^\s*BUILD:\s*(.+)$", re.MULTILINE)
 LINEUP_LINE = re.compile(r"^\s*LINEUP:\s*radiant\s*=\s*(.+?)\s*\|\s*dire\s*=\s*(.+?)\s*$",
                          re.MULTILINE | re.IGNORECASE)
 DRAFT_LINE = re.compile(r"^\s*DRAFT:\s*(.+)$", re.MULTILINE | re.IGNORECASE)
-TAG_LINE = re.compile(r"^\s*(BUILD|LINEUP|DRAW|DRAFT|TRIGGER):.*$", re.MULTILINE | re.IGNORECASE)
-TAGS = ("BUILD:", "LINEUP:", "DRAW:", "DRAFT:", "TRIGGER:")
+SKIP_LINE = re.compile(r"^\s*SKIP:\s*(.+)$", re.MULTILINE)
+TAG_LINE = re.compile(r"^\s*(BUILD|LINEUP|DRAW|DRAFT|TRIGGER|SKIP):.*$", re.MULTILINE | re.IGNORECASE)
+TAGS = ("BUILD:", "LINEUP:", "DRAW:", "DRAFT:", "TRIGGER:", "SKIP:")
+# "Not that item", said over push-to-talk: handled at once by Doty itself, with no AI call.
+SKIP_ASK = re.compile(
+    r"\b(skip|stop\s+(suggesting|recommending|telling\s+me|saying|asking|with)|no\s+more|forget(\s+about)?|"
+    r"(do\s+not|don'?t|won'?t|will\s+not|not|never)\s+(want|need|buy|buying|get|getting|going|build|building|"
+    r"suggest|recommend|make|making|doing))\b", re.IGNORECASE)
+UNSKIP_ASK = re.compile(r"\b(bring\s+back|add\s+back|put\s+back|un-?skip)\b", re.IGNORECASE)
+THIS_ITEM = re.compile(r"\bskip\s+(it|that|this)(\s+(item|one))?\s*[.!]?\s*$", re.IGNORECASE)
+# Words that may stand between the order and the item ("stop telling me to get Phase Boots").
+COMMAND_FILLER = frozenset("the a an any to get buy me more that this my about on for building getting buying "
+                           "another your".split())
+# A question about an item is for the coach to answer, not an order ("Should I skip Black King Bar?").
+ASKING = re.compile(r"\?|^\s*(should|do|does|is|are|can|could|would|what|why|how|when|which|will|if)\b", re.IGNORECASE)
+COMMAND_MAX_WORDS = 14
+# A tip that says the gold is there ("Buy Ogre Axe now", "you can afford it"): checked against the gold.
+NOW_CLAIM = re.compile(r"\b(now|right\s+away|immediately|have\s+the\s+gold|can\s+afford|affordable|covers?\s+it)\b",
+                       re.IGNORECASE)
+# The coach may tell you to buy one item this many times out loud; after that, with no part of it bought, a
+# live tip that pushes it again goes to the feed instead. (A real match: Black King Bar, twenty-five times.)
+MAX_ITEM_PUSHES = 3
+# ...unless the line is a call to get out, which is never held back for naming an item.
+RETREAT = re.compile(r"\b(back\s+off|walk\s+(back|away)|get\s+out|retreat|leave\b|run\b|teleport|tp\s+out|"
+                     r"step\s+back|pull\s+back|head\s+back)", re.IGNORECASE)
+# "Buy a TP scroll", said to a player who has one. (A real match: thirty-two times over two games.)
+TP_BUY = re.compile(r"\b(buy|get|grab|purchase|pick\s+up|carry)\b[^.;:!?]{0,40}?\b(tp|town\s+portal)\b", re.IGNORECASE)
+# One of Doty's tags written on the same line as the answer ("...don't walk the river alone. TRIGGER: hp < 30
+# => ..."): a real match had it read out loud. Each tag gets its own line before anything is parsed or shown.
+INLINE_TAG = re.compile(r"[ \t]+(BUILD|LINEUP|DRAW|DRAFT|TRIGGER|SKIP):")
+TRIGGER_REPEAT_S = 20.0  # a prepared call that says what was just heard this recently isn't said again
 WARM_EVERY_S = 45.0
 FRESH_FOR_GAME_S = 30  # a cached answer older than this (game time) is stale
 MIN_SPEC_WALL_S = 8.0  # floor on background looks in real time (sim speed-ups, reconnects)
@@ -138,6 +168,8 @@ class Coach:
         self._quiet_sig: tuple | None = None  # the situation when the last look had nothing to say
         self._skips = 0
         self._moment: tuple[str, float] | None = None  # a calm moment still waiting for its look (until when)
+        self.suggest = None  # config.SuggestConfig: the subjects Doty brings up by itself (the app sets it)
+        self._pushes: dict[str, list[int]] = {}  # item -> [times the coach said "buy it", gold left on it then]
 
     # lifecycle ---------------------------------------------------------------
     async def start(self) -> None:
@@ -165,7 +197,7 @@ class Coach:
             if adv.speak and adv.display and adv.priority <= self.spoken_max:  # (shown-only isn't heard)
                 self._heard.append((time.monotonic(), _content_words(adv.text + " " + adv.spoken)))
 
-    def _repeats(self, text: str) -> bool:
+    def _repeats(self, text: str, within: float = REPEAT_S) -> bool:
         """The line says again what was said out loud in the last REPEAT_S ("Buy a TP scroll" for the
         twentieth time): it's noted in the feed instead of spoken."""
         words = _content_words(text)
@@ -176,9 +208,121 @@ class Coach:
             # Measured against the new line: a short alert ("Power rune in 15") shares two words with many
             # new tips ("Take the power rune, then gank bottom with Lion") that say much more.
             common = len(words & heard)
-            if now - when <= REPEAT_S and common >= 2 and common >= REPEAT_OVERLAP * len(words):
+            if now - when <= within and common >= 2 and common >= REPEAT_OVERLAP * len(words):
                 return True
         return False
+
+    # subjects and the player's own build --------------------------------------------
+    def _off(self, topic: str) -> bool:
+        """A subject the player turned off in Settings (config.SuggestConfig): never brought up unasked."""
+        return self.suggest is not None and not getattr(self.suggest, topic, True)
+
+    def _build_mentions(self, text: str, snap: Snapshot) -> set[str]:
+        """Items of the player's own build that a line names and they don't have yet: told to buy it, or told
+        to "farm until" it, it's the same reminder. (An enemy's Blink Dagger isn't in their build.)"""
+        named = self.kb.item_mentions(text, snap.hero_name)
+        if not named:
+            return set()
+        have = self.kb.owned_with_parts(snap.all_item_names())
+        hero = self.kb.heroes.get(snap.hero_name)
+        build = set(self.kb.build_plan(snap.hero_name, snap.clock))
+        build |= set(self.kb.typical_items(int(hero["id"]), 10)) if hero else set()
+        return {i for i in named if i not in have and (i in build or i in self.kb.buy_mentions(text, snap.hero_name))}
+
+    def _pushed(self, text: str, snap: Snapshot | None) -> None:
+        """Count a spoken line that points the player at an item they don't have (see MAX_ITEM_PUSHES). Buying
+        a part of the item starts the count again: they're building it, so it's worth talking about."""
+        if self.kb is None or snap is None or not self.kb.items:
+            return
+        owned = snap.item_list()
+        for item in self._build_mentions(text, snap):
+            left = self.kb.cost_left(item, owned)
+            count, was = self._pushes.get(item, (0, left))
+            self._pushes[item] = [1 if left < was else count + 1, left]
+
+    def _overpushed(self, text: str, snap: Snapshot | None) -> set[str]:
+        """Items this line points the player at that they've heard about often enough, with no part of it
+        bought since. A call to get out is never held back for it."""
+        if self.kb is None or snap is None or not self.kb.items or RETREAT.search(text):
+            return set()
+        owned = snap.item_list()
+        return {i for i in self._build_mentions(text, snap)
+                if i in self._pushes and self._pushes[i][0] >= MAX_ITEM_PUSHES
+                and self.kb.cost_left(i, owned) >= self._pushes[i][1]}
+
+    def skip_item(self, item: str | None = None, undo: bool = False) -> None:
+        """Thread-safe (the skip hotkey, the app's Buy Next panel): leave `item` out of this match's build, or
+        with no item, the one Doty is pointing at now. `undo` brings it back."""
+        if self._loop is not None and not self._loop.is_closed():
+            try:
+                self._loop.call_soon_threadsafe(self._skip_items, [item] if item else None, undo)
+            except RuntimeError:
+                pass  # the loop closed in between
+
+    def _skip_items(self, items: list[str] | None, undo: bool = False) -> None:
+        snap, kb = self.store.current, self.kb
+        if kb is None or snap is None or not snap.has_hero or not kb.items:
+            return
+        owned = snap.item_list()
+        if items is None:
+            target = kb.next_target(snap.hero_name, snap.clock, owned)
+            items = [target] if target else []
+        if not items:
+            self.bus.publish(Advice("There's no item to skip right now.", Priority.INFO, "coach", source="coach",
+                                    speak=False))
+            return
+        names = " and ".join(kb.item_name(i) for i in items)
+        if undo:
+            for item in items:
+                kb.unskip(item)
+                self._pushes.pop(item, None)
+            text = f"{names} is back in your build."
+        else:
+            for item in items:
+                kb.skip(item, buildlib.SAID_SO)
+            # Calls armed earlier that push it, and the answer kept for the ask key, go with it.
+            gone = set(items)
+            self.triggers.active = [t for t in self.triggers.active
+                                    if not (kb.item_mentions(t.say, snap.hero_name) & gone)
+                                    and not any(c.kind == "afford" and c.var in gone for c in t.clauses)]
+            nxt = kb.next_target(snap.hero_name, snap.clock, owned)
+            text = f"Okay, no {names} this game." + (f" Next: {kb.item_name(nxt)}." if nxt else "")
+        buildlib.passed_on(self.store)
+        self.cached = None
+        self.bus.publish(Advice(text, Priority.HIGH, "coach", source="coach"))
+
+    def _build_command(self, question: str) -> tuple[list[str] | None, bool] | None:
+        """A spoken order about the build ("skip Black King Bar", "I don't need BKB", "skip it", "bring back
+        Manta") as (items or None for the current one, undo), or None when it's something for the coach to
+        answer. Deliberately narrow: short, not phrased as a question, and naming an item (or "it")."""
+        snap = self.store.current
+        if self.kb is None or snap is None or not snap.has_hero or not self.kb.items:
+            return None
+        if ASKING.search(question) or len(question.split()) > COMMAND_MAX_WORDS:
+            return None
+        back = UNSKIP_ASK.search(question)
+        if back:
+            items = self._named_next(question[back.end():], snap)
+            return (items, True) if items else None
+        order = SKIP_ASK.search(question)
+        if not order:
+            return None
+        items = self._named_next(question[order.end():], snap)
+        if items:
+            return items, False
+        return (None, False) if THIS_ITEM.search(question) else None
+
+    def _named_next(self, rest: str, snap: Snapshot) -> list[str]:
+        """The item named right after an order's words, [] if what follows is something else. "I don't want
+        to die to Lion's Blink Dagger again" names an item, but not as the thing not wanted."""
+        words = re.findall(r"[\w'’-]+", rest)
+        while words and words[0].lower() in COMMAND_FILLER:
+            words.pop(0)
+        for n in range(1, 6):  # (item names run to four or five words: "Eul's Scepter of Divinity")
+            found = self.kb.item_mentions(" ".join(words[:n]), snap.hero_name)
+            if found and not self.kb.item_mentions(" ".join(words[1:n]), snap.hero_name):
+                return sorted(found)
+        return []
 
     def on_snapshot(self, snap: Snapshot) -> None:
         """Called on the event loop for every GSI update; schedules coach work."""
@@ -189,8 +333,11 @@ class Coach:
             # Before the on/off check: prepared calls need no AI, so they keep firing if the coach goes off.
             for adv in self.triggers.check(snap, self.store, self.signals() if self.signals else None,
                                            self._afford(snap)):
-                if self._already_have(adv.text, snap):
+                if self._already_have(adv.text, snap) or self._unwanted(adv.text, snap):
                     continue  # armed minutes ago, and since then the player bought it (or other boots)
+                if self._repeats(adv.text, TRIGGER_REPEAT_S):
+                    continue  # (three "walk back to your tower" calls in nine seconds, in a real match)
+                self._pushed(adv.text, snap)
                 self.said.append(adv.text)
                 self._heard.append((time.monotonic(), _content_words(adv.text)))
                 self.bus.publish(adv)
@@ -212,7 +359,8 @@ class Coach:
             self._launch("start", visible=True)
             self._prewarm_watch(snap)
             return
-        if self.store.just_died:  # (a real death: Aegis and Reincarnation don't start a death look)
+        if self.store.just_died and not self._off("deaths"):
+            # (a real death: Aegis and Reincarnation don't start a death look)
             self._launch("death", visible=True)
             return
         if snap.alive:
@@ -385,6 +533,10 @@ class Coach:
         self._loop.call_soon_threadsafe(self._question_on_loop, question, screenshot_b64)
 
     def _question_on_loop(self, question: str, shot: str | None) -> None:
+        command = self._build_command(question)
+        if command is not None:  # "skip Black King Bar": done at once, by Doty itself (works with the AI off)
+            self._skip_items(*command)
+            return
         if not self.enabled:
             self.bus.publish(Advice(f"Coach is off: {self.status}", Priority.INFO, "coach", source="coach",
                                     speak=False))
@@ -459,6 +611,8 @@ class Coach:
             summary["coach_said_recently"] = list(self.said)
         if in_match and self.triggers.active:
             summary["armed_calls"] = self.triggers.describe()
+        if in_match:
+            self._settings_into(summary, snap)
         if moment:
             summary["moment"] = moment  # why Doty is looking now: a good time to set a plan
         if blind:
@@ -501,6 +655,8 @@ class Coach:
                     shown = _strip_tags(text)
                     if kind in ("watch", "draft"):
                         shown = WATCH_TAG.sub("", shown, count=1)  # "SAY:" is for Doty, not for you
+                    if in_match and kind != "question":
+                        shown = self._without_bad_sentences(shown, snap)
                     adv.text, adv.created_t = shown, time.perf_counter()
                     self.bus.publish(adv)
                     # Speak each completed sentence as soon as it exists.
@@ -523,13 +679,19 @@ class Coach:
             if not visible:
                 return
         game = snap if in_match else None
+        text = _tag_lines(text)
         self._apply_lineup(text, game)
         self._apply_draft(text)
         drawn = tuple(marklib.parse(text, shot.get("sizes", {}) if isinstance(shot, dict) else {}))
         drawn = self._vet_marks(drawn, game, t0)
         shown = _strip_tags(text).strip()
+        if visible and in_match and kind not in ("question", "watch", "draft"):
+            shown = self._without_bad_sentences(shown, snap, complete=True).strip()
         if in_match:
-            self._apply_build(text, snap)
+            if not self._off("items"):
+                self._apply_build(text, snap)
+            if kind == "question":
+                self._apply_skip(text, snap)
             self._arm_triggers(text, snap)
         dropped = ""
         if kind in ("watch", "draft"):
@@ -550,7 +712,7 @@ class Coach:
                     print(f"[doty] dropped a live tip ({dropped}): {shown[:90]}")
                 elif shown and not visible and not _is_waiting(shown):  # a visible answer has its own card below
                     # Said lately (by the coach or an alert): the feed has it, your ears don't.
-                    repeat = in_match and self._repeats(shown)
+                    repeat = in_match and (self._repeats(shown) or bool(self._overpushed(shown, snap)))
                     published = self._publish_watch(shown, say, t0, drawn, repeat=repeat)
                     if kind == "watch" and in_match:
                         self._quiet_sig = None if published.speak else self.situation(
@@ -573,6 +735,7 @@ class Coach:
                 # (the death answer, then the look before respawning, mustn't say the same thing twice)
                 self.said.append(shown)
                 self._heard.append((time.monotonic(), _content_words(shown)))
+                self._pushed(shown, snap)
         total = (time.perf_counter() - t0) * 1000.0
         ttft = f"{self.last_ttft_ms:.0f}" if self.last_ttft_ms else "?"
         usage = " ".join(f"{k}={v}" for k, v in self.backend.usage.items())
@@ -590,9 +753,13 @@ class Coach:
         phantom = self._phantom_heroes(text) if in_match else set()
         odd = self._odd_items(text, snap) if in_match else set()
         have = self._already_have(text, snap) if in_match else set()
+        unwanted = (self._unwanted(text, snap) or self._has_tp_already(text, snap)) if in_match else ""
+        broke = self._cant_afford(text, snap) if in_match else set()
         return self._too_late(kind, game, t0) or (
             f"says to buy what you already have (or a second pair of boots): "
-            f"{', '.join(sorted(self.kb.item_name(i) for i in have))}" if have else "") or (
+            f"{', '.join(sorted(self.kb.item_name(i) for i in have))}" if have else "") or unwanted or (
+            f"says to buy now what the gold doesn't cover: "
+            f"{', '.join(sorted(self.kb.item_name(i) for i in broke))}" if broke else "") or (
             "says there's a skill point to spend, but there isn't" if in_match and self._false_skill_claim(text, snap)
             else "") or (
             f"names heroes not in this game: {', '.join(sorted(self._display(h) for h in phantom))}"
@@ -605,7 +772,8 @@ class Coach:
         worth saying. Returns the advice said, why it was dropped, or None to leave it to the end (a
         quiet note, "waiting", or a repeat, which go to the feed when the reply is complete)."""
         say, tip = parse_watch(_strip_tags(raw).strip())
-        if not say or not tip or _is_waiting(tip) or self._repeats(tip) or self.cfg.speak_up == "never":
+        if (not say or not tip or _is_waiting(tip) or self._repeats(tip) or self.cfg.speak_up == "never"
+                or self._overpushed(tip, snap)):
             return None
         dropped = self._vet_tip("watch", tip, snap, snap, t0, True)
         if dropped:
@@ -621,6 +789,7 @@ class Coach:
         if say:
             self.said.append(text)
             self._heard.append((time.monotonic(), _content_words(text)))
+            self._pushed(text, self.store.current)
             # The tip's age counts: a reply that took long has less time left to be heard before it's stale.
             left = WATCH_STALE_S - (time.perf_counter() - t0)
             adv = Advice(text, Priority.HIGH, "coach", source="coach", trigger_t=t0, marks=drawn,
@@ -765,7 +934,7 @@ class Coach:
         whose has/no item isn't a real item (a wrong name would make "no ..." true forever)."""
         fresh = [t for t in (self._real_items(t) for t in triggerlib.parse(text, snap.clock))
                  if t is not None and not self._phantom_heroes(t.say) and not self._odd_items(t.say, snap)
-                 and not self._already_have(t.say, snap)]
+                 and not self._already_have(t.say, snap) and not self._unwanted(t.say, snap, t)]
         if fresh:
             self.triggers.arm(fresh)
             if self.on_armed is not None:  # voiced now, in idle time, so the call plays the instant it fires
@@ -815,6 +984,7 @@ class Coach:
             self._pre_respawn_done = False
             self.history.clear()
             self.recent_alerts.clear()
+            self._pushes.clear()
 
     def _false_skill_claim(self, text: str, snap: Snapshot | None) -> bool:
         """The tip tells the player to spend a skill point or pick a talent they don't have. The AI reads level-up
@@ -850,6 +1020,87 @@ class Coach:
         have = self.kb.owned_with_parts(owned)
         return {i for i in self.kb.buy_mentions(text, snap.hero_name)
                 if i in have or self.kb.second_boots(i, owned)}
+
+    def _unwanted(self, text: str, snap: Snapshot | None, call: "triggerlib.Trigger | None" = None) -> str:
+        """Why a line about buying isn't wanted ('' if it's fine): it pushes an item the player passed on this
+        game, or item advice is turned off in Settings."""
+        if self.kb is None or snap is None or not self.kb.items:
+            return ""
+        buys = self.kb.buy_mentions(text, snap.hero_name)
+        afford = {c.var for c in call.clauses if c.kind == "afford"} if call is not None else set()
+        if self._off("items") and (buys or afford):
+            return "item advice is turned off"
+        passed = (buys | afford) & set(self.kb.skipped)
+        if passed:
+            return f"pushes an item you passed on: {', '.join(sorted(self.kb.item_name(i) for i in passed))}"
+        return ""
+
+    def _has_tp_already(self, text: str, snap: Snapshot | None) -> str:
+        """The line says to buy a Town Portal Scroll while one sits in the player's TP slot."""
+        if snap is None or snap.teleport is None or not TP_BUY.search(text):
+            return ""
+        return "says to buy a TP scroll you already have"
+
+    def _without_bad_sentences(self, text: str, snap: Snapshot | None, complete: bool = False) -> str:
+        """An answer the player is reading and hearing as it arrives (after a death, on the ask key) can't be
+        dropped whole like a live tip, so it's checked a sentence at a time: one that sells what the player
+        has, passed on or can't pay for, or a TP scroll they hold, is left out. `complete`: the whole answer
+        is in, so its last sentence is judged too."""
+        if snap is None or self.kb is None or not self.kb.items:
+            return text
+        parts = SENTENCE_END.split(text)
+        last = parts[-1]
+        if (complete or last.rstrip().endswith((".", "!", "?"))) and self._bad_sentence(last, snap):
+            last = ""  # (otherwise the last part may still be arriving: judged once it's complete)
+        return " ".join(p for p in [*(p for p in parts[:-1] if not self._bad_sentence(p, snap)), last] if p)
+
+    def _bad_sentence(self, sentence: str, snap: Snapshot) -> bool:
+        return bool(self._already_have(sentence, snap) or self._unwanted(sentence, snap)
+                    or self._has_tp_already(sentence, snap) or self._cant_afford(sentence, snap))
+
+    def _cant_afford(self, text: str, snap: Snapshot | None) -> set[str]:
+        """Items a tip says to buy *now* when the player's gold covers no real part of them ("Buy Ogre Axe
+        now" at 453 gold). A tip without "now" ("save for Black King Bar") is a plan, and fine."""
+        if self.kb is None or snap is None or not self.kb.items or not NOW_CLAIM.search(text):
+            return set()
+        owned, gold = snap.item_list(), spendable(snap, game_mode.of(self.store.memory))
+        return {i for i in self.kb.buy_mentions(text, snap.hero_name)
+                if self.kb.cost_left(i, owned) > 0 and self.kb.next_buy(i, owned, gold) is None}
+
+    def _settings_into(self, summary: dict, snap: Snapshot) -> None:
+        """What the player's settings and their own build change about the state the coach sees: subjects
+        turned off (and for items, the build lists themselves, so there's nothing to recite), and how often
+        it has already said to buy each item."""
+        from ..rules.engine import topics_off
+
+        off = topics_off(self.suggest)
+        if "items" in off:
+            for key in ("next_item", "popular_next_items", "typical_items", "next_item_odds", "passed_on"):
+                summary.pop(key, None)
+        if "skills" in off:
+            for key in ("unspent_skill_points", "next_skill", "talent_tiers_not_picked", "pro_skill_order"):
+                summary.pop(key, None)
+        if off:
+            summary["dont_advise_on"] = [prompts.TOPIC_WORDS[t] for t in sorted(off) if t in prompts.TOPIC_WORDS]
+        if self.kb is not None and "items" not in off:
+            told = {self.kb.item_name(i): n for i, (n, _left) in self._pushes.items()
+                    if n >= 2 and i not in self.kb.skipped and i not in snap.all_item_names()}
+            if told:
+                summary["told_to_buy"] = told
+
+    def _apply_skip(self, text: str, snap: Snapshot) -> None:
+        """A SKIP line in the answer to a spoken question: the player said they won't buy these."""
+        m = SKIP_LINE.search(text)
+        if not m or self.kb is None or not self.kb.items:
+            return
+        items = [w.strip().strip(".").lower().replace(" ", "_") for w in m.group(1).split(",")]
+        items = [i if i.startswith("item_") else f"item_{i}" for i in items if i]
+        known = [i for i in items if i in self.kb.items and i not in snap.all_item_names()]
+        for item in known:
+            if self.kb.skip(item, buildlib.SAID_SO):
+                self.bus.publish(buildlib.note(self.kb, item, buildlib.SAID_SO))
+        if known:
+            buildlib.passed_on(self.store)
 
     def _plan_brief(self) -> str:
         """The game plan for the match brief (which lineup the long game favours), with what Turbo changes
@@ -976,9 +1227,14 @@ def _distance(a: tuple[int, int] | None, b: tuple[int, int] | None) -> float:
     return math.hypot(a[0] - b[0], a[1] - b[1])
 
 
+def _tag_lines(text: str) -> str:
+    """Each of Doty's tags on a line of its own, wherever the model wrote it."""
+    return INLINE_TAG.sub(lambda m: f"\n{m.group(1)}:", text)
+
+
 def _strip_tags(text: str) -> str:
     """Hide the lines meant for Doty (BUILD, LINEUP, DRAW, DRAFT), including one still arriving mid-stream."""
-    text = TAG_LINE.sub("", text)
+    text = TAG_LINE.sub("", _tag_lines(text))
     head, _, tail = text.rpartition("\n")
     if head and tail.strip() and any(tag.startswith(tail.strip().upper()) for tag in TAGS):
         text = head
@@ -988,6 +1244,10 @@ def _strip_tags(text: str) -> str:
 WATCH_TAG = re.compile(r"^\s*(SAY|QUIET)\s*:\s*", re.IGNORECASE)
 LATER_TAG = re.compile(r"(?<![A-Za-z])(SAY|QUIET):\s*")  # a second, corrected answer ("Wait... SAY: ...")
 SELF_CORRECTION = re.compile(r"(?:\n|(?<=[.!?])\s)\s*(?:Wait|Actually|Correction)\b[,:.]?", re.IGNORECASE)
+# A change of mind inside a sentence ("buy Tranquil... no: once back, buy a TP scroll", from a real match): what
+# comes before it is the abandoned half, and what comes after is the tip.
+MID_CORRECTION = re.compile(r"(?:\.{2,}|\u2026|\s[\u2014\u2013-]|,)\s*(?:no|wait|scratch\s+that|i\s+mean|actually|"
+                            r"correction)\s*[,:;\u2014\u2013-]\s*", re.IGNORECASE)
 
 
 def _is_waiting(text: str) -> bool:
@@ -1001,12 +1261,23 @@ def parse_watch(text: str) -> tuple[bool, str]:
     answer counts, and a "Wait, ..." with no new tag is cut off."""
     m = WATCH_TAG.match(text)
     if not m:
-        return False, SELF_CORRECTION.split(text, 1)[0].strip()
+        return False, _settled(text)
     tag, rest = m.group(1), text[m.end():]
     later = list(LATER_TAG.finditer(rest))
     if later:
         tag, rest = later[-1].group(1), rest[later[-1].end():]
-    return tag.upper() == "SAY", SELF_CORRECTION.split(rest, 1)[0].strip()
+    return tag.upper() == "SAY", _settled(rest)
+
+
+def _settled(tip: str) -> str:
+    """A tip with the coach's second thoughts taken out: a "Wait, ..." after a finished answer is cut off, and
+    a change of mind inside a sentence ("... no: ...") leaves only what came after it."""
+    tip = SELF_CORRECTION.split(tip, 1)[0].strip()
+    turns = list(MID_CORRECTION.finditer(tip))
+    if turns:
+        tip = tip[turns[-1].end():].strip()
+        tip = tip[:1].upper() + tip[1:]
+    return tip
 
 
 NEXT_TAG = re.compile(r"\s*(BUILD|LINEUP|DRAW|DRAFT|TRIGGER):", re.IGNORECASE)

@@ -1207,5 +1207,21 @@
  "Siwis: woman": "Siwis: ผู้หญิง",
  "Kitten": "Kitten",
  "Bounty runes in fifteen seconds. Their carry is missing from the map, so play safe.": "รูนเงินรางวัลจะเกิดในสิบห้าวินาที แครี่ของฝั่งตรงข้ามหายไปจากแผนที่ เล่นอย่างระวัง",
- "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten พูดได้แค่ภาษาอังกฤษ: เลือก Kokoro ในการตั้งค่าเสียงเพื่อฟัง {language}"
+ "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten พูดได้แค่ภาษาอังกฤษ: เลือก Kokoro ในการตั้งค่าเสียงเพื่อฟัง {language}",
+ "What Doty suggests": "สิ่งที่ Doty แนะนำ",
+ "Items to buy": "ไอเทมที่ควรซื้อ",
+ "Buy calls, item timings and the coach's item advice. Off: you pick your own items, and Doty only talks about them when you ask.": "การเตือนให้ซื้อ จังหวะไอเทม และคำแนะนำไอเทมจากโค้ช ปิด: คุณเลือกไอเทมเอง และ Doty จะพูดถึงเมื่อคุณถามเท่านั้น",
+ "Skill points": "แต้มสกิล",
+ "Reminders to spend a skill point, and the level 6 call.": "เตือนให้ใช้แต้มสกิล และการเตือนตอนเลเวล 6",
+ "Farm and lane": "ฟาร์มและเลน",
+ "Last-hit, deny and farm pace checks.": "ตรวจ last hit, deny และความเร็วในการฟาร์ม",
+ "Runes and Roshan": "รูนและ Roshan",
+ "Countdowns to runes, shrines, lotus pools, neutral items, Roshan and the Aegis.": "นับถอยหลังรูน ศาลเจ้า บ่อโลตัส ไอเทมนิวทรัล Roshan และ Aegis",
+ "Enemy timings": "จังหวะของศัตรู",
+ "The enemy's big items before they land, who the long game favours, and pick-off windows.": "ไอเทมใหญ่ของศัตรูก่อนที่จะเสร็จ ฝั่งไหนได้เปรียบเมื่อเกมยาว และจังหวะ pick-off",
+ "Gold and TP scroll": "ทองและ TP",
+ "Unspent gold, items in the stash, buyback and a missing TP scroll.": "ทองที่ยังไม่ได้ใช้ ไอเทมในสแตช buyback และการไม่มี TP",
+ "Death reviews": "ทบทวนการตาย",
+ "After each death: why it happened and what to change.": "หลังการตายแต่ละครั้ง: เกิดขึ้นเพราะอะไร และควรเปลี่ยนอะไร",
+ "Not this game": "ไม่ซื้อในเกมนี้"
 }

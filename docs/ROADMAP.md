@@ -297,6 +297,23 @@ Russian, the largest group, which no model Doty ships has; and Ukrainian, which 
 so only ElevenLabs speaks it. Kitten chosen in Spanish, Portuguese or French doesn't switch itself to Kokoro: the
 status and Get started say to pick Kokoro.
 
+## Built in the eleventh pass (your own build, and a switch per subject; 2026-11-10)
+
+From two real Turbo games on Spirit Breaker. Details in `ARCHITECTURE.md` ("The player's own build") and the
+numbers in `ACCURACY_PLAN.md`.
+
+- **Boots of Bearing and Guardian Greaves are boots.** "Buy Phase Boots" was said 22 times to a player
+  wearing Boots of Bearing.
+- **Doty takes no for an answer.** An item you buy around leaves the build; "You can afford X" is said twice,
+  not forever; "skip Black King Bar" (voice), Ctrl+Alt+X and a button on Buy Next drop an item at once.
+- **A switch for each subject** Doty brings up: items, skill points, farm, timers, enemy timings, gold,
+  death reviews (Settings > Alerts > What Doty suggests).
+- **The coach's lines are checked harder:** "buy now" against your gold, "buy a TP scroll" against your TP
+  slot, an item brought up more than three times, streamed answers sentence by sentence, tags written on the
+  answer's line, a change of mind mid-sentence, and prepared calls that are late or repeat themselves.
+- **The build never runs out,** and items hardly anyone buys on the hero aren't in it.
+- Tests: `tests/test_own_build.py`.
+
 ## Linux (partly done, November 2026: built and tested on Windows, not yet run on a Linux desktop)
 
 Doty runs from source on Linux, with every Windows code path left as it was (`sys.platform` checks;

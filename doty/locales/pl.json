@@ -1208,5 +1208,21 @@
  "Siwis: woman": "Siwis: kobieta",
  "Kitten": "Kitten",
  "Bounty runes in fifteen seconds. Their carry is missing from the map, so play safe.": "Runy nagrody za piętnaście sekund. Ich carry zniknął z mapy, więc graj ostrożnie.",
- "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten mówi tylko po angielsku: wybierz Kokoro w ustawieniach głosu, żeby słyszeć język: {language}."
+ "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten mówi tylko po angielsku: wybierz Kokoro w ustawieniach głosu, żeby słyszeć język: {language}.",
+ "What Doty suggests": "Co podpowiada Doty",
+ "Items to buy": "Przedmioty do kupienia",
+ "Buy calls, item timings and the coach's item advice. Off: you pick your own items, and Doty only talks about them when you ask.": "Przypomnienia o zakupach, timingi przedmiotów i rady coacha o przedmiotach. Wyłączone: sam wybierasz przedmioty, a Doty mówi o nich tylko, gdy zapytasz.",
+ "Skill points": "Punkty umiejętności",
+ "Reminders to spend a skill point, and the level 6 call.": "Przypomnienia o wydaniu punktu umiejętności i komunikat o 6. poziomie.",
+ "Farm and lane": "Farma i linia",
+ "Last-hit, deny and farm pace checks.": "Sprawdzanie last hitów, denajów i tempa farmy.",
+ "Runes and Roshan": "Runy i Roshan",
+ "Countdowns to runes, shrines, lotus pools, neutral items, Roshan and the Aegis.": "Odliczanie do run, kapliczek, stawów lotosu, przedmiotów neutralnych, Roshana i Aegisa.",
+ "Enemy timings": "Timingi wroga",
+ "The enemy's big items before they land, who the long game favours, and pick-off windows.": "Duże przedmioty wroga, zanim się pojawią, komu sprzyja długa gra i okna na pick-off.",
+ "Gold and TP scroll": "Złoto i TP",
+ "Unspent gold, items in the stash, buyback and a missing TP scroll.": "Niewydane złoto, przedmioty w skrytce, buyback i brak TP.",
+ "Death reviews": "Analiza śmierci",
+ "After each death: why it happened and what to change.": "Po każdej śmierci: dlaczego do niej doszło i co zmienić.",
+ "Not this game": "Nie w tej grze"
 }

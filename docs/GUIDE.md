@@ -152,6 +152,7 @@ now?", and let go. Your voice is turned into text on your PC; only the text goes
 | Ctrl+Alt+P | A 5-minute plan and item build |
 | Ctrl+Alt+M | Mute / unmute the voice |
 | Ctrl+Alt+H | Hide / show the cards |
+| Ctrl+Alt+X | "Not that one": drop the item Doty is pointing at from this game's build |
 
 ## The app
 

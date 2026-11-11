@@ -1208,5 +1208,21 @@
  "Siwis: woman": "Siwis: жінка",
  "Kitten": "Kitten",
  "Bounty runes in fifteen seconds. Their carry is missing from the map, so play safe.": "Руни багатства через п'ятнадцять секунд. Їхній кері зник з мапи, тож грай обережно.",
- "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten говорить лише англійською: обери Kokoro в налаштуваннях голосу, щоб чути мову: {language}."
+ "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten говорить лише англійською: обери Kokoro в налаштуваннях голосу, щоб чути мову: {language}.",
+ "What Doty suggests": "Що підказує Doty",
+ "Items to buy": "Що купувати",
+ "Buy calls, item timings and the coach's item advice. Off: you pick your own items, and Doty only talks about them when you ask.": "Підказки про покупки, таймінги предметів і поради коуча щодо предметів. Вимкнено: предмети обираєш сам, а Doty говорить про них, лише коли спитаєш.",
+ "Skill points": "Очки здібностей",
+ "Reminders to spend a skill point, and the level 6 call.": "Нагадування витратити очко здібності та сигнал про 6-й рівень.",
+ "Farm and lane": "Фарм і лінія",
+ "Last-hit, deny and farm pace checks.": "Перевірки ластхітів, денаїв і темпу фарму.",
+ "Runes and Roshan": "Руни й Рошан",
+ "Countdowns to runes, shrines, lotus pools, neutral items, Roshan and the Aegis.": "Відлік до рун, святилищ, лотосів, нейтральних предметів, Рошана та Аегіса.",
+ "Enemy timings": "Таймінги ворога",
+ "The enemy's big items before they land, who the long game favours, and pick-off windows.": "Великі предмети ворога до їхньої появи, кому вигідна довга гра та вікна для пік-офу.",
+ "Gold and TP scroll": "Золото і ТП",
+ "Unspent gold, items in the stash, buyback and a missing TP scroll.": "Невитрачене золото, предмети у схові, байбек і відсутність ТП.",
+ "Death reviews": "Розбір смертей",
+ "After each death: why it happened and what to change.": "Після кожної смерті: чому так сталося і що змінити.",
+ "Not this game": "Не в цій грі"
 }

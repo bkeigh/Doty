@@ -6,6 +6,7 @@ import time
 from typing import Iterable
 
 from ..advice import Advice, Priority
+from ..knowledge import build
 from ..knowledge import mode as game_mode
 from ..state import Snapshot
 from .base import Rule, RuleContext
@@ -17,6 +18,10 @@ BUYBACK_FROM = 30 * 60
 
 
 PART_GAP_S = 60.0  # between "buy this part" calls for one item
+# "You can afford X" is said this many times for one item. A player who could buy it all that time and didn't
+# has decided against it: it leaves the build (knowledge/build.py) instead of being called a third time.
+# (A real match: "You can afford Phase Boots", again and again, to a player who never wanted them.)
+FINISH_CALLS = 2
 
 
 def spendable(s: Snapshot, mode: game_mode.Mode | None = None) -> int:
@@ -77,12 +82,26 @@ class AffordableBuildItem(Rule):
             price = f"{now['buy_cost']:,}, secret shop" if secret else f"{now['buy_cost']:,}"
             yield Advice(f"Buy {part} ({price}): a part of {name}, {now['left'] - now['buy_cost']:,} "
                          "to go after it", Priority.NORMAL, "economy", key=key, speech=f"Buy {part}")
-        elif now["left"] < now["cost"]:
-            yield Advice(f"You can finish {name}: {now['left']:,} gold covers the rest", Priority.NORMAL, "economy",
-                         key=f"afford:{item}", speech=f"Finish {name}")
         else:
-            yield Advice(f"You can afford {name} ({now['left']:,})", Priority.NORMAL, "economy",
-                         key=f"afford:{item}", speech=f"Buy {name}")
+            # How often this was really said (the engine notes each call it lets through, in "_fired").
+            last = (ctx.mem.get("_fired") or {}).get(f"afford:{item}")
+            calls = ctx.mem.setdefault("afford_calls", {})  # item -> (times said, when last)
+            said, seen = calls.get(item, (0, None))
+            if last is not None and last != seen:
+                said, seen = said + 1, last
+                calls[item] = (said, seen)
+            if said >= FINISH_CALLS:
+                if (time.monotonic() - last >= self.cooldown_s and now["left"] >= now["cost"]  # (no part bought)
+                        and kb.skip(item, build.COULD_AFFORD)):
+                    build.passed_on(ctx.store)
+                    yield build.note(kb, item, build.COULD_AFFORD)
+                return
+            if now["left"] < now["cost"]:
+                yield Advice(f"You can finish {name}: {now['left']:,} gold covers the rest", Priority.NORMAL,
+                             "economy", key=f"afford:{item}", speech=f"Finish {name}")
+            else:
+                yield Advice(f"You can afford {name} ({now['left']:,})", Priority.NORMAL, "economy",
+                             key=f"afford:{item}", speech=f"Buy {name}")
 
 
 class StashItems(Rule):

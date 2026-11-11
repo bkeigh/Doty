@@ -477,6 +477,7 @@ class CoachPage(QWidget):
         rail.setSpacing(12)
         self.timers = TimersPanel()
         self.build = BuildPanel(stats_service)
+        self.build.on_skip = ctl.skip_item  # "not this game" on an item: it leaves this match's build
         self._pair = QBoxLayout(QBoxLayout.TopToBottom)  # side by side on a tall window
         self._pair.setSpacing(12)
         self._pair.addWidget(self.timers, 1)

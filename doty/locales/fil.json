@@ -1207,5 +1207,21 @@
  "Siwis: woman": "Siwis: babae",
  "Kitten": "Kitten",
  "Bounty runes in fifteen seconds. Their carry is missing from the map, so play safe.": "Bounty runes sa loob ng labinlimang segundo. Wala sa mapa ang carry nila, kaya mag-ingat.",
- "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "English lang ang sinasalita ng Kitten: piliin ang Kokoro sa Voice settings para marinig ang {language}."
+ "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "English lang ang sinasalita ng Kitten: piliin ang Kokoro sa Voice settings para marinig ang {language}.",
+ "What Doty suggests": "Ano ang sina-suggest ni Doty",
+ "Items to buy": "Mga item na bibilhin",
+ "Buy calls, item timings and the coach's item advice. Off: you pick your own items, and Doty only talks about them when you ask.": "Mga paalala sa pagbili, item timings at payo ng coach sa items. Kapag naka-off: ikaw ang pipili ng items mo, at pag-uusapan lang ito ni Doty kapag nagtanong ka.",
+ "Skill points": "Skill points",
+ "Reminders to spend a skill point, and the level 6 call.": "Paalala na gamitin ang skill point, at ang paalala sa level 6.",
+ "Farm and lane": "Farm at lane",
+ "Last-hit, deny and farm pace checks.": "Mga check sa last hit, deny at bilis ng farm.",
+ "Runes and Roshan": "Runes at Roshan",
+ "Countdowns to runes, shrines, lotus pools, neutral items, Roshan and the Aegis.": "Countdown sa runes, shrines, lotus pools, neutral items, Roshan at Aegis.",
+ "Enemy timings": "Timings ng kalaban",
+ "The enemy's big items before they land, who the long game favours, and pick-off windows.": "Malalaking item ng kalaban bago nila mabuo, kung sino ang pabor sa mahabang laro, at mga pick-off window.",
+ "Gold and TP scroll": "Gold at TP scroll",
+ "Unspent gold, items in the stash, buyback and a missing TP scroll.": "Gold na hindi nagagastos, mga item sa stash, buyback at kulang na TP scroll.",
+ "Death reviews": "Review ng pagkamatay",
+ "After each death: why it happened and what to change.": "Pagkatapos ng bawat pagkamatay: bakit nangyari at ano ang babaguhin.",
+ "Not this game": "Hindi sa larong ito"
 }

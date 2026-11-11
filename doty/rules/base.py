@@ -26,6 +26,7 @@ class RuleContext:
     kb: "Knowledge | None"
     new_events: list[dict[str, Any]]
     level: str = "some"  # the player's level (CoachConfig.level)
+    topics_off: frozenset = frozenset()  # subjects turned off in Settings (config.SuggestConfig field names)
 
     @property
     def mem(self) -> dict[str, Any]:

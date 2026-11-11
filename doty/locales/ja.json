@@ -1208,5 +1208,21 @@
  "Siwis: woman": "Siwis:女性",
  "Kitten": "Kitten",
  "Bounty runes in fifteen seconds. Their carry is missing from the map, so play safe.": "バウンティルーンまで十五秒。相手のキャリーがマップにいないので、安全にプレイしよう。",
- "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kittenは英語のみです:{language}を聞くには音声設定でKokoroを選んでください。"
+ "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kittenは英語のみです:{language}を聞くには音声設定でKokoroを選んでください。",
+ "What Doty suggests": "Dotyが提案すること",
+ "Items to buy": "買うアイテム",
+ "Buy calls, item timings and the coach's item advice. Off: you pick your own items, and Doty only talks about them when you ask.": "購入の呼びかけ、アイテムのタイミング、コーチのアイテム助言。オフ：アイテムは自分で選び、Dotyは聞かれたときだけ話します。",
+ "Skill points": "スキルポイント",
+ "Reminders to spend a skill point, and the level 6 call.": "スキルポイントを振るリマインドと、レベル6のコール。",
+ "Farm and lane": "ファームとレーン",
+ "Last-hit, deny and farm pace checks.": "ラストヒット、デナイ、ファームペースのチェック。",
+ "Runes and Roshan": "ルーンとRoshan",
+ "Countdowns to runes, shrines, lotus pools, neutral items, Roshan and the Aegis.": "ルーン、祠、ロータスプール、中立アイテム、Roshan、Aegisまでのカウントダウン。",
+ "Enemy timings": "敵のタイミング",
+ "The enemy's big items before they land, who the long game favours, and pick-off windows.": "敵の大型アイテムが完成する前のお知らせ、長期戦で有利な側、ピックオフのチャンス。",
+ "Gold and TP scroll": "ゴールドとTPスクロール",
+ "Unspent gold, items in the stash, buyback and a missing TP scroll.": "使っていないゴールド、スタッシュのアイテム、バイバック、TPスクロール切れ。",
+ "Death reviews": "デスの振り返り",
+ "After each death: why it happened and what to change.": "デスのたびに：なぜ起きたか、何を変えるか。",
+ "Not this game": "この試合では買わない"
 }

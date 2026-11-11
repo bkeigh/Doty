@@ -54,6 +54,12 @@ MIN_GAP_S = 4.0  # wall seconds between two fired calls, so they never pile up
 MAX_WORDS = 16
 STALE_S = 3.0  # a fired call that can't be heard within this long is dropped
 SAME_WORDS_GAP_S = 150  # game seconds before a call with the same words may be said again
+# A call that names a time on the clock ("Grab the water rune at 2:00") and only comes true this long after it
+# (you were dead at 2:00) is about a moment that has passed: it's dropped, not said. Only the words count: a
+# clock in the condition is often just "from then on" ("clock >= 35:00 and dead and buyback").
+# (A real match: "Grab the water rune at 2:00", said at 2:47 on respawning.)
+CLOCK_LATE_S = 30
+CLOCK_WORDS = re.compile(r"(?<![\d:])(\d{1,2}):([0-5]\d)(?![\d:])")
 Afford = Callable[[str], "bool | None"]  # item -> your gold covers what's left of it (None: no item data)
 
 
@@ -90,6 +96,11 @@ class Trigger:
     clauses: tuple[Clause, ...]
     armed_clock: int = 0
     was_true: bool | None = None  # unknown until the first check
+
+    def late(self, clock: int) -> bool:
+        """The call's words name a time on the clock, and every time they name is well past (CLOCK_LATE_S)."""
+        named = [int(m) * 60 + int(s) for m, s in CLOCK_WORDS.findall(self.say)]
+        return bool(named) and all(clock - t > CLOCK_LATE_S for t in named)
 
     @property
     def while_dead(self) -> bool:
@@ -230,8 +241,8 @@ class TriggerBook:
             if now_true is None:
                 continue
             if t.was_true is False and now_true:
-                if self._said_lately(t.say, snap.clock):
-                    self.active.remove(t)  # said moments ago and armed again: once was enough
+                if self._said_lately(t.say, snap.clock) or t.late(snap.clock):
+                    self.active.remove(t)  # said moments ago and armed again: once was enough (or its time is past)
                     continue
                 last = max(self._last_fired, store.memory.get("save_call_t", -1e9) if store is not None else -1e9)
                 if time.monotonic() - last < MIN_GAP_S:

@@ -128,6 +128,10 @@ PART_MIN_COST = 400  # a part cheaper than this isn't worth a "buy this now" (br
 # buying late carry over: this dear, or boots.
 PLAN_PER_PHASE = 4
 CARRY_OVER_MIN_COST = 1500
+# An item only a few of the hero's players buy in a phase isn't the plan (Bracer on Spirit Breaker: 2 games of
+# 75): it needs this share of the phase's most-bought item, and at least PLAN_MIN_GAMES games.
+PLAN_MIN_SHARE = 0.08
+PLAN_MIN_GAMES = 3
 # Telling the player to buy something ("Buy X", "finish your X", "save for X")...
 BUY_VERB = re.compile(r"\b(buy|get|grab|purchase|pick up|rush|build|finish|complete|afford|save for|go for|"
                       r"work towards?)\b", re.IGNORECASE)
@@ -157,6 +161,11 @@ class Knowledge:
         self.benchmarks: dict[int, dict[str, Any]] = {}
         self.matchups: dict[int, list[dict[str, Any]]] = {}  # hero id -> results vs every other hero
         self.custom_plan: dict[str, list[str]] = {}  # hero npc name -> item names, set by coach
+        # Items the player passed on this match (knowledge/build.py: they bought other things instead, could
+        # afford it and didn't, or said so): item -> why. Never the build's next item again, never suggested.
+        self.skipped: dict[str, str] = {}
+        self._boots: frozenset[str] = frozenset()  # every pair of boots (see _boots_pairs)
+        self._boots_key: tuple = ()
         self.hero_abilities: dict[str, dict[str, Any]] = {}  # npc name -> {abilities, talents, facets}
         self.ability_info: dict[str, dict[str, Any]] = {}  # ability name -> {dname, desc, innate}
         self.ability_ids: dict[str, str] = {}  # "5003" -> "antimage_mana_break"
@@ -554,8 +563,16 @@ class Knowledge:
         items on top of nothing). A stepping stone (Perseverance) stands in the plan as the item its players
         build it into (Battle Fury), like `typical_items`. In Turbo the phases come twice as early. Callers
         leave out what the player owns. (Rules ask on every update: kept until the data changes.)"""
-        if hero_npc in self.custom_plan:
-            return self.custom_plan[hero_npc]
+        popular = self._popular_plan(hero_npc, clock)
+        custom = self.custom_plan.get(hero_npc)
+        if not custom:
+            return popular
+        # The coach's plan is three or four items: once they're bought (or passed on), the build goes on with
+        # what the hero's players buy, instead of running out.
+        return custom + [i for i in popular if i not in custom]
+
+    def _popular_plan(self, hero_npc: str, clock: int) -> list[str]:
+        """What this hero's players buy most in this phase of the game (see `build_plan`)."""
         hero = self.heroes.get(hero_npc)
         hero_id = int(hero["id"]) if hero else 0
         pop = self.item_popularity.get(hero_id)
@@ -572,7 +589,11 @@ class Knowledge:
 
         def most_bought(name: str) -> list[str]:
             found: list[str] = []
-            for item_id, _count in sorted((pop.get(name) or {}).items(), key=lambda kv: -kv[1]):
+            counts = pop.get(name) or {}
+            floor = max(PLAN_MIN_GAMES, PLAN_MIN_SHARE * max((int(n) for n in counts.values()), default=0))
+            for item_id, count in sorted(counts.items(), key=lambda kv: -kv[1]):
+                if int(count) < floor:
+                    break
                 item = by_id.get(int(item_id))
                 if not item or not self._is_build_target(item):
                     continue
@@ -607,20 +628,20 @@ class Knowledge:
             return []
         names = set(owned)
         have = self.owned_with_parts(names)
-        hero = self.heroes.get(hero_npc)
-        later = self.build_plan(hero_npc, clock) + (self.typical_items(int(hero["id"]), 8) if hero else [])
-        boots = self._boots_upgrade(target) or any(  # (Travel Boots count as having a pair)
-            i != "item_boots" and "boots" in ((self.items.get(i) or {}).get("components") or []) for i in have)
+        later = self.build_plan(hero_npc, clock) + self._usual_from_here(hero_npc, clock)
+        boots = self._boots_upgrade(target)
         out: list[dict[str, Any]] = []
         for item in dict.fromkeys([target] + later):
             if len(out) >= n:
                 break
             if item != target:
-                if item in have or self.cost_left(item, owned) <= 0:
+                if item in have or item in self.skipped or self.cost_left(item, owned) <= 0:
                     continue
                 if self._boots_upgrade(item):
-                    if boots:
-                        continue  # (one pair of boots is enough)
+                    # One pair of boots is enough: the one you wear (or its upgrade: Tranquil Boots into
+                    # Boots of Bearing), and one pair in the list.
+                    if boots or self.second_boots(item, names):
+                        continue
                     boots = True
             out.append({"item": item, "name": self.item_name(item), "cost": self.item_cost(item),
                         "left": self.cost_left(item, owned)})
@@ -630,10 +651,31 @@ class Knowledge:
                      buy_cost=buy["cost"] if buy else 0, finish=bool(buy and buy["finish"]))
         return out
 
+    def _boots_pairs(self) -> frozenset[str]:
+        """Every pair of boots: anything with Boots of Speed somewhere inside it, however deep. Boots of Bearing
+        are made from Tranquil Boots and Guardian Greaves from Arcane Boots, so their own parts don't list
+        Boots of Speed. (A real match: "Buy Phase Boots", twenty times, to a player in Boots of Bearing.)"""
+        key = (id(self.items), len(self.items))
+        if self._boots_key != key:
+            self._boots = frozenset(i for i in self.items if i != "item_boots" and "item_recipe_" not in i
+                                    and "item_boots" in self.owned_with_parts({i}))
+            self._boots_key = key
+        return self._boots
+
     def _boots_upgrade(self, item: str) -> bool:
         """A pair of boots made from Boots of Speed (Travel Boots aside: they go on top of another pair)."""
-        return (item != "item_boots" and not item.startswith("item_travel_boots")
-                and "boots" in ((self.items.get(item) or {}).get("components") or []))
+        return item in self._boots_pairs() and not item.startswith("item_travel_boots")
+
+    # the player's own build ----------------------------------------------------------------------
+    def skip(self, item: str, why: str = "") -> bool:
+        """Leave `item` out of this match's build from now on. True if that's new."""
+        if not item or item in self.skipped:
+            return False
+        self.skipped[item] = why
+        return True
+
+    def unskip(self, item: str) -> bool:
+        return self.skipped.pop(item, None) is not None
 
     def _is_build_target(self, item: str) -> bool:
         """Finished items only: popularity lists include components (Broadsword
@@ -880,13 +922,27 @@ class Knowledge:
         skipped doesn't stay "next" while you're three parts into Battle Fury.)"""
         names = set(owned)
         have = self.owned_with_parts(names)
-        todo = [i for i in self.build_plan(hero_npc, clock) if i not in have and not self.second_boots(i, names)]
+        todo = [i for i in self.build_plan(hero_npc, clock)
+                if i not in have and i not in self.skipped and not self.second_boots(i, names)]
         # (Plain Boots of Speed are a part of every pair of boots: holding them isn't a start on any one.)
         held = [i for i in owned if i != "item_boots"]
         for item in todo:
             if 0 < self.cost_left(item, held) < self.item_cost(item):
                 return item
-        return todo[0] if todo else None
+        if todo:
+            return todo[0]
+        # The phase's plan is done (bought, or passed on): what the hero's players buy over a whole game is next.
+        return next((i for i in self._usual_from_here(hero_npc, clock) if i not in have and i not in self.skipped
+                     and not self.second_boots(i, names)), None)
+
+    def _usual_from_here(self, hero_npc: str, clock: int) -> list[str]:
+        """The hero's usual items that still make sense at this point: once the laning stage is over, not the
+        cheap early ones (an Urn of Shadows at 30:00)."""
+        hero = self.heroes.get(hero_npc)
+        usual = self.typical_items(int(hero["id"]), 10) if hero else []
+        if self.mode.as_normal(clock) < PHASES[2][1]:
+            return usual
+        return [i for i in usual if self.item_cost(i) >= CARRY_OVER_MIN_COST or self._boots_upgrade(i)]
 
     def typical_time(self, hero_id: int, item: str, min_games: int = 30) -> int | None:
         """Game second by which half of this hero's players have finished `item` (OpenDota buckets:
@@ -916,11 +972,14 @@ class Knowledge:
         return out
 
     def second_boots(self, item: str, owned: set[str]) -> bool:
-        """`item` is a boots upgrade and you already have a different one (Phase Boots after Power Treads).
-        Plain Boots of Speed don't count: upgrading them is the point. Travel Boots are an upgrade on top."""
-        def upgrade(i: str) -> bool:
-            return i != "item_boots" and "boots" in ((self.items.get(i) or {}).get("components") or [])
-        return self._boots_upgrade(item) and any(upgrade(i) and i != item for i in owned)
+        """`item` is a boots upgrade and you already have a different pair (Phase Boots after Power Treads, or
+        after Boots of Bearing). Plain Boots of Speed don't count: upgrading them is the point. Nor does the
+        pair `item` is made from (Tranquil Boots into Boots of Bearing, Arcane Boots into Guardian Greaves).
+        Travel Boots are an upgrade on top."""
+        if not self._boots_upgrade(item):
+            return False
+        pairs, inside = self._boots_pairs(), self.owned_with_parts({item})
+        return any(i in pairs and i != item and i not in inside for i in owned)
 
     def win_rate_by(self, hero_id: int, item: str, clock: int, min_games: int = 30) -> float | None:
         """How often this hero's players win when `item` is finished by about `clock` (the OpenDota bucket it
@@ -965,7 +1024,8 @@ class Knowledge:
         seen = self.bought_items(hero_id)
         if seen is None:
             return None
-        return seen | {f"item_{i}" for i in COUNTER_ITEMS}
+        # With the parts they're made of: "Buy Ogre Axe" is how Black King Bar gets bought.
+        return self.owned_with_parts(seen | {f"item_{i}" for i in COUNTER_ITEMS})
 
     def _masked(self, text: str, what: str, own_hero: str = "") -> str:
         """`text` with item names ("item") or ability names ("ability") blanked out. Abilities: every
@@ -1036,10 +1096,12 @@ class Knowledge:
         have = self.owned_with_parts(names)
 
         def open_(item: str) -> bool:
-            return item not in have and not self.second_boots(item, names)
+            return item not in have and item not in self.skipped and not self.second_boots(item, names)
 
         plan = [self.item_name(i) for i in self.build_plan(hero_npc, clock) if open_(i)][:PLAN_PER_PHASE]
         out: dict[str, Any] = {"popular_next_items": plan}
+        if self.skipped:  # their build is their call: the coach is told, so it stops bringing these up
+            out["passed_on"] = [self.item_name(i) for i in self.skipped if i not in have]
         hero = self.heroes.get(hero_npc)
         if hero:
             typical = [self.item_name(i) for i in self.typical_items(int(hero["id"])) if open_(i)]

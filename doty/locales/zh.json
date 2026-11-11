@@ -1208,5 +1208,21 @@
  "Siwis: woman": "Siwis：女声",
  "Kitten": "Kitten",
  "Bounty runes in fifteen seconds. Their carry is missing from the map, so play safe.": "赏金神符十五秒后刷新。对方大哥从地图上消失了，小心点打。",
- "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten 只会说英语：在语音设置中选择 Kokoro 以收听{language}。"
+ "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten 只会说英语：在语音设置中选择 Kokoro 以收听{language}。",
+ "What Doty suggests": "Doty 提示哪些内容",
+ "Items to buy": "该买的装备",
+ "Buy calls, item timings and the coach's item advice. Off: you pick your own items, and Doty only talks about them when you ask.": "购买提醒、出装时间点和教练的出装建议。关闭后：装备由你自己决定，只有你问起时 Doty 才会谈装备。",
+ "Skill points": "技能点",
+ "Reminders to spend a skill point, and the level 6 call.": "提醒你加技能点，以及 6 级提示。",
+ "Farm and lane": "补刀与对线",
+ "Last-hit, deny and farm pace checks.": "正补、反补和发育节奏检查。",
+ "Runes and Roshan": "神符与肉山",
+ "Countdowns to runes, shrines, lotus pools, neutral items, Roshan and the Aegis.": "神符、圣坛、莲花池、中立装备、肉山和不朽盾的倒计时。",
+ "Enemy timings": "敌方时间点",
+ "The enemy's big items before they land, who the long game favours, and pick-off windows.": "敌方大件成型前的提醒、后期对谁有利，以及抓单窗口。",
+ "Gold and TP scroll": "金钱与 TP",
+ "Unspent gold, items in the stash, buyback and a missing TP scroll.": "没花掉的金钱、储藏处的装备、买活和缺少 TP。",
+ "Death reviews": "死亡复盘",
+ "After each death: why it happened and what to change.": "每次死亡后：为什么会死，该改什么。",
+ "Not this game": "这局不买"
 }

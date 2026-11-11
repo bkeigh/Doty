@@ -26,6 +26,26 @@ SPEAK_LESS = {
                       "gank_risk", "buyback", "death_watch"}),
 }
 
+# Which calls belong to which subject of Settings > Alerts > "What Doty suggests" (config.SuggestConfig). A rule
+# that isn't listed (low HP, the save calls, gank risk) is about staying alive and has no switch here.
+TOPIC_RULES = {
+    "items": frozenset({"affordable_item", "item_pace"}),
+    "skills": frozenset({"skill_point", "power_spike"}),
+    "farm": frozenset({"farm_check", "laning"}),
+    "timers": frozenset({"spawn_timer", "roshan", "day_night"}),
+    "enemy": frozenset({"enemy_spikes", "game_plan", "pick_off"}),
+    "gold": frozenset({"unspent_gold", "stash_items", "buyback", "missing_tp"}),
+    "deaths": frozenset({"death_watch"}),
+}
+
+
+def topics_off(suggest) -> frozenset[str]:
+    """The subjects turned off (a config.SuggestConfig, or None for all on)."""
+    if suggest is None:
+        return frozenset()
+    return frozenset(t for t in TOPIC_RULES if not getattr(suggest, t, True))
+
+
 # An alert that can't be heard within this many seconds of its moment (the voice is busy with a long
 # line) is dropped from the voice: "Bounty runes in 15" said ten seconds late is wrong. It stays on screen.
 STALE_S = 8.0
@@ -54,6 +74,7 @@ class RuleEngine:
         self.last_eval_ms = 0.0
         self.max_eval_ms = 0.0
         self.level_of = lambda: "some"  # the player's level, read live (the app points it at its config)
+        self.suggest = None  # config.SuggestConfig: which subjects Doty speaks about (the app sets it)
 
     @property
     def _fired(self) -> dict[str, float]:
@@ -76,7 +97,9 @@ class RuleEngine:
             kb=self.kb,
             new_events=self.store.new_events(snap),
             level=self.level_of(),
+            topics_off=topics_off(self.suggest),
         )
+        silenced = frozenset().union(*(TOPIC_RULES[t] for t in ctx.topics_off)) if ctx.topics_off else frozenset()
         more, less = SPEAK_MORE.get(ctx.level, frozenset()), SPEAK_LESS.get(ctx.level, frozenset())
         emitted: list[Advice] = []
         now = time.monotonic()
@@ -85,7 +108,7 @@ class RuleEngine:
         # while you're being hit is noise. Those still show on screen.
         fighting = snap.alive and self.store.in_fight()
         for rule in self.rules:
-            if rule.id in self.cfg.muted_rules:
+            if rule.id in self.cfg.muted_rules or rule.id in silenced:
                 continue
             if rule.needs_hero and not snap.has_hero:
                 continue

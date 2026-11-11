@@ -8,7 +8,8 @@ import time
 
 from PySide6.QtCore import QEasingCurve, QPointF, QRect, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QLinearGradient, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QBoxLayout, QGridLayout, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (QBoxLayout, QGridLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout,
+                               QWidget)
 
 from ..i18n import tr
 from ..rules.base import mmss
@@ -695,9 +696,10 @@ class _ItemLine(QWidget):
     """One item to buy: icon and name, a gold bar filling toward what's left of its cost, and what's still to
     pay (or BUY NOW). Only the item being built now takes your gold; the ones after it show their price."""
 
-    def __init__(self, stats, key: str, name: str = "") -> None:
+    def __init__(self, stats, key: str, name: str = "", on_skip=None) -> None:
         super().__init__()
         self.key = key
+        self.skip: QPushButton | None = None
         h = QHBoxLayout(self)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(10)
@@ -723,6 +725,18 @@ class _ItemLine(QWidget):
         self.ready.hide()
         h.addWidget(self.ready, 0, Qt.AlignVCenter)
         self.setToolTip(icon.toolTip())
+        if on_skip is not None:  # "not that one": the item leaves this match's build (Knowledge.skipped)
+            self.skip = QPushButton("\u00d7")  # (the multiplication sign: every font has it)
+            self.skip.setFixedSize(22, 22)
+            self.skip.setCursor(Qt.PointingHandCursor)
+            self.skip.setFocusPolicy(Qt.NoFocus)
+            self.skip.setToolTip("Not this game")
+            self.skip.setAccessibleName("Not this game")
+            self.skip.setStyleSheet(f"QPushButton {{ border: none; background: transparent; color: {theme.MUTED};"
+                                    f" font-size: 15pt; font-weight: 600; padding: 0 0 3px 0; }}"
+                                    f" QPushButton:hover {{ color: {theme.TEXT}; }}")
+            self.skip.clicked.connect(lambda: on_skip(key))
+            h.addWidget(self.skip, 0, Qt.AlignVCenter)
 
     def set_entry(self, e: dict, first: bool) -> None:
         """`e` is one entry of the engine's shopping list (Knowledge.shopping): the first is the item being
@@ -802,10 +816,16 @@ class BuildPanel(Card):
         self.vs_row.hide()
         self._shown: tuple | None = None
         self._lines: dict[str, _ItemLine] = {}
+        # Set by the Coach page: called with an item's key ("black_king_bar") when its "not this game" is clicked.
+        self.on_skip = None
 
     def _stats(self):
         s = getattr(self.svc, "stats", None)
         return s if s is not None and s.loaded else None
+
+    def _skip(self, key: str) -> None:
+        if self.on_skip is not None:
+            self.on_skip(key)
 
     @staticmethod
     def _clear(lay) -> None:
@@ -836,7 +856,7 @@ class BuildPanel(Card):
                                               "You have the usual build. Buy what the game needs.", "faint",
                                               wrap=True))
             for e in build or ():
-                line = _ItemLine(s, e["key"], e.get("name") or "")
+                line = _ItemLine(s, e["key"], e.get("name") or "", self._skip if self.on_skip else None)
                 self.next_lay.addWidget(line)
                 self._lines[e["key"]] = line
             self._clear(self.vs_lay)

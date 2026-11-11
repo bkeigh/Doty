@@ -1208,5 +1208,21 @@
  "Siwis: woman": "Siwis : femme",
  "Kitten": "Kitten",
  "Bounty runes in fifteen seconds. Their carry is missing from the map, so play safe.": "Runes de prime dans quinze secondes. Leur carry a disparu de la carte, alors joue prudemment.",
- "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten ne parle qu'anglais : choisis Kokoro dans les paramètres de voix pour entendre {language}."
+ "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten ne parle qu'anglais : choisis Kokoro dans les paramètres de voix pour entendre {language}.",
+ "What Doty suggests": "Ce que Doty suggère",
+ "Items to buy": "Objets à acheter",
+ "Buy calls, item timings and the coach's item advice. Off: you pick your own items, and Doty only talks about them when you ask.": "Rappels d'achat, timings d'objets et conseils d'objets du coach. Désactivé : tu choisis tes objets, et Doty n'en parle que si tu demandes.",
+ "Skill points": "Points de compétence",
+ "Reminders to spend a skill point, and the level 6 call.": "Rappels pour dépenser un point de compétence, et l'annonce du niveau 6.",
+ "Farm and lane": "Farm et lane",
+ "Last-hit, deny and farm pace checks.": "Vérifications des last hits, des denies et du rythme de farm.",
+ "Runes and Roshan": "Runes et Roshan",
+ "Countdowns to runes, shrines, lotus pools, neutral items, Roshan and the Aegis.": "Comptes à rebours des runes, sanctuaires, bassins de lotus, objets neutres, de Roshan et de l'Aegis.",
+ "Enemy timings": "Timings ennemis",
+ "The enemy's big items before they land, who the long game favours, and pick-off windows.": "Les gros objets ennemis avant qu'ils n'arrivent, qui la partie longue favorise, et les fenêtres de pick-off.",
+ "Gold and TP scroll": "Or et TP",
+ "Unspent gold, items in the stash, buyback and a missing TP scroll.": "Or non dépensé, objets dans la réserve, buyback et TP manquant.",
+ "Death reviews": "Analyse des morts",
+ "After each death: why it happened and what to change.": "Après chaque mort : pourquoi c'est arrivé et quoi changer.",
+ "Not this game": "Pas cette partie"
 }

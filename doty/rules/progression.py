@@ -141,8 +141,11 @@ class GameStartCard(Rule):
             return
         hero_id = int(hero["id"])
         skills = [kb.ability_name(a) for a in kb.skill_order(hero_id) if not a.startswith("special_bonus")][:4]
+        if "skills" in ctx.topics_off:
+            skills = []
         core = []
-        timed = [(kb.typical_time(hero_id, item), item) for item in kb.typical_items(hero_id, 4)[:3]]
+        timed = [] if "items" in ctx.topics_off else [
+            (kb.typical_time(hero_id, item), item) for item in kb.typical_items(hero_id, 4)[:3]]
         for when, item in sorted(timed, key=lambda t: (t[0] is None, t[0] or 0)):  # in the order they land
             core.append(kb.item_name(item) + (f" (~{mmss(when)})" if when else ""))
         if not skills and not core:
@@ -174,7 +177,7 @@ class ItemPace(Rule):
         have = s.all_item_names()
         owned = kb.owned_with_parts(have)
         due = sorted((when, item) for item in kb.typical_items(hero_id, 4)
-                     if item not in owned and not kb.second_boots(item, have)
+                     if item not in owned and item not in kb.skipped and not kb.second_boots(item, have)
                      and (when := kb.typical_time(hero_id, item)) is not None)
         for when, item in due:  # in the order they usually land
             if s.clock >= when:

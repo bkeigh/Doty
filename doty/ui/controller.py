@@ -226,6 +226,12 @@ class Controller(QObject):
         if self.running:
             self.doty.coach.ask_question(text)
 
+    def skip_item(self, key: str = "") -> None:
+        """Leave an item out of this match's build (the Buy Next panel's "not this game"; `key` as the app
+        names items, "black_king_bar"; '' = the item Doty is pointing at)."""
+        if self.running:
+            self.doty.coach.skip_item(f"item_{key.removeprefix('item_')}" if key else None)
+
     def toggle_mute(self) -> None:
         if self.running:
             self.doty._toggle_mute()

@@ -23,6 +23,17 @@ unspent_gold_threshold = 2500
 game_mode = "auto"           # auto | normal | turbo. Auto goes by the match, then by your recent matches
 muted_rules = []             # e.g. ["unspent_gold", "farm_check"]
 
+# What Doty brings up by itself (Settings > Alerts > What Doty suggests). With a subject off, neither the
+# instant calls nor the AI coach mention it; asking the coach about it still gets an answer.
+[suggest]
+items = true     # what to buy: "Buy Ogre Axe", "You can afford ...", item pace, the coach's item advice
+skills = true    # skill points to spend, level 6
+farm = true      # last hits, denies, farm pace
+timers = true    # runes, shrines, lotus pools, neutral items, Roshan and the Aegis
+enemy = true     # the enemy's item timings, who the long game favours, pick-off windows
+gold = true      # unspent gold, the stash, buyback, a missing TP scroll
+deaths = true    # after each death: why, and what to change
+
 [coach]
 enabled = true
 # The AI behind the coach (Settings > AI coach connects it):
@@ -107,3 +118,4 @@ ask = "ctrl+alt+a"
 plan = "ctrl+alt+p"
 mute = "ctrl+alt+m"
 toggle_overlay = "ctrl+alt+h"
+skip_item = "ctrl+alt+x"     # "not that one": drops the item Doty is pointing at from this match's build

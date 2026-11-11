@@ -322,6 +322,48 @@ exactly where they put a network round trip between the event and the response.
   sell you what you have; a prepared call is checked again when it fires. `TriggerBook` won't say the same
   words twice within `SAME_WORDS_GAP_S` game seconds.
 
+## The player's own build, and what Doty brings up (the eleventh pass)
+
+From the two Turbo games of 2026-11-10 (`docs/ACCURACY_PLAN.md` has the log's numbers).
+
+- **Every pair of boots** (`Knowledge._boots_pairs`): anything with Boots of Speed somewhere inside it. Boots
+  of Bearing (from Tranquil Boots) and Guardian Greaves (from Arcane Boots) don't list Boots of Speed among
+  their own parts, so `second_boots` missed them. A pair made from the pair you wear is an upgrade, not a
+  second pair.
+- **Passed-on items** (`knowledge/build.py`, `Knowledge.skipped`): `build.observe` runs on every update before
+  the rules. For the item Doty points at (`next_target`) it remembers what the rest of your items were worth
+  when it first did; once twice the item's price has gone into other things with no part of it held, the item
+  leaves this match's build. `rules/economy.AffordableBuildItem` does the same after saying "You can afford X"
+  `FINISH_CALLS` times. `next_target`, `shopping`, `summary_for_prompt` and `ItemPace` leave skipped items
+  out; the coach's state lists them as `passed_on`. A quiet feed line says so (`build.note`). Cleared with the
+  match's memory.
+- **Saying so** (`Coach._build_command`): "skip Black King Bar", "I don't need BKB", "skip it" and "bring back
+  ..." over push-to-talk are done by Doty itself with no AI call, when the words are short, not a question,
+  and name an item. `hotkeys.skip_item` (Ctrl+Alt+X) and the Buy Next panel's "not this game" button call
+  `Coach.skip_item`. An answer to a spoken question may end with `SKIP: item_x`.
+- **The build never runs out:** `build_plan` is the coach's `BUILD:` items followed by what the hero's players
+  buy in this phase (`_popular_plan`, which now needs `PLAN_MIN_SHARE` of the phase's most-bought item), and
+  with all of those bought or passed on, `next_target` goes to the hero's usual items (`_usual_from_here`:
+  nothing cheap once the laning stage is over).
+- **Subjects** (`config.SuggestConfig`, Settings > Alerts > What Doty suggests): items, skills, farm, timers,
+  enemy, gold, deaths. `rules/engine.TOPIC_RULES` maps each to its rules; the coach's state gets
+  `dont_advise_on` and loses the build lists with items off (`Coach._settings_into`), and item lines are
+  dropped (`Coach._unwanted`). `deaths` off skips the death look. Staying-alive calls have no switch here.
+- **More checks on what the coach says** (`coach/llm.py`):
+  - `_cant_afford`: "buy X now" when the gold covers no real part of X.
+  - `_has_tp_already`: "buy a TP scroll" with one in the slot.
+  - `_overpushed`: an item of the build named out loud `MAX_ITEM_PUSHES` times with no part bought since goes
+    to the feed only (the state's `told_to_buy` tells the AI the count); a call to get out is exempt.
+  - `_without_bad_sentences`: answers that stream to the voice (deaths, the ask key) are checked a sentence at
+    a time with the same checks, since they can't be dropped whole.
+  - `_tag_lines`: a `TRIGGER:` or `BUILD:` written on the answer's own line is moved to its own line before
+    parsing, so it's armed instead of read out.
+  - `_settled`: "buy Tranquil... no: once back, ..." keeps only what follows the change of mind.
+  - Prepared calls: one whose words name a clock time that is `CLOCK_LATE_S` past is dropped
+    (`Trigger.late`), and one that repeats what was heard in the last `TRIGGER_REPEAT_S` isn't said.
+  - `allowed_items` includes the parts of allowed items ("Buy Ogre Axe" was being rejected as "not this
+    hero's item" when few of its players listed the part).
+
 ## Game mode: normal or Turbo (the tenth pass, `knowledge/mode.py`)
 
 Dota's game data has no game-mode field, so `mode.observe(snap, store, setting, usually)` decides on every

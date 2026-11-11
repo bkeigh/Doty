@@ -1208,5 +1208,21 @@
  "Siwis: woman": "Siwis: женщина",
  "Kitten": "Kitten",
  "Bounty runes in fifteen seconds. Their carry is missing from the map, so play safe.": "Руны богатства через пятнадцать секунд. Их керри пропал с карты, так что играй осторожно.",
- "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten говорит только по-английски: выбери Kokoro в настройках голоса, чтобы слышать язык: {language}."
+ "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten говорит только по-английски: выбери Kokoro в настройках голоса, чтобы слышать язык: {language}.",
+ "What Doty suggests": "Что подсказывает Doty",
+ "Items to buy": "Что покупать",
+ "Buy calls, item timings and the coach's item advice. Off: you pick your own items, and Doty only talks about them when you ask.": "Подсказки о покупках, тайминги предметов и советы коуча по предметам. Выключено: предметы выбираешь сам, а Doty говорит о них, только когда спросишь.",
+ "Skill points": "Очки навыков",
+ "Reminders to spend a skill point, and the level 6 call.": "Напоминания потратить очко навыка и сигнал о 6-м уровне.",
+ "Farm and lane": "Фарм и линия",
+ "Last-hit, deny and farm pace checks.": "Проверки ластхитов, денаев и темпа фарма.",
+ "Runes and Roshan": "Руны и Рошан",
+ "Countdowns to runes, shrines, lotus pools, neutral items, Roshan and the Aegis.": "Отсчёт до рун, святилищ, лотосов, нейтральных предметов, Рошана и Аегиса.",
+ "Enemy timings": "Тайминги врага",
+ "The enemy's big items before they land, who the long game favours, and pick-off windows.": "Большие предметы врага до их появления, кому выгодна долгая игра и окна для пик-оффа.",
+ "Gold and TP scroll": "Золото и ТП",
+ "Unspent gold, items in the stash, buyback and a missing TP scroll.": "Непотраченное золото, предметы в тайнике, байбэк и отсутствие ТП.",
+ "Death reviews": "Разбор смертей",
+ "After each death: why it happened and what to change.": "После каждой смерти: почему так вышло и что изменить.",
+ "Not this game": "Не в этой игре"
 }

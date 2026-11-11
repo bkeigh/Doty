@@ -2141,6 +2141,22 @@ class SettingsPage(QWidget):
                 "and Roshan's timer all move. Automatic goes by what the match shows, then by your recent matches.",
                 self._combo(d.rules, "game_mode", [("auto", "Automatic"), ("normal", "Normal"), ("turbo", "Turbo")])),
         ]))
+        card.add(SettingsGroup("What Doty suggests", [
+            row(SG.STAR, "Items to buy", "Buy calls, item timings and the coach's item advice. Off: you pick your "
+                "own items, and Doty only talks about them when you ask.", self._switch(d.suggest, "items")),
+            row(SG.CAP, "Skill points", "Reminders to spend a skill point, and the level 6 call.",
+                self._switch(d.suggest, "skills")),
+            row(SG.CHART, "Farm and lane", "Last-hit, deny and farm pace checks.",
+                self._switch(d.suggest, "farm")),
+            row(SG.CLOCK, "Runes and Roshan", "Countdowns to runes, shrines, lotus pools, neutral items, Roshan "
+                "and the Aegis.", self._switch(d.suggest, "timers")),
+            row(SG.EYE, "Enemy timings", "The enemy's big items before they land, who the long game favours, and "
+                "pick-off windows.", self._switch(d.suggest, "enemy")),
+            row(SG.KEY, "Gold and TP scroll", "Unspent gold, items in the stash, buyback and a missing TP scroll.",
+                self._switch(d.suggest, "gold")),
+            row(SG.BULB, "Death reviews", "After each death: why it happened and what to change.",
+                self._switch(d.suggest, "deaths")),
+        ]))
         card.add(SettingsGroup("Timings", [
             row(SG.RUNE, "Bounty rune reminders", "A heads-up before the bounty runes spawn.",
                 self._switch(d.rules, "announce_bounty_runes")),

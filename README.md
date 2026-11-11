@@ -268,6 +268,7 @@ Prefer a terminal? This runs the same engine with just the overlay and tray:
 | Ctrl+Alt+P | 5-minute plan + item build (the build drives the "you can afford X" alerts) |
 | Ctrl+Alt+M | Mute / unmute voice |
 | Ctrl+Alt+H | Hide / show the overlay |
+| Ctrl+Alt+X | "Not that one": drop the item Doty is pointing at from this game's build (or say "skip Black King Bar") |
 
 ### Push-to-talk
 

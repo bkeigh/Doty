@@ -1208,5 +1208,21 @@
  "Siwis: woman": "Siwis: mujer",
  "Kitten": "Kitten",
  "Bounty runes in fifteen seconds. Their carry is missing from the map, so play safe.": "Runas de recompensa en quince segundos. Su carry no aparece en el mapa, así que juega seguro.",
- "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten solo habla inglés: elige Kokoro en los ajustes de voz para oír {language}."
+ "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten solo habla inglés: elige Kokoro en los ajustes de voz para oír {language}.",
+ "What Doty suggests": "Qué sugiere Doty",
+ "Items to buy": "Objetos que comprar",
+ "Buy calls, item timings and the coach's item advice. Off: you pick your own items, and Doty only talks about them when you ask.": "Avisos de compra, timings de objetos y los consejos de objetos del coach. Apagado: eliges tus propios objetos y Doty solo habla de ellos cuando preguntas.",
+ "Skill points": "Puntos de habilidad",
+ "Reminders to spend a skill point, and the level 6 call.": "Recordatorios para gastar un punto de habilidad, y el aviso de nivel 6.",
+ "Farm and lane": "Farm y línea",
+ "Last-hit, deny and farm pace checks.": "Revisiones de last hits, denegaciones y ritmo de farm.",
+ "Runes and Roshan": "Runas y Roshan",
+ "Countdowns to runes, shrines, lotus pools, neutral items, Roshan and the Aegis.": "Cuentas atrás para runas, santuarios, estanques de loto, objetos neutrales, Roshan y el Aegis.",
+ "Enemy timings": "Timings del enemigo",
+ "The enemy's big items before they land, who the long game favours, and pick-off windows.": "Los objetos grandes del enemigo antes de que lleguen, a quién favorece la partida larga y las ventanas de pick-off.",
+ "Gold and TP scroll": "Oro y TP",
+ "Unspent gold, items in the stash, buyback and a missing TP scroll.": "Oro sin gastar, objetos en el alijo, buyback y la falta de un TP.",
+ "Death reviews": "Análisis de muertes",
+ "After each death: why it happened and what to change.": "Tras cada muerte: por qué pasó y qué cambiar.",
+ "Not this game": "En esta partida no"
 }

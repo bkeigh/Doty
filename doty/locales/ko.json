@@ -1208,5 +1208,21 @@
  "Siwis: woman": "Siwis: 여성",
  "Kitten": "Kitten",
  "Bounty runes in fifteen seconds. Their carry is missing from the map, so play safe.": "현상금 룬이 십오 초 후에 나옵니다. 상대 캐리가 지도에 없으니 안전하게 플레이하세요.",
- "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten은 영어만 말합니다: {language}를 들으려면 음성 설정에서 Kokoro를 선택하세요."
+ "Kitten speaks English only: choose Kokoro in Voice settings to hear {language}.": "Kitten은 영어만 말합니다: {language}를 들으려면 음성 설정에서 Kokoro를 선택하세요.",
+ "What Doty suggests": "Doty가 제안하는 것",
+ "Items to buy": "구매할 아이템",
+ "Buy calls, item timings and the coach's item advice. Off: you pick your own items, and Doty only talks about them when you ask.": "구매 알림, 아이템 타이밍, 코치의 아이템 조언. 끄면: 아이템은 직접 고르고, Doty는 물어볼 때만 이야기합니다.",
+ "Skill points": "스킬 포인트",
+ "Reminders to spend a skill point, and the level 6 call.": "스킬 포인트를 쓰라는 알림과 6레벨 콜.",
+ "Farm and lane": "파밍과 라인",
+ "Last-hit, deny and farm pace checks.": "막타, 디나이, 파밍 속도 점검.",
+ "Runes and Roshan": "룬과 Roshan",
+ "Countdowns to runes, shrines, lotus pools, neutral items, Roshan and the Aegis.": "룬, 성소, 연꽃 연못, 중립 아이템, Roshan, Aegis까지의 카운트다운.",
+ "Enemy timings": "적 타이밍",
+ "The enemy's big items before they land, who the long game favours, and pick-off windows.": "적의 핵심 아이템이 나오기 전 알림, 장기전에 유리한 쪽, 끊어 먹을 기회.",
+ "Gold and TP scroll": "골드와 TP 스크롤",
+ "Unspent gold, items in the stash, buyback and a missing TP scroll.": "쓰지 않은 골드, 보관함의 아이템, 바이백, TP 스크롤 없음.",
+ "Death reviews": "죽음 리뷰",
+ "After each death: why it happened and what to change.": "죽을 때마다: 왜 죽었는지, 무엇을 바꿀지.",
+ "Not this game": "이번 게임에서는 제외"
 }

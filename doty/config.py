@@ -67,6 +67,21 @@ class RulesConfig:
 
 
 @dataclass
+class SuggestConfig:
+    """What Doty gives advice about. With a subject off, neither the instant calls nor the AI coach bring it
+    up by themselves; asking the coach about it still gets an answer. (rules/engine.TOPIC_RULES lists which
+    calls belong to which subject; staying-alive calls are under Alerts, not here.)"""
+
+    items: bool = True  # what to buy: "Buy Ogre Axe", "You can afford ...", item pace, the coach's item advice
+    skills: bool = True  # skill points to spend, level 6
+    farm: bool = True  # last hits, the lane and farm pace
+    timers: bool = True  # runes, shrines, lotus pools, neutral tiers, Roshan and Aegis
+    enemy: bool = True  # the enemy's item timings, who the long game favours, pick-off windows
+    gold: bool = True  # unspent gold, the stash, buyback, a missing TP scroll
+    deaths: bool = True  # after each death: why, and what to change
+
+
+@dataclass
 class CoachConfig:
     enabled: bool = True
     # Sonnet 5.5: half Opus 5.5's price ($2/$10 vs $4/$20 per million tokens) and plenty for
@@ -187,6 +202,8 @@ class HotkeyConfig:
     plan: str = "ctrl+alt+p"
     mute: str = "ctrl+alt+m"
     toggle_overlay: str = "ctrl+alt+h"
+    # "Not that one": leaves the item Doty is pointing at out of this match's build and moves to the next.
+    skip_item: str = "ctrl+alt+x"
 
 
 @dataclass
@@ -259,6 +276,7 @@ class Config:
     gsi: GsiConfig = field(default_factory=GsiConfig)
     rules: RulesConfig = field(default_factory=RulesConfig)
     coach: CoachConfig = field(default_factory=CoachConfig)
+    suggest: SuggestConfig = field(default_factory=SuggestConfig)
     voice: VoiceConfig = field(default_factory=VoiceConfig)
     overlay: OverlayConfig = field(default_factory=OverlayConfig)
     hotkeys: HotkeyConfig = field(default_factory=HotkeyConfig)

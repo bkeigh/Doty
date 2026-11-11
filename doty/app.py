@@ -26,7 +26,7 @@ from .config import LOG_DIR, Config
 from .gsi.server import GsiServer
 from .hotkeys import Hotkeys
 from .knowledge import mode as game_mode
-from .knowledge import roles, timings
+from .knowledge import build, roles, timings
 from .knowledge.constants import Knowledge
 from .listen import VoiceInput
 from .rules import RuleEngine, spoken_lines, urgent_lines
@@ -69,6 +69,7 @@ class Doty:
         self.kb = Knowledge()
         self.engine = RuleEngine(self.store, self.bus, cfg.rules, self.kb)
         self.engine.level_of = lambda: self.cfg.coach.level  # (live: the Learn tab can change it mid-game)
+        self.engine.suggest = cfg.suggest  # which subjects Doty brings up (Settings > Alerts)
         self.voice = Voice(cfg.voice)
         from . import i18n
 
@@ -83,6 +84,7 @@ class Doty:
         self.coach.spoken_max = cfg.voice.min_priority  # (what the voice doesn't say, the coach hasn't "said")
         self.coach.language = getattr(cfg.app, "language", "en")
         self.coach.signals = self._screen_signals
+        self.coach.suggest = cfg.suggest
         self.server = GsiServer(cfg.gsi.host, cfg.gsi.port, cfg.gsi.auth_token, self._on_payload,
                                 cfg.gsi.record_dir)
         self.hotkeys = Hotkeys()
@@ -183,6 +185,9 @@ class Doty:
         else:
             self.store.memory.pop("mode_pending", None)
         roles.observe(snap, self.store, self.kb)  # which role the player has this game (the rules and coach use it)
+        # The player's own build: an item they were pointed at and bought around leaves it (knowledge/build.py).
+        for item in build.observe(snap, self.store, self.kb):
+            self.bus.publish(build.note(self.kb, item))
         self.engine.on_snapshot(snap)
         self.coach.on_snapshot(snap)
         if self.capture.on:
@@ -270,7 +275,7 @@ class Doty:
                 groups.setdefault(in_s, []).append(label)
         timers = [(in_s, labels) for in_s, labels in sorted(groups.items())][:2]
         item = None
-        plan = self._shopping(snap, 1)
+        plan = self._shopping(snap, 1) if self.cfg.suggest.items else None  # (item advice off: no item on the strip)
         if plan and plan[0]["cost"] > 0 and plan[0]["left"] > 0:
             now = plan[0]
             short = now["short"]
@@ -297,7 +302,7 @@ class Doty:
         gets Blink Dagger soon") can't be made before the match like the fixed ones. They're predictable a
         while ahead, though, so a local voice makes them now and they play the instant they're needed."""
         kb, lines = self.kb, []
-        plan = self._shopping(snap, 1)
+        plan = self._shopping(snap, 1) if self.cfg.suggest.items else None
         if plan:
             target, name = plan[0]["item"], plan[0]["name"]
             lines += [f"Buy {name}", f"Finish {name}"]
@@ -607,13 +612,16 @@ class Doty:
         self.hotkeys.bind(hk.ask, lambda: self.coach.ask("now"))
         self.hotkeys.bind(hk.plan, lambda: self.coach.ask("plan"))
         self.hotkeys.bind(hk.mute, self._toggle_mute)
+        if hk.skip_item:
+            self.hotkeys.bind(hk.skip_item, self.coach.skip_item)  # "not that one": the next item instead
         if self.overlay is not None:
             self.hotkeys.bind(hk.toggle_overlay, self.overlay.toggle_visible)
         self.hotkeys.start()
         if self.hotkeys.failed:
             print(f"[doty] couldn't register hotkeys {self.hotkeys.failed} (another app owns them?)")
         else:
-            print(f"[doty] hotkeys: ask={hk.ask} plan={hk.plan} mute={hk.mute} overlay={hk.toggle_overlay}")
+            print(f"[doty] hotkeys: ask={hk.ask} plan={hk.plan} mute={hk.mute} overlay={hk.toggle_overlay} "
+                  f"skip item={hk.skip_item}")
 
     def _toggle_mute(self) -> None:
         muted = self.voice.toggle_mute()
