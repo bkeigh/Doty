@@ -42,7 +42,11 @@ enabled = true
 # Haiku (fastest, a few cents a game).
 provider = "claude"
 provider_model = ""   # non-Claude model id; "" picks a fast one that can see images
+ollama_url = "http://127.0.0.1:11434/v1"
 model = "claude-sonnet-5-5"
+# Live looks (the coach watching on its own) use this faster model; asks, plans and questions use `model`.
+# "" = `model` for everything. Claude only.
+watch_model = "claude-haiku-5-5"
 effort = "low"
 # How often (game seconds) the coach looks at your screen + game on its own.
 # Each look is one API call (with a screenshot when use_screenshot is on) and
@@ -57,20 +61,39 @@ speak_up = "important"
 screen_only = true
 minimap_side = "left"   # "right" if your Dota HUD has the minimap on the right
 bracket = 0             # your rank for hero stats: 0 all, 1 Herald ... 8 Immortal
+# How much Dota you know: "new" | "learning" | "some" | "experienced" | "pro". Sets what the coach says and
+# what the rules say out loud. level_from_rank follows your Profile's rank until you pick a level yourself.
+level = "some"
+level_from_rank = true
 max_words = 28
 use_screenshot = true
 screenshot_width = 1280
 # Doty's own top-bar reader: "on" knows who's in the game (and who's dead) from the portraits, seconds
 # after loading; "shadow" only logs what it reads; "off" doesn't run it.
 vision = "on"
+# "When I go my own way" (Settings > Alerts): what Doty does when you build something other than its
+# suggestion. "once": it may disagree once per item per match, at a buying moment or when asked, and only with
+# a reason from this match (no reason: it says nothing), then follows you. "follow": it never argues.
+# "remind": the old way (the coach up to three times, "you can afford it" twice).
+own_way = "once"
+# Your instructions to the coach, in your words (Settings > AI coach > Your instructions; up to 600
+# characters). The AI reads them on every look as your preferences. On saving in Settings, what can be a
+# setting is taken out into the fields below, which the rules obey with or without the AI.
+instructions = ""
+never_suggest = []      # items Doty never suggests, e.g. ["item_radiance"]. Also "never suggest X again" by voice
+hero_builds = {}        # your build per hero, e.g. { "npc_dota_hero_spirit_breaker" = ["item_boots_of_bearing"] }
+instructions_style = [] # (written by Settings: what your instructions said that isn't a setting)
 
 [voice]
 enabled = true
 # "auto": ElevenLabs when ELEVENLABS_API_KEY is set (Setup page), else Kokoro once it's downloaded
 # (free, on this PC; Setup page > Download), else the Windows voice. "kokoro" / "elevenlabs" /
-# "windows" force one. Kokoro covers for ElevenLabs if downloaded; the Windows voice always fills in.
+# "windows" force one ("kitten" picks Kitten, another free voice on this PC). Kokoro covers for ElevenLabs if
+# downloaded; the Windows voice always fills in.
 engine = "auto"
 kokoro_voice = "af_heart"  # af_heart, af_bella, am_michael, am_fenrir, am_puck, bf_emma, bm_george, bm_fable
+kokoro_tone = "warm"       # "warm" (no whistle, softer "s"), "clear" (the same, brighter) or "bright" (raw). Kitten too
+kitten_voice = "jasper"    # see doty/kitten.py VOICES
 kokoro_lang_voice = ""     # Kokoro's voice when the app's language is Spanish (ef_dora, em_alex, em_santa),
                            # Portuguese (pf_dora, pm_alex, pm_santa) or French (ff_siwis); "" = the first
 kokoro_device = "auto"     # "auto": the NVIDIA GPU once `python -m doty gpu-voice` set it up; "cpu" forces the CPU
@@ -84,20 +107,21 @@ min_priority = 3   # 1 critical, 2 high, 3 normal, 4 info (overlay only)
 [overlay]
 enabled = true
 anchor = "right"   # right | left | top (sizes itself to the game window)
+position = []      # where you dragged the cards, [x, y] as fractions of the game window; [] = the anchor's spot
 size = 1.0         # 0.85 small ... 1.4 extra large
 draw = true        # let the coach circle, arrow and box things on screen
-mark_width = 2.0   # the drawings' line in px at 1080p (scales with the window)
-mark_opacity = 0.65  # how solid the drawings' lines are, 0..1 (labels stay readable)
+mark_width = 2.0   # the drawings' line in px at 1080p (scales with the window; Settings: 1 to 6)
+mark_opacity = 0.65  # how solid the drawings' lines are, 0..1 (Settings: 0.3 to 1; labels stay readable)
 strip = true       # the live strip above the cards: next runes and objectives, and the item you're building
-max_cards = 4
+max_cards = 3
 ttl_s = 7.0
-opacity = 0.95
+opacity = 1.0      # (unused: the cards carry their own transparency)
 exclude_from_capture = false   # true hides the overlay from OBS/Discord screen capture
 show_latency = false
 
 [listen]
 # Push-to-talk questions: hold the key, ask out loud, release.
-# Audio is transcribed locally by Whisper; only the text goes to Claude.
+# Audio is transcribed locally by Whisper; only the text goes to the AI you chose.
 enabled = true
 key = "mouse5"        # mouse4/mouse5 = side buttons, or a key/chord like "ctrl+alt+t".
                       # Dota still receives the key, so pick one it doesn't use.
@@ -113,16 +137,33 @@ earcons = true        # short beeps when recording starts/stops
 # The Doty window (desktop / Start-menu shortcut, or `python -m doty app`).
 start_coaching_on_open = true
 close_to_tray = true  # closing the window keeps Doty coaching from the tray
-study = true          # build each hero's card (builds, skills, matchups) from public stats in the background
+follow_game = true    # the window follows the game: Draft for hero selection, Coach when the match starts
+language = "en"       # the screens, the alerts, the AI coach and push-to-talk (see doty/languages.py)
+language_picked = false  # (set once you've chosen; until then Doty offers the choice when it opens)
+account_id = 0        # your Dota account for the Profile page: learned from the game data, or typed in
+update_repo = "bkeigh/Doty"  # where "Check for updates" looks (GitHub Releases); "" = off
+ai_step_skipped = false  # (set by "Not now" on Get started's AI step)
+# Study heroes in the background: build each hero's card (builds by role, skills, pace by rank, matchups) from
+# public statistics for this patch, a few requests at a time, at most 1,200 a day. Hero numbers only: nothing
+# about you is sent. Your match's heroes go first. (The environment variable DOTY_STUDY=0 also turns it off.)
+study = true
 
 [record]
-# A record of every match on this PC only (%LOCALAPPDATA%\Doty\records, not synced): the game data without
-# screenshots, Steam ID, names or match id, and every line Doty said. Nothing is sent anywhere.
-# `python -m doty.bench --latest` scores the coach on them. About 1 MB a match.
+# A record of every match on this PC only (%LOCALAPPDATA%\Doty\records, not in Documents, so OneDrive
+# doesn't sync it): the game data without screenshots, Steam or account IDs, player names or the match id, and
+# every line Doty showed. Nothing is sent anywhere. SECURITY.md lists exactly what is kept.
+# `python -m doty.bench --latest` scores the coach on them. About 1 MB a match once packed.
 enabled = true
 keep_matches = 30     # the oldest go beyond this many...
 keep_mb = 200         # ...or this much in all
 folder = ""           # "" = %LOCALAPPDATA%\Doty\records
+
+[capture]
+# Capture mode (Settings > Advanced > Capture matches): frames of the game and its data, on this PC only, to
+# calibrate Doty's screen readers and look into odd coach moments. About 150 MB a match. Off unless you turn it on.
+enabled = false
+every_s = 30.0        # a frame this often in a match, plus at deaths, fights and the horn
+folder = ""           # "" = Documents\Doty\captures (OneDrive syncs it if it backs up Documents)
 
 [hotkeys]
 enabled = true

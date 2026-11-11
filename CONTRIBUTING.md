@@ -28,7 +28,7 @@ python -m venv .venv
 ```
 
 Run the app with `.venv\Scripts\python -m doty app`, or try it without Dota using **Try a demo** on the Coach
-page (a scripted match at 10× speed).
+page (a scripted match at 6× speed).
 
 ## Tests
 
@@ -36,8 +36,28 @@ page (a scripted match at 10× speed).
 .venv\Scripts\python -m pytest -q
 ```
 
-The whole suite takes about a minute and needs no network: AI providers, OpenDota and GitHub are faked
-locally. Please add a test with each change. UI tests run headless (`QT_QPA_PLATFORM=offscreen`).
+The whole suite takes about 10 minutes and needs no network: AI providers, OpenDota and GitHub are faked
+locally, and `tests/conftest.py` turns off the background hero study and points match records at a temporary
+folder. While you work, run the files for what you changed (`-m pytest tests/test_bench.py -q`). Please add a
+test with each change. UI tests run headless (`QT_QPA_PLATFORM=offscreen`).
+
+## The bench
+
+For anything that changes what Doty says, the bench gives a number instead of a feeling. It replays a match
+through the real rules (and the AI coach with scripted answers) and checks every line against the game as it
+stood: items you own, gold you don't have, a TP scroll you hold, an item you passed on, a stale time, a repeat,
+too much talk.
+
+```bash
+.venv\Scripts\python -m doty.bench --scripted                 # the demo match, rules only
+.venv\Scripts\python -m doty.bench --latest 3                 # your three latest match records
+.venv\Scripts\python -m doty.bench --compare before.json after.json
+.venv\Scripts\python -m doty.bench --fixtures tests/data/bench/*.json
+```
+
+`--json out.json` saves a scorecard for `--compare`. A "Wrong tip?" report becomes a small anonymised fixture
+with `--from-report REPORT_FOLDER --out fixture.json`; fixtures in `tests/data/bench/` run with the test suite.
+`python -m doty.bench --help` lists the rest.
 
 ## Where things are
 
@@ -46,9 +66,14 @@ docs/ARCHITECTURE.md maps the code. The short version:
 - `doty/gsi`: the game-data feed. `doty/rules`: instant, deterministic advice.
 - `doty/coach`: the AI coach (prompts, providers, checks on its answers).
 - `doty/triggers.py`: instant calls the AI prepares ahead, which Doty fires itself.
-- `doty/knowledge`: hero, item and ability data (dotaconstants, OpenDota).
-- `doty/overlay.py`: what's drawn over the game. `doty/ui`: the app window.
-- `doty/review.py`: the post-game review. `doty/match_capture.py`: capture mode (frames and data for calibration).
+- `doty/knowledge`: hero, item and ability data (dotaconstants, OpenDota), the item judgement
+  (`judgement.py`), hero cards and the study that builds them (`cards.py`, `study.py`), map places (`mapgeo.py`).
+- `doty/overlay.py` and `doty/marks.py`: what's drawn over the game. `doty/ui`: the app window.
+- `doty/review.py`: the post-game review. `doty/match_record.py`: the record of each match (on by default).
+  `doty/match_capture.py`: capture mode (frames and data for calibration). `doty/bench`: the bench.
+
+The rule for new work: the AI supplies judgement, code supplies the facts. If the coach needs a fact (what an
+item answers, where a tower is), compute it in code and hand it over; don't ask the AI to know it.
 
 ## Reporting a wrong tip
 

@@ -364,6 +364,70 @@ From the two Turbo games of 2026-11-10 (`docs/ACCURACY_PLAN.md` has the log's nu
   - `allowed_items` includes the parts of allowed items ("Buy Ogre Axe" was being rejected as "not this
     hero's item" when few of its players listed the part).
 
+## Judgement from the AI, facts from code (the twelfth pass)
+
+The rule every piece below follows: the AI supplies judgement (what matters now, what to say), and code supplies
+the facts it judges with (what an item answers, where a tower is, what a hero's players build, what was said).
+A fact the code doesn't have is left out, never guessed: no data, no verdict; an unknown name, no mark.
+
+- **Item judgement** (`knowledge/judgement.py`). Each situational item in `judgement.ITEMS` (Black King Bar,
+  Linken's, Lotus, Eul's and Wind Waker, Pipe, Glimmer and the other magic soaks, Monkey King Bar and
+  Bloodthorn, Silver Edge, Spirit Vessel and Skadi, Ghost and Halberd, Shiva's, Force Staff, Nullifier) gets a
+  case against the enemy lineup: a score from 0 to 1 and a reason of at most `REASON_WORDS` words, from the
+  enemies' ability data (damage type, goes through BKB, dispellable, single-target) plus `counters.py` for what
+  that data can't say. `Knowledge.item_case(item, enemies)` is the API; it returns None without ability data
+  for any of the enemies, and with some unknown judges the known ones and gives only a strong case.
+  `case_here` uses the confirmed lineup; `weak_here` (all five known) drops a weak counter item from the build
+  and from `ItemPace`; `counter_offers` lets only the hard-data items (`AUTO_INSERT`: BKB, Linken's, MKB, Silver
+  Edge, Pipe) at `INSERT_MIN` or more into the build, after the phase's core and only if the hero's players buy
+  them. The coach gets the rest as `counter_item_cases`, to weigh, and is told never to argue for a weak one.
+- **Held parts decide the item** (`Knowledge.held_target`): a recipe, two parts, or a part that goes into
+  nothing else makes that item the one being built, in Doty's plan or not (Tranquil Boots and a Drum: Boots
+  of Bearing). `next_target` prefers it.
+- **When the player goes their own way** (`rules/own_way.py`, `CoachConfig.own_way`): "once" (default), "follow",
+  "remind". With "once", Doty may argue for an item the player went past once per item per match, at a buying
+  moment or when asked, and only with a strong `item_case` reason from this match (`item_reason`); with none, it
+  says nothing. The rules (`OwnWay`, `economy.AffordableBuildItem`, `progression.ItemPace`) and the coach's
+  vetting (`coach/llm.py`) share one record in match memory (`argued`), so the player never hears the argument
+  twice. An argument reopens only when its facts (the hero, ability pairs it answers) change.
+- **The player's instructions** (`coach/instructions.py`, `CoachConfig.instructions`, at most
+  `prompts.INSTRUCTIONS_MAX` characters). The text reaches the AI on every look, fenced as preferences
+  (`prompts.preferences_text`) that can't change the fair-play rule, the reply format or the checks. On saving,
+  what can be a setting is taken out (`read_with_ai`: one request, strict JSON, every item and hero checked
+  against the player's own words; `read_simply` in code without an AI): `never_suggest`, `hero_builds`,
+  subjects off, `speak_up`. `own_way.honour` (on every update, cheaply) takes `never_suggest` out of each match's
+  build once and puts `hero_builds` at the head of the hero's plan, so the rules obey them with the AI off. "Never suggest X again" said out loud adds to the list.
+- **Hero cards and the study** (`knowledge/cards.py`, `knowledge/study.py`). A card per hero and patch, from
+  public statistics only: builds by position from pro matches of this patch (position worked out from lane and
+  farm order), item timings with win rates, pace by rank (benchmarks placed on the ranked ladder), skill order,
+  matchups and game length by rank and mode from the last few days of public matches, patch changes. Every
+  number keeps its sample size; thin facts are left out; a card is stale when a newer patch lands. Readers: the
+  coach's state (`hero_card`, for the player's role, rank, mode and known enemies, in every look),
+  `Knowledge.build_plan` (the card's build for the role once `roles.py` knows it; the popularity list is the
+  fallback), and `FarmCheck` (last hits against your rank and the one above; normal games only).
+  `study.watch` runs on a daemon thread from `Doty.start` (`_start_study`): this match's heroes, then the
+  player's most-played (`_study_favourites`, hero ids from the saved recent-matches file), then the rest
+  slowly. Polite by design: `RateLimiter` (50 a minute, 1,200 a day), a growing wait after a failure, a
+  half-hour pause after three in a row, every answer cached. Off with `app.study` or `DOTY_STUDY=0` (tests).
+- **Named drawings** (`marks.py`, `knowledge/mapgeo.py`, `hud.anchor`). The coach names what to point at
+  (`radiant_bot_t1`, `roshan_top`, `me`, `hud item_slot_3`) and code places it: map places from the 7.41 map's
+  entity dump, `me` from the game data's position (the mark follows the hero and comes down when the position
+  is lost), HUD parts from `hud.anchor`. Pixel positions still work as a fallback; a minimap point naming a
+  team snaps to a hero marker when fresh ones exist (nothing produces them until the minimap reader is
+  calibrated). Unknown names are dropped. The look is a thin line (`overlay.mark_width`, 2 px at 1080p) at
+  `overlay.mark_opacity` (0.65). **Not yet checked against a real frame:** the HUD numbers
+  (`hud.HUD_CALIBRATED = False`) and the minimap placement.
+- **Records and the bench** (`match_record.py`, `doty/bench/`). `MatchRecord` keeps each real match on this PC
+  (on by default, `[record]`): the game data through `match_capture.scrub(keep_match=False)`, at least one update
+  a second plus every one that changed items, life, level or events; every line shown with its rule
+  (`tag_rules` wraps each rule's `evaluate`), priority and whether it was spoken; and `match.json`. Packed with
+  gzip at the match's end, pruned to `keep_matches` and `keep_mb`. The session log gains the rule, `speak` and a
+  per-session match count. The bench replays a record, a capture, a `gsi.record_dir` recording or the scripted
+  match through the real store, rules and knowledge on a simulated clock, and scores every line with its
+  checkers (`bench/checks.py`) against the game as it stood: the AI never supplies facts, so every claim it
+  speaks should check out, and the bench is the checker of record. "Wrong tip?" reports become anonymised
+  fixtures (`--from-report`, `tests/data/bench/`), replayed by `tests/test_bench.py`.
+
 ## Game mode: normal or Turbo (the tenth pass, `knowledge/mode.py`)
 
 Dota's game data has no game-mode field, so `mode.observe(snap, store, setting, usually)` decides on every
@@ -496,7 +560,7 @@ of its own from `Stats`.
 |---|---|---|
 | Claude (default) | Anthropic Messages (SDK), prompt caching, effort, server-side fallbacks | API key. Max/Ultra plans include API credits |
 | ChatGPT | OpenAI Responses API, `stream=true`, `store=false` | "Continue with ChatGPT" (`chatgpt_auth.py`): OpenAI's sign-in for open-source apps. Loopback `127.0.0.1:1455`, PKCE S256, `chatgpt.tokens.use.direct`, RS256 ID token checked in plain Python, rotating refresh |
-| OpenAI / Gemini / OpenRouter | OpenAI-compatible Chat Completions (images as data URLs) | API keys in the Windows user environment. Gemini and OpenRouter have free tiers |
+| OpenAI / Gemini / OpenRouter | OpenAI-compatible Chat Completions (images as data URLs) | API keys in Windows Credential Manager (`keystore.py`; the desktop keyring on Linux). Gemini and OpenRouter have free tiers |
 | Ollama | the same, at `127.0.0.1:11434/v1` | Free and local; needs a vision model |
 
 - **One stream:** every backend yields text chunks, so streaming cards, sentence-by-sentence speech,

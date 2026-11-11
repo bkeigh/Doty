@@ -52,10 +52,14 @@ time). Its second row is the item you're building: its name, the gold still to p
 have it at your gold per minute, over a bar of how far along you are. Parts you've already bought count: an
 Ogre Axe and a Mithril Hammer leave 1,450 of Black King Bar, not 4,050. Turn it off in Settings > Overlay.
 
-**Drawings:** sometimes the coach circles a hero, points an arrow back to your tower, or boxes an item.
-Allies are green, enemies red. They fade after a few seconds, and a drawing on the game world comes down
-as soon as you've walked on, a fight starts or you die, so it never points at the wrong spot. (Drawings on
-the minimap stay their few seconds: the minimap doesn't move.)
+**Drawings:** sometimes the coach circles a tower on your minimap, points an arrow from your hero back to
+it, or boxes an item slot. The coach only says *what* to point at; Doty knows *where* it is (the map's towers,
+runes and Roshan's pits, your hero from the game data, the fixed parts of the HUD), so a drawing doesn't land
+on a guess. A drawing on your hero moves with you. Allies are green, enemies red. They're thin, see-through
+lines that fade after a few seconds, and a drawing on the game world comes down as soon as you've walked on, a
+fight starts or you die. Make them thicker or more solid in Settings > Overlay (**Drawing thickness**,
+**Drawing opacity**). These positions are new and haven't been checked against a real game yet: if a
+drawing on the minimap or an item slot lands off, please report it with **Wrong tip?**.
 
 **Alt-tabbed?** While another app's window is in front of Dota, Doty's cards and drawings hide. The voice
 keeps going.
@@ -186,8 +190,8 @@ Five tabs:
   20 games as a chart (bar height is the game's performance score, green for a win); the heroes you play most
   with your record on each; and every recent game (click one to open it on OpenDota). From OpenDota, if your
   match data is public.
-- **Settings:** the AI coach, the voice, push-to-talk, the overlay, alerts and the app, each with its own
-  color and icon. **Ctrl+F** finds a setting; a changed setting is marked until you save (**Ctrl+S**), and
+- **Settings:** the AI coach, the voice, push-to-talk, the overlay, alerts, the app and Advanced, each with
+  its own color and icon (what's new is below, under "Make it coach your way"). **Ctrl+F** finds a setting; a changed setting is marked until you save (**Ctrl+S**), and
   the bar at the bottom lists what changed. "How often it looks" shows what a game costs. The **Setup
   checklist** button (top right) walks through connecting Dota, the AI and the voice; the Settings tab
   shows a dot when something there needs you.
@@ -204,6 +208,35 @@ The same status icon is in the app's top bar, on the overlay and in the tray: an
 | Climbing | The default. |
 | Experienced | Fewer shopping and skill reminders out loud (they still show); short calls. |
 | Top | Only what you might miss: timings, map, tempo, cooldowns. |
+
+**Make it coach your way** (all in Settings):
+
+- **When I go my own way** (Alerts > What Doty suggests): what Doty does when you build something other than
+  what it suggests. **Say it once, with a reason** (the default): it may say so one time per item in a game,
+  at a moment you can buy, and only with a reason from this game ("it blocks Lion's Earth Spike and Hex"). With
+  no such reason it says nothing, and then it follows your build. **Follow me silently**: it never argues.
+  **Keep reminding me**: the old way, a few reminders per item.
+- **Your instructions** (AI coach > Your instructions): tell the coach how you play, in your own words, like
+  custom instructions in a chat app. For example:
+  - "I play position 4. Keep it short, I know the basics."
+  - "On Spirit Breaker I always build Boots of Bearing."
+  - "Never suggest Radiance."
+
+  When you save, Doty turns what it can into settings and shows them to you, to untick if it got one wrong:
+  items never to suggest, your build on a hero, subjects to leave alone, how much it talks. Those are kept by
+  the instant calls too, even with the AI off. The rest (like "keep it short") the AI reads as your style on
+  every look. Something with a condition ("no BKB talk unless they have three stuns") stays style. Saying
+  "never suggest Radiance again" over push-to-talk adds it to the same list.
+- **Drawing thickness and opacity** (Overlay): how thick and how solid the coach's circles and arrows are.
+  The drawings on screen change as you move the sliders.
+- **Study heroes in the background** (Advanced): while Doty runs, it builds a card for each hero from public
+  statistics for this patch (what players of each role build and by when, skill order, last hits at your rank,
+  matchups), so the coach knows a hero before you play it. The heroes of your match go first. It asks for
+  numbers about heroes only, never about you, a few requests at a time. The row shows how many heroes are done.
+- **Keep a record of each match** (Advanced): on by default. Doty keeps each match's game data and every line
+  it said, on your PC only, so its coaching can be checked against what really happened. No screenshots, and
+  your Steam ID, name and the match id are taken out first. It keeps the last 30 matches (about 1 MB each).
+  **Delete records**, next to the switch, removes them all (click twice: they can't be brought back).
 
 **Language:** the first time Doty opens it asks for your language: English, Русский, 简体中文, Español, Português
 (Brasil) and Bahasa Indonesia up front, each by its flag, with ten more under **More languages** (Français, Deutsch,
@@ -285,11 +318,17 @@ What's different:
 
 ## Privacy
 
-Everything Doty learns about your game stays on your PC, except what you send to the AI you chose: a
-screenshot of the game and a summary of your game state, when the coach looks or you ask. Your voice is
-transcribed on your PC. Logs live in `%LOCALAPPDATA%\Doty\logs` (on Linux, `~/.local/share/doty/logs`).
-Your AI key is kept in Windows Credential Manager (on Linux, the desktop keyring) and goes only to that AI.
-[SECURITY.md](../SECURITY.md) has the full list of what leaves your PC and when.
+What Doty learns about your game stays on your PC, except what goes to the AI you chose: a screenshot of the
+game, a summary of your game state and your instructions, when the coach looks or you ask. Your voice is
+transcribed on your PC. Doty also asks OpenDota for public statistics about heroes (the hero study among them:
+hero numbers only, nothing about you), and for your own public profile and recent matches: on the Profile page,
+and, with Game mode on Automatic, once for your account to tell whether you usually play Turbo.
+
+On your PC: logs in `%LOCALAPPDATA%\Doty\logs`, and the match records in `%LOCALAPPDATA%\Doty\records` (on
+Linux, under `~/.local/share/doty`). Neither is sent anywhere, and neither is in Documents, so OneDrive doesn't
+sync them. Your AI key is kept in Windows Credential Manager (on Linux, the desktop keyring) and goes only to
+that AI. [SECURITY.md](../SECURITY.md) has the full list of what leaves your PC and when, and exactly what a
+match record keeps.
 
 ## More
 

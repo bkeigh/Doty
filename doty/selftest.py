@@ -238,7 +238,9 @@ def run(report: str | None = None) -> int:
 
 
 def quiet_config() -> Config:
-    """Everything that would touch the user (voice, overlay, hotkeys, mic, Claude) off."""
+    """Everything that would touch the user (voice, overlay, hotkeys, mic, Claude) off, and nothing written to
+    their folders or fetched in the background: no match record, no capture, no hero study, no lookup of their
+    recent matches for the game mode."""
     from .config import Config
 
     cfg = Config()
@@ -248,5 +250,8 @@ def quiet_config() -> Config:
     cfg.voice.enabled = cfg.coach.enabled = cfg.listen.enabled = False
     cfg.overlay.enabled = cfg.hotkeys.enabled = False
     cfg.app.start_coaching_on_open = False
+    cfg.app.study = False  # (app._start_study: the background study of public hero statistics)
+    cfg.record.enabled = cfg.capture.enabled = False  # (match_record.py, match_capture.py)
+    cfg.rules.game_mode = "normal"  # ("auto" would look up the account's recent matches once game data arrives)
     cfg.source_path = Path(tempfile.gettempdir()) / "doty-selftest.toml"  # never the user's settings
     return cfg
