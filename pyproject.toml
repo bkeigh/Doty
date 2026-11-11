@@ -4,6 +4,8 @@ version = "0.1.1"
 description = "Doty: a real-time Dota 2 coach that watches your game through Valve's Game State Integration."
 readme = "README.md"
 requires-python = ">=3.11"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
 dependencies = [
     "aiohttp>=3.9",
     "anthropic>=2.0",
@@ -36,7 +38,7 @@ doty = "doty.__main__:main"
 doty-app = "doty.ui.main:main"  # the window, without a console
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]  # 77: the SPDX license field
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

@@ -43,6 +43,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "..\dist\Doty\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; The GPL asks that the license travels with the program (it also covers the bundled eSpeak NG).
+Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 
 [InstallDelete]
 ; An upgrade replaces the bundled libraries wholesale (no stale DLLs from an older version).

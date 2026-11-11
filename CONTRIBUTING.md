@@ -12,6 +12,11 @@ Thanks for helping. Doty is a free, open-source Dota 2 coach for Windows, writte
   runtime and are never bundled.
 - **Free and light.** No paid services required, no telemetry, and think twice before adding a dependency.
 
+## License
+
+Doty is licensed under the GNU General Public License, version 3 or later (see [LICENSE](LICENSE)). By
+sending a pull request you agree that your contribution is released under the same license.
+
 ## Set up
 
 ```bash

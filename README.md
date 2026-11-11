@@ -519,6 +519,18 @@ The tests cover:
 - push-to-talk, including a real Whisper transcription of a question spoken by Windows TTS
   (this one is skipped until a Whisper model has been downloaded)
 
+## License
+
+Copyright (C) 2026 bkeigh and the Doty contributors.
+
+Doty is free software: you can redistribute it and modify it under the terms of the
+[GNU General Public License](LICENSE), version 3 or (at your option) any later version. It comes with
+**no warranty**; see the license for details.
+
+The Windows installer also carries [eSpeak NG](https://github.com/espeak-ng/espeak-ng) (GPLv3 or later; its
+source is at that link), which the free Kokoro voice uses to turn text into sounds. The Kokoro model is
+Apache 2.0 and is downloaded by the app, not bundled.
+
 ## Credits
 
 Doty is an independent community project, not affiliated with or endorsed by Valve Corporation. Dota 2 is a trademark of Valve Corporation. Hero and item art shown in the app is Valve's, loaded from their public servers and never bundled.

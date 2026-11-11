@@ -95,17 +95,18 @@ default `update_repo` in `doty/config.py` is `bkeigh/Doty` (from 0.1.1; 0.1.0 sh
 - **API keys.** Each person currently uses their own Claude key, plus an ElevenLabs key if they want that
   voice. That's fine for friends. For the public, run a small server that holds your key and charges
   users (Clicky works this way).
-- **Licenses for the free voice. Decide this before publishing.**
+- **License: GPLv3 or later (decided 2026-11-10).** Doty's source is published under the GNU General
+  Public License, version 3 or later: `LICENSE` at the repository root, named in `pyproject.toml` and
+  the README. The reason is the free voice:
+  - **eSpeak NG is GPLv3 or later, and the installer includes its DLL**, which Doty loads into its own
+    process. Publishing Doty under the same license is the simple, clean answer.
+  - **What each release has to carry:** the license text (the installer puts it in the install folder
+    as `LICENSE.txt`; `doty.iss` does this) and a pointer to the source: this repository for Doty, and
+    https://github.com/espeak-ng/espeak-ng for eSpeak NG. The README's License section has both.
   - **Kokoro's model (Apache 2.0):** fine to use and to point people at. Credit hexgrad. The phoneme
     mapping in `doty/kokoro.py` comes from misaki (also Apache 2.0).
-  - **eSpeak NG is GPLv3, and the installer includes its DLL.** Giving people that installer means:
-    - including eSpeak NG's license and a link to its source
-      (https://github.com/espeak-ng/espeak-ng);
-    - possibly that Doty itself must be GPL-compatible, since Doty loads the DLL into its own process.
-  - **Two clean ways out:**
-    - publish Doty's source under GPLv3 (simplest if Doty will be free anyway);
-    - or keep eSpeak NG out of the installer and have Doty download it alongside the model, the way it
-      already downloads the model.
+  - **Tag each release on the commit it was built from**, so the source for a given installer can be
+    found. (0.1.0 and 0.1.1 were tagged before the source was in the repository.)
   - This is a summary, not legal advice. Ask a lawyer before selling Doty.
 - **Branding.** Call it "a coach for Dota 2". Keep Valve's logos and art out of Doty's branding (icon,
   splash, installer, store pages).
