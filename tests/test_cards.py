@@ -58,7 +58,7 @@ def test_core_and_support_of_the_same_hero_get_different_builds(card):
     # With how many of the role's players finish each item, and by when.
     bfury = next(e for e in core["build"]["early"] if e["item"] == "bfury")
     assert bfury["n"] == 50 and bfury["share"] == pytest.approx(50 / 60, abs=0.001) and bfury["by_s"] == 860
-    assert [e["item"] for e in core["build"]["start"]] == ["tango"]
+    assert [(e["item"], e["name"]) for e in core["build"]["start"]] == [("tango", "Tango")]
     assert core["build"]["boots"][0]["item"] == "phase_boots"
     # Components and cheap items aren't build items (Claymore, Magic Wand).
     assert "claymore" not in items_of(core) and "magic_wand" not in items_of(support)
@@ -326,6 +326,23 @@ def test_a_new_patch_marks_the_card_for_study_again(tmp_path):
         return notes_c if "version=9.99c" in url else http_c(url)
     result = make_study(tmp_path, fetch).run([1])
     assert result["built"] == [1] and cards.load(1, tmp_path)["patch"] == "9.99c"
+
+
+def test_a_patch_only_days_old_is_blended_with_the_one_before_and_says_so(tmp_path):
+    listing = copy.deepcopy(FIXTURE["patchnoteslist"])
+    listing["patches"][-1]["patch_timestamp"] = int(time.time() - 86400)  # 9.99b came out yesterday
+    http = FakeHTTP()
+
+    def fetch(url):
+        return copy.deepcopy(listing) if "patchnoteslist" in url else http(url)
+    s = make_study(tmp_path, fetch)
+    assert s.run([1])["built"] == [1]
+    c = cards.load(1, tmp_path)
+    assert c["basis"]["blended"] and "9.99a and 9.99b" in c["basis"]["public"]
+    assert c["basis"]["public_from"] <= time.time() - study.PUBLIC_DAYS * 86400 + 86400
+    # A thin card is studied again the next day.
+    assert not cards.is_stale(c, "9.99b", time.time() + 3600) and cards.is_stale(c, "9.99b", time.time() + 90000)
+    assert "9.99a and 9.99b" in cards.prompt_block(1, 1, 4, cache_dir=tmp_path).splitlines()[0]
 
 
 def test_failures_back_off_then_pause_without_hammering(tmp_path):

@@ -606,7 +606,7 @@ def build_card(hero_id: int, raw: dict[str, Any], ctx: dict[str, Any], now: floa
             if bad or good:
                 reasons[e] = {"bad": bad, "good": good}
     bought = {e["item"] for r in roles.values() for ph in ("boots", "early", "mid", "late") for e in r["build"][ph]}
-    used = bought | set(timings)
+    used = bought | set(timings) | {e["item"] for r in roles.values() for e in r["build"]["start"]}
     notes = patch_facts(hero_id, ctx.get("patch_notes") or {}, ability_ids, abilities, items, bought)
     return {
         "version": CARD_VERSION, "hero_id": int(hero_id), "npc": npc,
