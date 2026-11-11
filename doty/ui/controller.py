@@ -129,6 +129,23 @@ class Controller(QObject):
         self._close_reader()  # (the reading voice too: a new voice or speed is heard next time)
         self.restart()
 
+    def preview_drawing(self, width: float, opacity: float) -> None:
+        """Show the coach's drawings at this thickness and opacity now, before Saving (Settings' sliders): only the
+        running overlay changes; the saved settings don't until Save."""
+        overlay = self.doty.overlay if self.doty is not None else None
+        if overlay is None:
+            return
+        overlay.cfg.mark_width, overlay.cfg.mark_opacity = float(width), float(opacity)
+        overlay.update()
+
+    def delete_records(self) -> int:
+        """Settings > Delete records: every match record on this PC, the one being written included."""
+        if self.doty is not None:
+            return self.doty.record.delete_all()
+        from ..match_record import delete_records, record_folder
+
+        return delete_records(record_folder(self.cfg.record))
+
     def _remembered(self, items: list, added: bool) -> None:
         """Said out loud: these items join (or leave) the never-suggest list in the saved settings."""
         now = list(self.cfg.coach.never_suggest)
