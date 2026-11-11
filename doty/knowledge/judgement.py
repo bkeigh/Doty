@@ -97,14 +97,16 @@ def ability_facts(raw: dict[str, Any]) -> dict[str, Any]:
 @dataclass
 class ItemCase:
     """Whether an item is worth buying against this lineup: `score` from 0 (answers nothing of theirs) to 1,
-    `reason` a short clause to use in a sentence ("it blocks Lion's Hex and Lina's Light Strike Array"), and
-    `answers` the (enemy hero, ability) pairs it answers (ability '' when it answers the hero as a whole: a
-    right-click carry, say)."""
+    `reason` a short clause to say out loud (at most REASON_WORDS words: its two or three strongest answers,
+    "it blocks Lion's Earth Spike and Hex and Lina's Light Strike Array"), `answers` the (enemy hero, ability)
+    pairs it answers (ability '' when it answers the hero as a whole: a right-click carry, say), and `detail`
+    the long form for the coach's prompt and the app (more answers, and what goes through Black King Bar)."""
 
     item: str
     score: float
     reason: str
     answers: list[tuple[str, str]] = field(default_factory=list)
+    detail: str = ""
 
     @property
     def weak(self) -> bool:
@@ -253,11 +255,14 @@ def _physical(enemies: list[_Enemy]) -> tuple[Found, Found]:
     return found, []
 
 
+
 def _positional(enemies: list[_Enemy]) -> tuple[Found, Found]:
-    """What Force Staff gets you out of: roots, and melee carries chasing you."""
+    """What Force Staff gets you out of: roots someone casts on you (not an attack's chance to ensnare), and
+    melee carries chasing you."""
     found = []
     for e in enemies:
-        found += [(e.name, s.name, 0.8) for s in e.spells if s.facts.get("disable") == "root"]
+        found += [(e.name, s.name, 0.8) for s in e.spells
+                  if s.facts.get("disable") == "root" and not s.facts.get("passive")]
         if e.melee and e.right_click:
             found.append((e.name, "", 0.5))
     return found, []
@@ -272,9 +277,10 @@ def _buffs(enemies: list[_Enemy]) -> tuple[Found, Found]:
 class _Item:
     judge: Callable[[list[_Enemy]], tuple[Found, Found]]
     full: float  # the weight that makes the case certain (score 1)
-    verb: str  # "it blocks" + what it answers
+    verb: str  # "it blocks" + the spells it answers
     none: str  # the reason when it answers nothing
     heroes_only: bool = False  # the reason names the heroes, not their spells ("it disarms Juggernaut")
+    hero_verb: str = ""  # for a hero answered as a whole, when that reads differently ("it gets you away from")
 
 
 # The situational items: what each answers, and how much of it makes the item worth buying. (Item keys without
@@ -289,20 +295,46 @@ ITEMS = {
     "glimmer_cape": _Item(_magic, 4.5, "it soaks the magic damage of", "they have little magic damage"),
     "eternal_shroud": _Item(_magic, 4.5, "it soaks the magic damage of", "they have little magic damage"),
     "hood_of_defiance": _Item(_magic, 4.5, "it soaks the magic damage of", "they have little magic damage"),
-    "monkey_king_bar": _Item(_evasion, 1.0, "it hits through", "none of them has evasion"),
-    "bloodthorn": _Item(_evasion, 1.0, "it hits through", "none of them has evasion"),
-    "silver_edge": _Item(_passives, 1.0, "it breaks", "no passives of theirs worth breaking"),
+    "monkey_king_bar": _Item(_evasion, 1.0, "it hits through", "none of them has evasion",
+                             hero_verb="it hits through the evasion of"),
+    "bloodthorn": _Item(_evasion, 1.0, "it hits through", "none of them has evasion",
+                        hero_verb="it hits through the evasion of"),
+    "silver_edge": _Item(_passives, 1.0, "it breaks", "no passives of theirs worth breaking",
+                         hero_verb="it breaks the passives of"),
     "spirit_vessel": _Item(_healing, 2.0, "it cuts the healing of", "they have little healing"),
     "skadi": _Item(_healing, 2.0, "it cuts the healing of", "they have little healing"),
     "ghost": _Item(_physical, 2.0, "it stops the attacks of", "they have no right-click carry", True),
     "heavens_halberd": _Item(_physical, 2.0, "it disarms", "they have no right-click carry", True),
     "shivas_guard": _Item(_physical, 2.5, "its armor and attack slow blunt", "they have no right-click carry", True),
-    "force_staff": _Item(_positional, 2.0, "it gets you out of", "no roots or melee carries to get away from"),
+    "force_staff": _Item(_positional, 2.0, "it gets you out of", "no roots or melee carries to get away from",
+                         hero_verb="it gets you away from"),
     "nullifier": _Item(_buffs, 1.5, "it dispels", "no buffs of theirs to dispel"),
 }
 
-MAX_HEROES = 3  # in a reason: it has to fit in a spoken sentence
+# The items Doty may put into the player's build by itself (after the phase's core items), when
+# the case clears INSERT_MIN and the hero's players buy the item. Only those whose case rests on hard data about
+# the enemies' spells: Black King Bar against disables it blocks, Linken's against single-target spells, Monkey
+# King Bar against evasion, Silver Edge against passives that carry a hero, Pipe against heavy magic damage. The
+# others (Ghost Scepter, Halberd, Force Staff, Nullifier, Spirit Vessel, Eul's...) depend on the player's role and
+# the fight as much as on the lineup ("the enemies are melee" doesn't make Ghost Scepter a core's second item):
+# the coach is told their cases to weigh, but they're never added to the build.
+AUTO_INSERT = frozenset({"item_black_king_bar", "item_sphere", "item_monkey_king_bar", "item_silver_edge",
+                         "item_pipe"})
+INSERT_MIN = 0.8
+
+REASON_WORDS = 14  # the spoken reason: two or three answers, never a list
+DETAIL_ANSWERS = 6  # the long form, for the prompt and the app
+MAX_HEROES = 3  # (what goes through Black King Bar, in the long form)
 MAX_SPELLS = 2
+
+
+def _join(parts: list[str], comma: bool = True) -> str:
+    if len(parts) <= 1:
+        return "".join(parts)
+    # (Written, a comma before the last one when one of them has two spells: "X's a and b, and Y's c". Said out
+    # loud, two are just "and".)
+    last = ", and " if len(parts) > 2 or (comma and any(" and " in p for p in parts)) else " and "
+    return ", ".join(parts[:-1]) + last + parts[-1]
 
 
 def _say(found: Found) -> str:
@@ -316,16 +348,39 @@ def _say(found: Found) -> str:
         names = [s for s, _w in sorted(spells, key=lambda sw: -sw[1]) if s]
         names = list(dict.fromkeys(names))[:MAX_SPELLS]
         parts.append(f"{hero}'s {' and '.join(names)}" if names else hero)
-    if len(parts) == 1:
-        return parts[0]
-    # (A comma before the last hero when a hero has two spells: "X's a and b, and Y's c".)
-    last = ", and " if any(" and " in p for p in parts) or len(parts) > 2 else " and "
-    return ", ".join(parts[:-1]) + last + parts[-1]
+    return _join(parts)
+
+
+def _phrase(spec: _Item, found: Found, most: int) -> str:
+    """What the item answers, its `most` strongest answers (heaviest first: a stun or hex before a nuke), as one
+    clause: "it blocks Lion's Earth Spike and Hex and Lina's Light Strike Array". Spells and heroes answered as
+    a whole aren't mixed in one list: "it gets you out of Crystal Maiden's Frostbite and gets you away from
+    Juggernaut"."""
+    weights: dict[tuple[str, str], float] = {}
+    for hero, spell, w in found:
+        key = (hero, "" if spec.heroes_only else spell)
+        weights[key] = weights.get(key, 0.0) + w
+    ranked = sorted(weights.items(), key=lambda kv: -kv[1])[:most]
+    spells: dict[str, list[str]] = {}
+    heroes: list[str] = []
+    for (hero, spell), _w in ranked:
+        if spell:
+            spells.setdefault(hero, []).append(spell)
+        elif hero not in heroes:
+            heroes.append(hero)
+    groups = [f"{hero}'s {' and '.join(names)}" for hero, names in spells.items()]
+    spoken = most < DETAIL_ANSWERS
+    out = f"{spec.verb} {_join(groups, comma=not spoken)}" if groups else ""
+    if heroes:
+        verb = spec.hero_verb or spec.verb
+        out = f"{out} and {verb.removeprefix('it ')} {_join(heroes)}" if out else f"{verb} {_join(heroes)}"
+    return out
 
 
 def cases(kb: "Knowledge", enemy_npcs: list[str]) -> dict[str, ItemCase]:
-    """Every situational item's case against these enemies (npc names), by item key ("item_x"). Items Doty
-    has no data for (an empty item list aside) are left out."""
+    """Every situational item's case against these enemies (npc names, each with ability data: the caller,
+    Knowledge.item_case, sees to that), by item key ("item_x"). Items Doty has no data for (an empty item list
+    aside) are left out."""
     enemies = [_enemy(kb, npc) for npc in enemy_npcs]
     out: dict[str, ItemCase] = {}
     for short, spec in ITEMS.items():
@@ -334,11 +389,17 @@ def cases(kb: "Knowledge", enemy_npcs: list[str]) -> dict[str, ItemCase]:
             continue
         found, through = spec.judge(enemies)
         score = round(min(1.0, sum(w for _h, _s, w in found) / spec.full), 2)
-        named = [(h, "" if spec.heroes_only else s, w) for h, s, w in found]
-        reason = f"{spec.verb} {_say(named)}" if found else spec.none
+        if found:
+            for most in (3, 2, 1):
+                reason = _phrase(spec, found, most)
+                if len(reason.split()) <= REASON_WORDS:
+                    break
+            detail = _phrase(spec, found, DETAIL_ANSWERS)
+        else:
+            reason = detail = spec.none
         if through:
             gone = _say(through)
-            reason += f"; {gone} {'go' if ' and ' in gone else 'goes'} through it"
+            detail += f"; {gone} {'go' if ' and ' in gone else 'goes'} through it"
         answers = list(dict.fromkeys((h, s) for h, s, _w in found))
-        out[item] = ItemCase(item, score, reason, answers)
+        out[item] = ItemCase(item, score, reason, answers, detail)
     return out

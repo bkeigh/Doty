@@ -5,7 +5,7 @@ follows it; and the parts the player holds decide what they're building, in Doty
 
 from doty.coach import prompts
 from doty.knowledge import build, judgement
-from doty.knowledge.constants import ability_entry
+from doty.knowledge.constants import Knowledge, ability_entry
 from doty.lineup import Lineup
 from doty.state import GameStateStore
 
@@ -76,6 +76,8 @@ ABILITIES = {
     },
     TROLL: {
         "troll_warlord_fervor": _ab("Fervor", "Passive", bkb=None, desc="Troll gains attack speed on each attack."),
+        "troll_warlord_berserkers_rage": _ab("Berserker's Rage", "Passive", None, "Physical", bkb="Yes",
+                                             desc="Troll Warlord's attacks have a chance to ensnare the target."),
         "troll_warlord_battle_trance": _ab("Battle Trance", "No Target", "Friendly", dispel="No",
                                            desc="Troll lets out a battle cry that grants attack speed."),
     },
@@ -141,8 +143,9 @@ def test_black_king_bar_is_weak_against_right_clickers_whose_spells_go_through_i
     kb = _kb()
     case = kb.item_case(BKB, RIGHT_CLICK)
     assert case is not None and case.score < judgement.WEAK and case.weak
-    # The reason is factual: what it blocks, and what goes through it, by name.
-    assert "Omnislash" in case.reason and "Quill Spray" in case.reason and "go through it" in case.reason
+    # The reason is factual: what it blocks; the long form adds what goes through it, by name.
+    assert case.reason.startswith("it blocks Juggernaut's Blade Fury")
+    assert "Omnislash" in case.detail and "Quill Spray" in case.detail and "go through it" in case.detail
     assert ("Juggernaut", "Blade Fury") in case.answers and ("Juggernaut", "Omnislash") not in case.answers
 
 
@@ -150,9 +153,10 @@ def test_black_king_bar_is_strong_against_stuns_hexes_and_sleeps():
     kb = _kb()
     case = kb.item_case("black_king_bar", ["Lion", "Lina", "Bane", "Troll Warlord", "Sniper"])  # (names work too)
     assert case.score >= judgement.STRONG and case.strong
-    assert case.reason.startswith("it blocks Lion's Earth Spike and Hex")
-    assert "Lina's Light Strike Array" in case.reason and "Bane's Nightmare" in case.reason
-    assert "Fiend's Grip goes through it" in case.reason  # (it does: the data says so)
+    # Said out loud: the strongest two or three, hard disables first, in a few words.
+    assert case.reason == "it blocks Lion's Earth Spike and Hex and Lina's Light Strike Array"
+    assert "Bane's Nightmare" in case.detail and "; Bane's Fiend's Grip" in case.detail  # (goes through: the data says so)
+    assert case.detail.endswith("go through it")
     assert ("Lion", "Hex") in case.answers and ("Bane", "Fiend's Grip") not in case.answers
 
 
@@ -174,7 +178,7 @@ def test_the_other_counter_items_follow_the_data():
     assert kb.item_case("item_heavens_halberd", right_click).strong
     # Break: Bristleback's passives, named from the data.
     silver = kb.item_case("item_silver_edge", right_click)
-    assert ("Bristleback", "Bristleback") in silver.answers and "breaks Bristleback's" in silver.reason
+    assert ("Bristleback", "Bristleback") in silver.answers and "Bristleback's Bristleback" in silver.reason
     # Evasion: Phantom Assassin's Immaterial, from its description.
     mkb = kb.item_case("item_monkey_king_bar", [PA, BB])
     assert ("Phantom Assassin", "Immaterial") in mkb.answers and mkb.score >= judgement.STRONG
@@ -219,11 +223,12 @@ def test_a_weak_counter_item_isnt_suggested_once_the_lineup_is_known():
 def test_a_strong_counter_item_the_plan_lacks_is_offered_with_its_reason():
     kb = _kb()
     kb.item_popularity[8]["late_game_items"] = {"147": 60, "249": 12}  # (some Juggernauts buy Silver Edge)
-    plan = kb.build_plan(JUGG, 1000)
-    assert "item_silver_edge" not in plan
+    before = kb.build_plan(JUGG, 1000)
+    assert "item_silver_edge" not in before
     kb.set_enemies([BB, PA, TROLL, SNIPER, URSA], complete=True)  # two heroes whose passives carry them
     plan = kb.build_plan(JUGG, 1000)
-    assert plan[1] == "item_silver_edge"  # after the item at the head of the plan
+    # After the phase's core, not ahead of it (and without Black King Bar, weak against them).
+    assert plan == [i for i in before if i != BKB] + ["item_silver_edge"]
     entries = kb.shopping(JUGG, 1000, ["item_power_treads"], 0, n=4)
     edge = next(e for e in entries if e["item"] == "item_silver_edge")
     assert edge["why"].startswith("it breaks ") and "Bristleback" in edge["why"]
@@ -278,6 +283,15 @@ def test_weak_evidence_and_ties():
     assert kb.held_target(["item_ogre_axe", "item_mithril_hammer"]) == BKB  # two of its parts
     assert kb.held_target(["item_recipe_yasha"]) == "item_yasha"  # a recipe goes into one item
     assert kb.held_target(["item_tranquil_boots"]) is None  # (an item in its own right, not a start on Bearing)
+    # A Magic Wand goes into nothing but Holy Locket, and is still kept for itself (found on real data).
+    kb.items.update({"item_magic_stick": {"id": 34, "dname": "Magic Stick", "cost": 200, "components": None},
+                     "item_magic_wand": {"id": 36, "dname": "Magic Wand", "cost": 450,
+                                         "components": ["magic_stick", "branches"]},
+                     "item_branches": {"id": 16, "dname": "Iron Branch", "cost": 50, "components": None},
+                     "item_holy_locket": {"id": 269, "dname": "Holy Locket", "cost": 2250,
+                                          "components": ["magic_wand", "energy_booster"]},
+                     "item_energy_booster": {"id": 59, "dname": "Energy Booster", "cost": 800, "components": None}})
+    assert kb.held_target(["item_magic_wand", "item_phase_boots"]) is None
     # Two items started: the one with more gold in it.
     both = ["item_ogre_axe", "item_mithril_hammer", "item_blade_of_alacrity", "item_boots_of_elves"]
     assert kb.held_target(both) == BKB
@@ -294,3 +308,69 @@ def test_held_parts_beat_a_weak_case():
     owned = ["item_power_treads", "item_ogre_axe", "item_mithril_hammer"]
     assert kb.next_target(JUGG, 1000, owned) == BKB
     assert kb.shopping(JUGG, 1000, owned, 0)[0]["left"] == 1450
+
+
+# no data, no verdict -----------------------------------------------------------------------------------------
+def test_no_data_means_no_case():
+    """A "weak" from ignorance would strip Black King Bar from a build when the ability data didn't load."""
+    assert Knowledge().item_case(BKB, RIGHT_CLICK) is None  # (a) nothing loaded
+    kb = _kb()
+    assert kb.item_case(BKB, ["Nobody Anyone", "npc_dota_hero_brand_new"]) is None  # (b) heroes it doesn't know
+    assert kb.item_case(BKB, []) is None  # (c) nobody
+    # Tidehunter is a known hero, but his abilities aren't in the data: as unknown as the others.
+    assert kb.item_case(BKB, ["npc_dota_hero_tidehunter"]) is None
+    # Partly known: judged on the known heroes, and only a strong verdict is given.
+    assert kb.item_case(BKB, [JUGG, BB, "npc_dota_hero_brand_new"]) is None
+    partly = kb.item_case(BKB, [LION, LINA, "npc_dota_hero_brand_new"])
+    assert partly is not None and partly.strong and "Lion's" in partly.reason
+
+
+def test_a_lineup_doty_cant_judge_leaves_the_build_alone():
+    kb = _kb()
+    kb.custom_plan[JUGG] = [BKB, "item_manta"]
+    kb.set_enemies([BB, TROLL, SNIPER, URSA, "npc_dota_hero_tidehunter"], complete=True)  # (one without data)
+    assert not kb.weak_here(BKB) and kb.build_plan(JUGG, 1000)[0] == BKB
+    assert "Black King Bar" not in kb.cases_for_prompt(JUGG, 1000, set())
+    kb.ability_info = {}  # (the ability data failed to load)
+    kb.set_enemies(RIGHT_CLICK, complete=True)
+    assert not kb.weak_here(BKB) and kb.next_target(JUGG, 1000, ["item_power_treads"]) == BKB
+    assert kb.cases_for_prompt(JUGG, 1000, set()) == {}
+
+
+# a reason short enough to say ---------------------------------------------------------------------------------
+def test_the_reason_is_short_and_the_detail_has_the_rest():
+    kb = _kb()
+    for lineup in (RIGHT_CLICK, SPELLS, [PA, BB, LION, LINA, BANE]):
+        for short in judgement.ITEMS:
+            case = kb.item_case(short, lineup)
+            if case is None:
+                continue
+            assert len(case.reason.split()) <= judgement.REASON_WORDS, case.reason
+            assert case.detail.startswith(case.reason.split(" and ")[0].split("'s")[0])
+    # Force Staff: an attack's chance to ensnare isn't something it gets you out of, and heroes aren't spells.
+    force = kb.item_case("item_force_staff", RIGHT_CLICK)
+    assert "Berserker's Rage" not in force.reason + force.detail
+    assert force.reason.startswith("it gets you away from Juggernaut")
+
+
+# what goes into the build by itself ---------------------------------------------------------------------------
+def test_against_five_melee_heroes_the_plan_gains_at_most_one_hard_data_item():
+    """Ghost Scepter, Force Staff, Nullifier and Spirit Vessel all score well against them: they're for the coach
+    to weigh, not for Doty to put second in a core's build."""
+    kb = _kb()
+    melee = [JUGG, BB, TROLL, PA, URSA]
+    # This hero's players buy all of them now and then (late game, a few games each).
+    kb.item_popularity[8]["late_game_items"] = {"147": 60, "249": 12, "37": 10, "102": 10, "225": 10, "267": 10,
+                                                "210": 10}
+    before = kb.build_plan(JUGG, 1000)
+    kb.set_enemies(melee, complete=True)
+    for item in ("item_ghost", "item_force_staff", "item_heavens_halberd"):
+        assert kb.case_here(item).strong  # (the cases are there...)
+    after = kb.build_plan(JUGG, 1000)
+    added = [i for i in after if i not in before]
+    assert len(added) <= 1 and set(added) <= judgement.AUTO_INSERT  # (...but only a hard-data one is added)
+    assert added == ["item_silver_edge"]
+    assert [i for i in before if i not in after] == [i for i in before if kb.weak_here(i)]
+    said = kb.cases_for_prompt(JUGG, 1000, set())
+    assert said["Ghost Scepter"].startswith("strong") and said["Force Staff"].startswith("strong")
+
