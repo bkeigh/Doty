@@ -1,0 +1,51 @@
+[project]
+name = "doty"
+version = "0.1.1"
+description = "Doty: a real-time Dota 2 coach that watches your game through Valve's Game State Integration."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.9",
+    "anthropic>=2.0",
+    "PySide6>=6.7",
+    "pywin32>=306; sys_platform == 'win32'",
+    # Linux: API keys go to the desktop's keyring (GNOME Keyring, KWallet); without one, a private file.
+    "keyring>=24; sys_platform == 'linux'",
+    "mss>=9.0",
+    "pillow>=10.0",
+    "numpy>=1.26",
+    "sounddevice>=0.4.6",
+    "faster-whisper>=1.0",
+    # Kokoro, the free local voice: the model runs on ONNX Runtime; eSpeak NG (GPLv3) turns text into
+    # phonemes. The ~330 MB model itself is downloaded by the app, not installed by pip.
+    "onnxruntime>=1.20",
+    "espeakng-loader>=0.2.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+# NVIDIA GPUs: lets Whisper run on CUDA (~0.1 s per question instead of ~0.8 s on CPU).
+gpu = ["nvidia-cublas-cu12", "nvidia-cudnn-cu12==9.*"]
+# Building Doty.exe and the installer (packaging/build.py; the installer also needs Inno Setup 6).
+build = ["pyinstaller>=6.22"]
+
+[project.scripts]
+doty = "doty.__main__:main"
+
+[project.gui-scripts]
+doty-app = "doty.ui.main:main"  # the window, without a console
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["doty*"]
+
+[tool.setuptools.package-data]
+"doty.ui" = ["assets/*", "assets/fonts/*"]  # the emblem (SVG), the .ico and the Barlow fonts (SIL OFL)
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]

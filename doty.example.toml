@@ -1,0 +1,109 @@
+# Copy to doty.toml (next to this file) or %APPDATA%\Doty\doty.toml and edit.
+# Every key is optional; these are the defaults.
+# After changing [gsi], re-run `python -m doty install` and restart Dota.
+
+[gsi]
+host = "127.0.0.1"
+port = 53000
+auth_token = "doty-local"
+buffer = 0.05      # seconds Dota batches changes before sending
+throttle = 0.1     # minimum seconds between updates (~10/s)
+heartbeat = 10.0
+record_dir = ""    # e.g. "recordings" to save raw payloads for `doty replay`
+
+[rules]
+enabled = true
+rune_lead_s = 15
+stack_lead_s = 7
+announce_bounty_runes = true
+announce_stacks = false      # turn on if you play support / jungle
+announce_day_night = false
+low_hp_pct = 0.30
+unspent_gold_threshold = 2500
+game_mode = "auto"           # auto | normal | turbo. Auto goes by the match, then by your recent matches
+muted_rules = []             # e.g. ["unspent_gold", "farm_check"]
+
+[coach]
+enabled = true
+# The AI behind the coach (Settings > AI coach connects it):
+# claude (ANTHROPIC_API_KEY) | chatgpt (your Plus/Pro plan, sign in from Settings) | openai | gemini |
+# openrouter | ollama (free, local). For Claude, `model` picks Sonnet (default), Opus (deeper, 2x) or
+# Haiku (fastest, a few cents a game).
+provider = "claude"
+provider_model = ""   # non-Claude model id; "" picks a fast one that can see images
+model = "claude-sonnet-5-5"
+effort = "low"
+# How often (game seconds) the coach looks at your screen + game on its own.
+# Each look is one API call (with a screenshot when use_screenshot is on) and
+# keeps an instant answer ready for the ask hotkey. Roughly $1 a game at 30 s on
+# Sonnet ($2 on Opus, a few cents on Haiku). 0 = only call Claude when you ask.
+speculative_interval_s = 30
+# What a look may say out loud: "important" (only when it's worth interrupting
+# you), "every" (a suggestion on every look) or "never" (the app's feed only).
+speak_up = "important"
+# Without game data (launch option not set), keep coaching from screenshots while
+# Dota is the active window.
+screen_only = true
+minimap_side = "left"   # "right" if your Dota HUD has the minimap on the right
+bracket = 0             # your rank for hero stats: 0 all, 1 Herald ... 8 Immortal
+max_words = 28
+use_screenshot = true
+screenshot_width = 1280
+# Doty's own top-bar reader: "on" knows who's in the game (and who's dead) from the portraits, seconds
+# after loading; "shadow" only logs what it reads; "off" doesn't run it.
+vision = "on"
+
+[voice]
+enabled = true
+# "auto": ElevenLabs when ELEVENLABS_API_KEY is set (Setup page), else Kokoro once it's downloaded
+# (free, on this PC; Setup page > Download), else the Windows voice. "kokoro" / "elevenlabs" /
+# "windows" force one. Kokoro covers for ElevenLabs if downloaded; the Windows voice always fills in.
+engine = "auto"
+kokoro_voice = "af_heart"  # af_heart, af_bella, am_michael, am_fenrir, am_puck, bf_emma, bm_george, bm_fable
+kokoro_lang_voice = ""     # Kokoro's voice when the app's language is Spanish (ef_dora, em_alex, em_santa),
+                           # Portuguese (pf_dora, pm_alex, pm_santa) or French (ff_siwis); "" = the first
+kokoro_device = "auto"     # "auto": the NVIDIA GPU once `python -m doty gpu-voice` set it up; "cpu" forces the CPU
+eleven_voice = ""  # ElevenLabs voice ID ("" = a good default from your account; pick in Settings)
+eleven_model = "eleven_flash_v2_5"  # ~100 ms, the cheaper low-latency model
+rate = 2           # speaking speed -10..10 (Kokoro and ElevenLabs: 0.7x-1.2x)
+volume = 90        # 0..100
+voice = ""         # Windows voice: substring of an installed voice, see `python -m doty voices`
+min_priority = 3   # 1 critical, 2 high, 3 normal, 4 info (overlay only)
+
+[overlay]
+enabled = true
+anchor = "right"   # right | left | top (sizes itself to the game window)
+size = 1.0         # 0.85 small ... 1.4 extra large
+draw = true        # let the coach circle, arrow and box things on screen
+strip = true       # the live strip above the cards: next runes and objectives, and the item you're building
+max_cards = 4
+ttl_s = 7.0
+opacity = 0.95
+exclude_from_capture = false   # true hides the overlay from OBS/Discord screen capture
+show_latency = false
+
+[listen]
+# Push-to-talk questions: hold the key, ask out loud, release.
+# Audio is transcribed locally by Whisper; only the text goes to Claude.
+enabled = true
+key = "mouse5"        # mouse4/mouse5 = side buttons, or a key/chord like "ctrl+alt+t".
+                      # Dota still receives the key, so pick one it doesn't use.
+engine = "whisper"    # whisper | off
+whisper_model = "auto"  # auto = small.en on an NVIDIA GPU, base.en on CPU
+device = "auto"       # auto | cuda | cpu
+mic = ""              # part of a mic's name (see `python -m doty mic --list`); "" = Windows default
+min_s = 0.35
+max_s = 15.0
+earcons = true        # short beeps when recording starts/stops
+
+[app]
+# The Doty window (desktop / Start-menu shortcut, or `python -m doty app`).
+start_coaching_on_open = true
+close_to_tray = true  # closing the window keeps Doty coaching from the tray
+
+[hotkeys]
+enabled = true
+ask = "ctrl+alt+a"
+plan = "ctrl+alt+p"
+mute = "ctrl+alt+m"
+toggle_overlay = "ctrl+alt+h"
