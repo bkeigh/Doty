@@ -577,8 +577,8 @@ class Knowledge:
         leave out what the player owns. (Rules ask on every update: kept until the data changes.)
 
         Once the whole enemy lineup is known, a counter item whose case against it is weak is left out (Black
-        King Bar against Juggernaut and Bristleback), and a strong one the plan lacks comes second, after the
-        item at the head of the plan (see `item_case`)."""
+        King Bar against Juggernaut and Bristleback), and one counter item the plan lacks, with a case on hard data
+        well clear of the bar (`counter_offers`), comes after the phase's core (see `item_case`)."""
         popular = self._popular_plan(hero_npc, clock)
         custom = self.custom_plan.get(hero_npc)
         # The coach's plan is three or four items: once they're bought (or passed on), the build goes on with
@@ -587,8 +587,10 @@ class Knowledge:
         if not self.lineup_complete:
             return plan
         plan = [i for i in plan if not self.weak_here(i)]
+        # An offered counter item goes after this phase's core, not ahead of it: it's an answer to the lineup,
+        # not a reason to delay the items the hero's build turns on.
         offers = [i for i in self.counter_offers(hero_npc) if i not in plan]
-        return plan[:1] + offers[:1] + plan[1:]
+        return plan + offers[:1]
 
     def _popular_plan(self, hero_npc: str, clock: int) -> list[str]:
         """What this hero's players buy most in this phase of the game (see `build_plan`)."""
@@ -706,7 +708,8 @@ class Knowledge:
         finish"). None when what you hold doesn't clearly point anywhere.
 
         A part points at an item when you hold its recipe, two or more of its parts, or a part that goes into
-        nothing else (and isn't an item in its own right, like Tranquil Boots or Yasha). A part shared by several
+        nothing else and is a plain shop part (not an item in its own right, like Tranquil Boots, Yasha or a Magic
+        Wand). A part shared by several
         items (an Ogre Axe) is no evidence on its own. Of several items, the one with the most gold already in it
         wins. Never an item you passed on, nor a second pair of boots."""
         names = set(owned)
@@ -723,8 +726,9 @@ class Knowledge:
                 continue
             mine = [p for p in dict.fromkeys(self.parts_of(item)) if p in names and p != "item_boots"]
             recipe = any(p.startswith("item_recipe_") for p in mine)
-            only_here = [p for p in mine if len(index.get(p, ())) == 1 and not self._is_build_target(p)
-                         and self.item_cost(p) >= PART_MIN_COST]
+            # (Only a plain shop part: a Magic Wand goes into nothing but Holy Locket, and is kept for itself.)
+            only_here = [p for p in mine if len(index.get(p, ())) == 1 and not self.parts_of(p)
+                         and not self._is_build_target(p) and self.item_cost(p) >= PART_MIN_COST]
             if not (recipe or len(mine) >= 2 or only_here):
                 continue
             left = self.cost_left(item, held)
@@ -757,19 +761,39 @@ class Knowledge:
         """Whether `item` is worth buying against these enemies (npc names or hero names): a score from 0 to 1, a
         short reason to say ("it blocks Lion's Earth Spike and Hex and Lina's Light Strike Array") and the
         (hero, ability) pairs it answers, all computed from the enemies' ability data (knowledge/judgement.py).
-        None for an item that isn't bought for the lineup (Battle Fury, Power Treads). Kept per lineup."""
+        Kept per lineup.
+
+        No data, no verdict: None for an item that isn't bought for the lineup (Battle Fury, Power Treads), and
+        None when none of `enemies` is a hero whose abilities Doty has (the data didn't load, a hero it doesn't
+        know, an empty list). When only some are, the case is judged on those, and only a strong one is given:
+        "weak" would claim the item answers nothing of a hero Doty knows nothing about."""
+        item = item if item.startswith("item_") else f"item_{item}"
+        if item.removeprefix("item_") not in judgement.ITEMS:
+            return None
         npcs: list[str] = []
+        unknown = False
         for name in enemies:
             npc = name if name in self.heroes or name.startswith("npc_dota_hero_") else self.find_hero(name)
-            if npc and npc not in npcs:
-                npcs.append(npc)
+            if npc and self._has_spells(npc):
+                if npc not in npcs:
+                    npcs.append(npc)
+            else:
+                unknown = True
+        if not npcs:
+            return None
         key = (tuple(sorted(npcs)), id(self.ability_info), len(self.ability_info), id(self.items), len(self.items))
         hit = self._cases.get(key)
         if hit is None:
             if len(self._cases) > 32:  # (a match has one lineup, a few while it's being read: never many)
                 self._cases.clear()
             hit = self._cases[key] = judgement.cases(self, npcs)
-        return hit.get(item if item.startswith("item_") else f"item_{item}")
+        case = hit.get(item)
+        return case if case is not None and (case.strong or not unknown) else None
+
+    def _has_spells(self, npc: str) -> bool:
+        """Doty has this hero's abilities (the hero's list, and at least one ability's data)."""
+        return any((self.ability_info.get(a) or {}).get("dname")
+                   for a in (self.hero_abilities.get(npc) or {}).get("abilities", []) if a != "generic_hidden")
 
     def case_here(self, item: str) -> "judgement.ItemCase | None":
         """`item_case` against this match's enemies, as far as they're known (None while none are)."""
@@ -784,8 +808,10 @@ class Knowledge:
         return case is not None and case.weak
 
     def counter_offers(self, hero_npc: str) -> list[str]:
-        """Counter items with a strong case against the whole known lineup that this hero's players do buy,
-        best case first ([] until all five enemies are known, or without item data for the hero)."""
+        """Counter items Doty may add to the build by itself: a case resting on hard data
+        (judgement.AUTO_INSERT) that clears judgement.INSERT_MIN against the whole known lineup, among the items
+        this hero's players do buy; best case first ([] until all five enemies are known, or without item data
+        for the hero). Other strong cases only reach the coach, as cases to weigh."""
         hero = self.heroes.get(hero_npc)
         if not self.lineup_complete or not hero:
             return []
@@ -796,9 +822,9 @@ class Knowledge:
         hit = self._offers.get(key)
         if hit is None:
             bought = self.bought_items(hero_id) or set()
-            cases = [c for i in judgement.ITEMS if (c := self.case_here(i)) is not None
-                     and c.strong and c.item in bought]
-            hit = [c.item for c in sorted(cases, key=lambda c: -c.score)]
+            cases = [c for i in judgement.AUTO_INSERT if (c := self.case_here(i)) is not None
+                     and c.score >= judgement.INSERT_MIN and c.item in bought]
+            hit = [c.item for c in sorted(cases, key=lambda c: (-c.score, c.item))]
             if len(self._offers) > 32:
                 self._offers.clear()
             self._offers[key] = hit
@@ -823,7 +849,7 @@ class Knowledge:
             if case is None or item not in relevant or item in have or item in self.skipped:
                 continue
             if case.strong or (case.weak and self.lineup_complete):
-                out[self.item_name(item)] = f"{'strong' if case.strong else 'weak'} ({case.score:.1f}): {case.reason}"
+                out[self.item_name(item)] = f"{'strong' if case.strong else 'weak'} ({case.score:.1f}): {case.detail}"
         return out
 
     def _is_build_target(self, item: str) -> bool:
