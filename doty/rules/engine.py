@@ -75,6 +75,9 @@ class RuleEngine:
         self.max_eval_ms = 0.0
         self.level_of = lambda: "some"  # the player's level, read live (the app points it at its config)
         self.suggest = None  # config.SuggestConfig: which subjects Doty speaks about (the app sets it)
+        # config.CoachConfig: "When I go my own way" and the player's standing build preferences (rules/own_way.py;
+        # the app sets it, read live). None = the defaults.
+        self.prefs = None
 
     @property
     def _fired(self) -> dict[str, float]:
@@ -89,6 +92,9 @@ class RuleEngine:
         if snap.paused:
             return []  # (nothing can be bought or levelled in a pause; Dota still sends an update every 10 s)
         start = time.perf_counter()
+        from . import own_way
+
+        own_way.honour(self.kb, self.prefs, snap, self.store)  # (items never to suggest, the player's hero build)
         ctx = RuleContext(
             snap=snap,
             prev=self.store.previous,
@@ -98,6 +104,7 @@ class RuleEngine:
             new_events=self.store.new_events(snap),
             level=self.level_of(),
             topics_off=topics_off(self.suggest),
+            prefs=self.prefs,
         )
         silenced = frozenset().union(*(TOPIC_RULES[t] for t in ctx.topics_off)) if ctx.topics_off else frozenset()
         more, less = SPEAK_MORE.get(ctx.level, frozenset()), SPEAK_LESS.get(ctx.level, frozenset())

@@ -123,6 +123,25 @@ class CoachConfig:
     # With no game data (launch option missing), still coach from screenshots while Dota is
     # the active window. Timers, alerts and exact stats need the game data.
     screen_only: bool = True
+    # "When I go my own way" (rules/own_way.py): what Doty does when the player builds differently from its
+    # suggestion. "once": it may disagree once per item per match, at a buying moment or when asked, and only
+    # with a reason from this match (no reason: it says nothing), then follows the player. "follow": it never
+    # argues, it follows. "remind": the old way (the coach up to three times, "you can afford it" twice).
+    own_way: str = "once"
+    # The player's own instructions to the coach, in their words (like custom instructions in a chat app).
+    # Given to the AI on every look as preferences about style and priorities, fenced so they can't change the
+    # fair-play rule, the reply format or Doty's checks. What can be a setting is taken out of it on saving
+    # (coach/instructions.py) into the fields below, which the code enforces whether or not the AI is on.
+    instructions: str = ""
+    # Items Doty never suggests, in any match ("item_black_king_bar"): left out of the build like an item passed
+    # on, by the rules and the coach alike. From the instructions, or "never suggest ... again" said out loud.
+    never_suggest: list[str] = field(default_factory=list)
+    # The player's own build per hero ("npc_dota_hero_spirit_breaker" -> ["item_boots_of_bearing"]): it leads
+    # the build Doty points at for that hero, ahead of the coach's own plan.
+    hero_builds: dict[str, list[str]] = field(default_factory=dict)
+    # What the instructions said that isn't a setting (shown in Settings as "kept as style"; the AI reads the
+    # whole text anyway).
+    instructions_style: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -299,6 +318,8 @@ def _same_kind(default: Any, value: Any) -> bool:
         return isinstance(value, str)
     if isinstance(default, (list, tuple)):
         return isinstance(value, (list, tuple))
+    if isinstance(default, dict):
+        return isinstance(value, dict)
     return True
 
 
@@ -371,6 +392,9 @@ def _toml_value(value: Any) -> str:
         return repr(value)
     if isinstance(value, (list, tuple)):
         return "[" + ", ".join(_toml_value(v) for v in value) + "]"
+    if isinstance(value, dict):  # an inline table, keys quoted ("npc_dota_hero_x" = [...])
+        return "{" + ", ".join(f"{json.dumps(str(k), ensure_ascii=False)} = {_toml_value(v)}"
+                               for k, v in value.items()) + "}"
     # JSON string escapes are valid TOML basic-string escapes.
     return json.dumps(str(value), ensure_ascii=False)
 

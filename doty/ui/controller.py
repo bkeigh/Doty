@@ -22,6 +22,9 @@ class Controller(QObject):
     changed = Signal()  # started, stopped, failed, demo started/ended
     kokoro_progress = Signal(int)  # percent, while the free Kokoro voice downloads
     kokoro_done = Signal(str)  # "" = downloaded (and Doty switched to it if it's the voice to use)
+    # "Never suggest X again" said out loud (items, added): from the engine's thread, saved on the GUI thread.
+    remembered = Signal(list, bool)
+    preferences_changed = Signal()  # the never-suggest list or the instructions' reading changed (Settings shows it)
 
     def __init__(self, cfg: Config) -> None:
         super().__init__()
@@ -30,6 +33,7 @@ class Controller(QObject):
         self.error = ""
         self.kokoro_pct: int | None = None  # None = not downloading
         self.kokoro_done.connect(self._kokoro_downloaded)
+        self.remembered.connect(self._remembered)
         self._transcriber = None  # the Whisper model survives restarts (it takes seconds to load)
         self._transcriber_key: tuple | None = None
         self._demo_loop: asyncio.AbstractEventLoop | None = None
@@ -72,6 +76,7 @@ class Controller(QObject):
         doty = Doty(cfg, quiet=True, transcriber=self._transcriber if key == self._transcriber_key else None)
         doty.bus.subscribe(lambda adv, d=doty: self._relay(d, adv))
         doty.on_overlay_moved = self._overlay_moved
+        doty.coach.on_remember = lambda items, added: self.remembered.emit(list(items), bool(added))
         try:
             doty.start()
         except StartError as exc:
@@ -123,6 +128,27 @@ class Controller(QObject):
         save_config(cfg)
         self._close_reader()  # (the reading voice too: a new voice or speed is heard next time)
         self.restart()
+
+    def _remembered(self, items: list, added: bool) -> None:
+        """Said out loud: these items join (or leave) the never-suggest list in the saved settings."""
+        now = list(self.cfg.coach.never_suggest)
+        now = now + [i for i in items if i not in now] if added else [i for i in now if i not in items]
+        self.set_preferences(never_suggest=now)
+
+    def set_preferences(self, suggest: dict | None = None, **coach) -> None:
+        """Change the player's coaching preferences (CoachConfig fields such as never_suggest, hero_builds,
+        speak_up, instructions_style; and SuggestConfig switches), live in the running engine and saved, without a
+        restart: the rules and the coach read them on every update."""
+        for cfg in [self.cfg] + ([self.doty.cfg] if self.doty is not None else []):
+            for name, value in coach.items():
+                setattr(cfg.coach, name, copy.deepcopy(value))
+            for name, value in (suggest or {}).items():
+                setattr(cfg.suggest, name, bool(value))
+        try:
+            save_config(self.cfg)
+        except OSError:
+            pass
+        self.preferences_changed.emit()
 
     def set_coaching(self, look_every_s: int | None = None, speak_up: str | None = None) -> None:
         """Change how often the coach looks and when it talks, live (no restart), and save it."""

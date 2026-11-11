@@ -9,6 +9,7 @@ from ..advice import Advice, Priority
 from ..knowledge import build
 from ..knowledge import mode as game_mode
 from ..state import Snapshot
+from . import own_way
 from .base import Rule, RuleContext
 
 # From here on a core that dies without buyback can lose the game with it, so gold set aside for buyback
@@ -18,9 +19,10 @@ BUYBACK_FROM = 30 * 60
 
 
 PART_GAP_S = 60.0  # between "buy this part" calls for one item
-# "You can afford X" is said this many times for one item. A player who could buy it all that time and didn't
-# has decided against it: it leaves the build (knowledge/build.py) instead of being called a third time.
-# (A real match: "You can afford Phase Boots", again and again, to a player who never wanted them.)
+# "You can afford X" is said this many times for one item with "When I go my own way" on "remind"; otherwise once
+# (own_way.afford_calls). A player who could buy it all that time and didn't has decided against it: it leaves the
+# build (knowledge/build.py) instead of being called again, and in "once" Doty may give its one reason for it
+# (own_way.OwnWay). (A real match: "You can afford Phase Boots", again and again, to a player who never wanted them.)
 FINISH_CALLS = 2
 
 
@@ -90,7 +92,7 @@ class AffordableBuildItem(Rule):
             if last is not None and last != seen:
                 said, seen = said + 1, last
                 calls[item] = (said, seen)
-            if said >= FINISH_CALLS:
+            if said >= own_way.afford_calls(getattr(ctx, "prefs", None), FINISH_CALLS):
                 if (time.monotonic() - last >= self.cooldown_s and now["left"] >= now["cost"]  # (no part bought)
                         and kb.skip(item, build.COULD_AFFORD)):
                     build.passed_on(ctx.store)
@@ -123,4 +125,4 @@ class StashItems(Rule):
 
 
 def rules() -> list[Rule]:
-    return [UnspentGold(), AffordableBuildItem(), StashItems()]
+    return [UnspentGold(), AffordableBuildItem(), StashItems(), own_way.OwnWay()]

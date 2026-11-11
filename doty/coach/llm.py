@@ -28,6 +28,7 @@ from .. import triggers as triggerlib
 from ..knowledge import build as buildlib
 from ..knowledge import mode as game_mode
 from ..lineup import Lineup, other
+from ..rules import own_way
 from ..rules.economy import spendable
 from ..state import GameStateStore, Snapshot
 from . import prompts
@@ -71,7 +72,19 @@ NOW_CLAIM = re.compile(r"\b(now|right\s+away|immediately|have\s+the\s+gold|can\s
                        re.IGNORECASE)
 # The coach may tell you to buy one item this many times out loud; after that, with no part of it bought, a
 # live tip that pushes it again goes to the feed instead. (A real match: Black King Bar, twenty-five times.)
+# That is "When I go my own way" on "remind"; otherwise the first time is advice and any more is an argument,
+# which "once" allows once, with a reason, and "follow" never does (rules/own_way.py).
 MAX_ITEM_PUSHES = 3
+# "Never suggest Black King Bar again", "don't ever recommend Radiance": an item the player never wants, said out
+# loud. It's added to their settings (CoachConfig.never_suggest), so it outlasts the match.
+NEVER_ASK = re.compile(
+    r"\b(never\s+(again\s+)?(suggest|recommend|mention|tell\s+me\s+to\s+(buy|get))|"
+    r"(don'?t|do\s+not)\s+ever\s+(suggest|recommend|mention))\b", re.IGNORECASE)
+# "...again", "remember that", "for good": what makes a spoken skip outlast the match.
+FOR_GOOD = re.compile(r"\b(ever\s+again|again|remember\s+(that|this|it)|for\s+good|from\s+now\s+on|in\s+any\s+game|"
+                      r"every\s+game)\b", re.IGNORECASE)
+REMEMBER_THAT = re.compile(r"^\s*(please\s+)?(remember|keep)\s+(that|this|it)(\s+for\s+good)?\s*[.!]?\s*$",
+                           re.IGNORECASE)
 # ...unless the line is a call to get out, which is never held back for naming an item.
 RETREAT = re.compile(r"\b(back\s+off|walk\s+(back|away)|get\s+out|retreat|leave\b|run\b|teleport|tp\s+out|"
                      r"step\s+back|pull\s+back|head\s+back)", re.IGNORECASE)
@@ -170,6 +183,9 @@ class Coach:
         self._moment: tuple[str, float] | None = None  # a calm moment still waiting for its look (until when)
         self.suggest = None  # config.SuggestConfig: the subjects Doty brings up by itself (the app sets it)
         self._pushes: dict[str, list[int]] = {}  # item -> [times the coach said "buy it", gold left on it then]
+        # "Never suggest X again" changed the player's settings: (items, added) -> None, so the app saves them.
+        self.on_remember: Callable[[list[str], bool], None] | None = None
+        self._last_skipped: list[str] = []  # what "skip ..." last took out this match (for "remember that")
 
     # lifecycle ---------------------------------------------------------------
     async def start(self) -> None:
@@ -196,6 +212,12 @@ class Coach:
             self.recent_alerts.append(adv.text)
             if adv.speak and adv.display and adv.priority <= self.spoken_max:  # (shown-only isn't heard)
                 self._heard.append((time.monotonic(), _content_words(adv.text + " " + adv.spoken)))
+                # "You can afford Black King Bar" pointed the player at it too: unless the old "remind" way is
+                # on, the coach's next push of it is already a second one (an argument, see own_way).
+                key = adv.key or ""
+                if (key.startswith("afford:") and key.count(":") == 1 and self._own_way() != own_way.REMIND
+                        and self.kb is not None):
+                    self._count_push(key.removeprefix("afford:"), self.store.current)
 
     def _repeats(self, text: str, within: float = REPEAT_S) -> bool:
         """The line says again what was said out loud in the last REPEAT_S ("Buy a TP scroll" for the
@@ -229,26 +251,54 @@ class Coach:
         build |= set(self.kb.typical_items(int(hero["id"]), 10)) if hero else set()
         return {i for i in named if i not in have and (i in build or i in self.kb.buy_mentions(text, snap.hero_name))}
 
+    def _own_way(self) -> str:
+        """"When I go my own way" (CoachConfig.own_way): "once", "follow" or "remind"."""
+        return own_way.mode_of(self.cfg)
+
     def _pushed(self, text: str, snap: Snapshot | None) -> None:
         """Count a spoken line that points the player at an item they don't have (see MAX_ITEM_PUSHES). Buying
-        a part of the item starts the count again: they're building it, so it's worth talking about."""
+        a part of the item starts the count again: they're building it, so it's worth talking about. A push past
+        the free ones that "once" let through was Doty's one argument for the item: it's noted (own_way)."""
         if self.kb is None or snap is None or not self.kb.items:
             return
-        owned = snap.item_list()
         for item in self._build_mentions(text, snap):
-            left = self.kb.cost_left(item, owned)
-            count, was = self._pushes.get(item, (0, left))
-            self._pushes[item] = [1 if left < was else count + 1, left]
+            self._count_push(item, snap)
 
-    def _overpushed(self, text: str, snap: Snapshot | None) -> set[str]:
+    def _count_push(self, item: str, snap: Snapshot | None) -> None:
+        if snap is None or item not in self.kb.items:
+            return
+        left = self.kb.cost_left(item, snap.item_list())
+        count, was = self._pushes.get(item, (0, left))
+        count = 0 if left < was else count
+        if count >= self._free_pushes() and self._own_way() == own_way.ONCE:
+            reason = own_way.item_reason(self.kb, item, snap.hero_name, own_way.enemies_of(self.store, snap))
+            if reason is not None:
+                own_way.argued(self.store, item, reason)
+        self._pushes[item] = [count + 1, left]
+
+    def _free_pushes(self) -> int:
+        return own_way.free_pushes(self.cfg, MAX_ITEM_PUSHES)
+
+    def _overpushed(self, text: str, snap: Snapshot | None, asked: bool = False) -> set[str]:
         """Items this line points the player at that they've heard about often enough, with no part of it
-        bought since. A call to get out is never held back for it."""
+        bought since: three times on "remind", else once, after which only "once" lets one more through, as its
+        argument (a reason from this match, at a buying moment or when `asked`). A call to get out is never
+        held back for it."""
         if self.kb is None or snap is None or not self.kb.items or RETREAT.search(text):
             return set()
         owned = snap.item_list()
-        return {i for i in self._build_mentions(text, snap)
-                if i in self._pushes and self._pushes[i][0] >= MAX_ITEM_PUSHES
+        over = {i for i in self._build_mentions(text, snap)
+                if i in self._pushes and self._pushes[i][0] >= self._free_pushes()
                 and self.kb.cost_left(i, owned) >= self._pushes[i][1]}
+        return {i for i in over
+                if own_way.may_argue(self.store, self.kb, i, snap, self.cfg, asked) is None}
+
+    def _held_back(self, text: str, snap: Snapshot | None, asked: bool = False) -> set[str]:
+        """Pushes held back by "When I go my own way" in a line that can't go to the feed instead (an answer
+        being read out, a prepared call firing). "remind" holds none of these back, as before it existed."""
+        if self._own_way() == own_way.REMIND:
+            return set()
+        return self._overpushed(text, snap, asked)
 
     def skip_item(self, item: str | None = None, undo: bool = False) -> None:
         """Thread-safe (the skip hotkey, the app's Buy Next panel): leave `item` out of this match's build, or
@@ -259,7 +309,7 @@ class Coach:
             except RuntimeError:
                 pass  # the loop closed in between
 
-    def _skip_items(self, items: list[str] | None, undo: bool = False) -> None:
+    def _skip_items(self, items: list[str] | None, undo: bool = False, for_good: bool = False) -> None:
         snap, kb = self.store.current, self.kb
         if kb is None or snap is None or not snap.has_hero or not kb.items:
             return
@@ -273,23 +323,69 @@ class Coach:
             return
         names = " and ".join(kb.item_name(i) for i in items)
         if undo:
+            never = [i for i in items if i in own_way.never_items(self.cfg)]
             for item in items:
                 kb.unskip(item)
                 self._pushes.pop(item, None)
             text = f"{names} is back in your build."
+            if never:  # (it was one the player never wanted: it's off that list too)
+                self._remember(never, add=False)
+                text = f"{names} is back in your build, and off your never-suggest list."
         else:
             for item in items:
-                kb.skip(item, buildlib.SAID_SO)
+                kb.skip(item, own_way.NEVER if for_good else buildlib.SAID_SO)
+            self._last_skipped = list(items)
             # Calls armed earlier that push it, and the answer kept for the ask key, go with it.
             gone = set(items)
             self.triggers.active = [t for t in self.triggers.active
                                     if not (kb.item_mentions(t.say, snap.hero_name) & gone)
                                     and not any(c.kind == "afford" and c.var in gone for c in t.clauses)]
             nxt = kb.next_target(snap.hero_name, snap.clock, owned)
-            text = f"Okay, no {names} this game." + (f" Next: {kb.item_name(nxt)}." if nxt else "")
+            if for_good:
+                self._remember(items, add=True)
+                text = f"Okay, I won't suggest {names} again, in any game." + (
+                    f" Next: {kb.item_name(nxt)}." if nxt else "")
+            else:
+                text = f"Okay, no {names} this game." + (f" Next: {kb.item_name(nxt)}." if nxt else "")
         buildlib.passed_on(self.store)
         self.cached = None
         self.bus.publish(Advice(text, Priority.HIGH, "coach", source="coach"))
+
+    def _remember(self, items: list[str], add: bool = True) -> None:
+        """Add items to (or take them off) the player's never-suggest list, live, and tell the app so it saves it
+        (Settings shows the same list, under "What Doty took from this")."""
+        now = [i for i in (self.cfg.never_suggest or []) if isinstance(i, str)]
+        if add:
+            now += [i for i in items if i not in now]
+        else:
+            now = [i for i in now if i not in items]
+        self.cfg.never_suggest = now
+        if self.on_remember is not None:
+            try:
+                self.on_remember(list(items), add)
+            except Exception as exc:  # (saving is the app's business: a failure there never stops coaching)
+                print(f"[doty] couldn't save the never-suggest list: {exc!r}")
+
+    def _remember_command(self, question: str) -> list[str] | None:
+        """A spoken order that outlasts the match: "never suggest Black King Bar again", "skip Radiance, for
+        good", or "remember that" after a skip. The items, or None when it isn't one. [] = "remember that" with
+        nothing skipped to remember."""
+        snap = self.store.current
+        if self.kb is None or snap is None or not snap.has_hero or not self.kb.items:
+            return None
+        if ASKING.search(question) or len(question.split()) > COMMAND_MAX_WORDS:
+            return None
+        if REMEMBER_THAT.match(question):
+            return list(self._last_skipped)
+        never = NEVER_ASK.search(question)
+        if never:
+            items = self._named_next(question[never.end():], snap)
+            return items or None
+        order = SKIP_ASK.search(question)
+        if order and FOR_GOOD.search(question):
+            items = self._named_next(question[order.end():], snap)
+            return items or None
+        return None
 
     def _build_command(self, question: str) -> tuple[list[str] | None, bool] | None:
         """A spoken order about the build ("skip Black King Bar", "I don't need BKB", "skip it", "bring back
@@ -329,12 +425,15 @@ class Coach:
         if snap.custom_game:  # (an arcade game: Dota's own coaching doesn't apply)
             return
         self._same_match(snap)  # (first, so a new game's draft doesn't carry the last game's talk)
+        own_way.honour(self.kb, self.cfg, snap, self.store)  # (after _same_match: a new match cleared the plan)
         if snap.has_hero and snap.in_game and not snap.in_draft:
             # Before the on/off check: prepared calls need no AI, so they keep firing if the coach goes off.
             for adv in self.triggers.check(snap, self.store, self.signals() if self.signals else None,
                                            self._afford(snap)):
                 if self._already_have(adv.text, snap) or self._unwanted(adv.text, snap):
                     continue  # armed minutes ago, and since then the player bought it (or other boots)
+                if self._held_back(adv.text, snap):
+                    continue  # a push past what "When I go my own way" allows
                 if self._repeats(adv.text, TRIGGER_REPEAT_S):
                     continue  # (three "walk back to your tower" calls in nine seconds, in a real match)
                 self._pushed(adv.text, snap)
@@ -533,6 +632,14 @@ class Coach:
         self._loop.call_soon_threadsafe(self._question_on_loop, question, screenshot_b64)
 
     def _question_on_loop(self, question: str, shot: str | None) -> None:
+        lasting = self._remember_command(question)
+        if lasting is not None:  # "never suggest Black King Bar again": into the player's settings, at once
+            if lasting:
+                self._skip_items(lasting, for_good=True)
+            else:
+                self.bus.publish(Advice('Nothing to remember yet: say "never suggest" and the item.', Priority.INFO,
+                                        "coach", source="coach", speak=False))
+            return
         command = self._build_command(question)
         if command is not None:  # "skip Black King Bar": done at once, by Doty itself (works with the AI off)
             self._skip_items(*command)
@@ -612,7 +719,7 @@ class Coach:
         if in_match and self.triggers.active:
             summary["armed_calls"] = self.triggers.describe()
         if in_match:
-            self._settings_into(summary, snap)
+            self._settings_into(summary, snap, asked=visible and kind in ("now", "question"))
         if moment:
             summary["moment"] = moment  # why Doty is looking now: a good time to set a plan
         if blind:
@@ -623,7 +730,7 @@ class Coach:
                                     self.store.memory.get("lineup_complete", False),
                                     timing=self._plan_brief()) if in_match else ""
         content = prompts.user_content(kind, summary, max_words, shot, question, self.cfg.level, brief=brief,
-                                       language=self.language)
+                                       language=self.language, instructions=self.cfg.instructions)
 
         adv = Advice("…", Priority.HIGH, "coach", source="coach", trigger_t=t0, final=False, speak=False)
         if visible:
@@ -1036,6 +1143,9 @@ class Coach:
         afford = {c.var for c in call.clauses if c.kind == "afford"} if call is not None else set()
         if self._off("items") and (buys or afford):
             return "item advice is turned off"
+        never = (buys | afford) & own_way.never_items(self.cfg)
+        if never:  # (in every match: the player's settings say so, whatever this match's build holds)
+            return f"pushes an item you never want suggested: {', '.join(sorted(self.kb.item_name(i) for i in never))}"
         passed = (buys | afford) & set(self.kb.skipped)
         if passed:
             return f"pushes an item you passed on: {', '.join(sorted(self.kb.item_name(i) for i in passed))}"
@@ -1061,8 +1171,10 @@ class Coach:
         return " ".join(p for p in [*(p for p in parts[:-1] if not self._bad_sentence(p, snap)), last] if p)
 
     def _bad_sentence(self, sentence: str, snap: Snapshot) -> bool:
+        # (These answers are asked for, or come after a death, with the shop open: a moment for the one argument.)
         return bool(self._already_have(sentence, snap) or self._unwanted(sentence, snap)
-                    or self._has_tp_already(sentence, snap) or self._cant_afford(sentence, snap))
+                    or self._has_tp_already(sentence, snap) or self._cant_afford(sentence, snap)
+                    or self._held_back(sentence, snap, asked=True))
 
     def _cant_afford(self, text: str, snap: Snapshot | None) -> set[str]:
         """Items a tip says to buy *now* when the player's gold covers no real part of them ("Buy Ogre Axe
@@ -1073,10 +1185,11 @@ class Coach:
         return {i for i in self.kb.buy_mentions(text, snap.hero_name)
                 if self.kb.cost_left(i, owned) > 0 and self.kb.next_buy(i, owned, gold) is None}
 
-    def _settings_into(self, summary: dict, snap: Snapshot) -> None:
+    def _settings_into(self, summary: dict, snap: Snapshot, asked: bool = False) -> None:
         """What the player's settings and their own build change about the state the coach sees: subjects
-        turned off (and for items, the build lists themselves, so there's nothing to recite), and how often
-        it has already said to buy each item."""
+        turned off (and for items, the build lists themselves, so there's nothing to recite), how often it has
+        already said to buy each item, the items they never want, and how far it may argue for an item
+        ("When I go my own way"). `asked`: the player asked for this answer."""
         from ..rules.engine import topics_off
 
         off = topics_off(self.suggest)
@@ -1088,11 +1201,37 @@ class Coach:
                 summary.pop(key, None)
         if off:
             summary["dont_advise_on"] = [prompts.TOPIC_WORDS[t] for t in sorted(off) if t in prompts.TOPIC_WORDS]
-        if self.kb is not None and "items" not in off:
-            told = {self.kb.item_name(i): n for i, (n, _left) in self._pushes.items()
-                    if n >= 2 and i not in self.kb.skipped and i not in snap.all_item_names()}
-            if told:
-                summary["told_to_buy"] = told
+        if self.kb is None or "items" in off:
+            return
+        never = own_way.never_items(self.cfg)
+        if never:
+            names = sorted(self.kb.item_name(i) for i in never)
+            summary["never_suggest"] = names
+            passed = [n for n in summary.get("passed_on", []) if n not in names]
+            if passed:
+                summary["passed_on"] = passed
+            else:
+                summary.pop("passed_on", None)
+        told = {self.kb.item_name(i): n for i, (n, _left) in self._pushes.items()
+                if n >= 2 and i not in self.kb.skipped and i not in snap.all_item_names()}
+        if told:
+            summary["told_to_buy"] = told
+        mode = self._own_way()
+        if mode == own_way.REMIND:
+            return
+        summary["own_way"] = prompts.OWN_WAY_WORDS[mode]
+        if mode == own_way.ONCE and self.kb.items:
+            # The items the coach already pointed at that it could argue for right now, with the reason: the only
+            # ones it may bring up again, once. (An item passed on is argued for by Doty itself: rules/own_way.)
+            owned = snap.all_item_names()
+            argue = {}
+            for item in sorted(i for i, (n, _left) in self._pushes.items()
+                               if n >= self._free_pushes() and i not in owned and i not in self.kb.skipped):
+                reason = own_way.may_argue(self.store, self.kb, item, snap, self.cfg, asked)
+                if reason is not None:
+                    argue[self.kb.item_name(item)] = reason.text or "most players on this hero buy it"
+            if argue:
+                summary["may_argue_once"] = argue
 
     def _apply_skip(self, text: str, snap: Snapshot) -> None:
         """A SKIP line in the answer to a spoken question: the player said they won't buy these."""
@@ -1205,8 +1344,10 @@ class Coach:
         allowed = self.kb.allowed_items(snap.hero_id)
         if allowed is not None:  # keep the plan to items this hero's players actually buy
             known = [i for i in known if i in allowed]
+        known = [i for i in known if i not in own_way.never_items(self.cfg)]
         if known:
             self.kb.custom_plan[snap.hero_name] = known
+            own_way.honour(self.kb, self.cfg, snap, self.store)  # (the player's own build for the hero still leads)
 
     async def _warm(self) -> None:
         self._last_warm = time.monotonic()

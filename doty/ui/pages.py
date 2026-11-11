@@ -51,6 +51,17 @@ SPEAK_UP = [
     ("every", "Every look"),
     ("never", "Never (feed only)"),
 ]
+# "When I go my own way" (CoachConfig.own_way; rules/own_way.py).
+OWN_WAY = [
+    ("once", "Say it once, with a reason"),
+    ("follow", "Follow me silently"),
+    ("remind", "Keep reminding me"),
+]
+# The subjects of "What Doty suggests", by their rows' names (for what Doty took from your instructions).
+TOPIC_TITLES = {
+    "items": "Items to buy", "skills": "Skill points", "farm": "Farm and lane", "timers": "Runes and Roshan",
+    "enemy": "Enemy timings", "gold": "Gold and TP scroll", "deaths": "Death reviews",
+}
 # One choice for how chatty the coach is: (key, name, looks every N s, talks, what it means).
 COACH_PRESETS = [
     ("quiet", "Quiet", 60, "important", "Looks every minute. Speaks when it matters."),
@@ -1283,10 +1294,17 @@ class SettingsPage(QWidget):
     open_setup = Signal()  # the setup checklist (it has no tab of its own)
     kitten_progress = Signal(int)  # percent, while the Kitten voice downloads
     kitten_done = Signal(str)  # "" = downloaded, else the problem
+    instructions_read = Signal(object)  # (coach/instructions.Reading, what the settings held before it)
 
     def __init__(self, ctl: Controller, toast: Toast) -> None:
         super().__init__()
         self.ctl, self.toast = ctl, toast
+        self.instructions_read.connect(self._on_instructions_read)
+        ctl.preferences_changed.connect(self._on_preferences_changed)
+        self._read_note = ""  # how the instructions were last read (shown under them)
+        self._read_extra: dict = {}  # subjects and talk that reading changed: shown with the items, to untick
+        self._read_in_background = True  # (tests read on the spot)
+        self._took_lay: QVBoxLayout | None = None
         self._eleven_voices: list[dict] | str | None = None
         self._eleven_loading = False
         self._filling = False
@@ -1513,6 +1531,243 @@ class SettingsPage(QWidget):
         box.currentIndexChanged.connect(picked)
         box._keys.add(("coach", "level_from_rank"))
         return box
+
+    # your instructions to the coach -------------------------------------------------------------------------------
+    def _instructions_row(self, d) -> SettingsRow:
+        """The player's instructions in their own words, and under them what Doty took from them as settings (to
+        untick) and what it kept as style. Read on saving (coach/instructions.py)."""
+        from PySide6.QtWidgets import QPlainTextEdit
+
+        from ..coach.prompts import INSTRUCTIONS_MAX
+
+        count = QLabel(f"{len(d.coach.instructions)}/{INSTRUCTIONS_MAX}")
+        count.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
+        row = self.setting_row(
+            SG.EDIT, "Your instructions to the coach", "How you play and what you want to hear, like custom "
+            "instructions in a chat app. On saving, Doty turns what it can into settings; the AI reads the rest as "
+            "your style.", count, keys=[("coach", "instructions"), ("coach", "never_suggest"),
+                                        ("coach", "hero_builds")])
+        edit = QPlainTextEdit()
+        edit.setPlainText(d.coach.instructions)
+        edit.setPlaceholderText(tr("For example: I play position 4. On Spirit Breaker I always build Boots of "
+                                   "Bearing. Never suggest Radiance."))
+        edit.setTabChangesFocus(True)
+        edit.setFixedHeight(88)
+        edit.setStyleSheet(f"QPlainTextEdit {{ background: {theme.SURFACE_2}; border: 1px solid {theme.BORDER_STRONG};"
+                           f" border-radius: 2px; padding: 4px 6px; }} QPlainTextEdit:focus {{ border-color: "
+                           f"{theme.BRAND}; }}")
+
+        def changed() -> None:
+            text = edit.toPlainText()
+            if len(text) > INSTRUCTIONS_MAX:  # (kept short: it goes with every look)
+                edit.blockSignals(True)
+                edit.setPlainText(text[:INSTRUCTIONS_MAX])
+                edit.moveCursor(edit.textCursor().MoveOperation.End)
+                edit.blockSignals(False)
+                text = text[:INSTRUCTIONS_MAX]
+            d.coach.instructions = text
+            count.setText(f"{len(text)}/{INSTRUCTIONS_MAX}")
+            self._dirty()
+
+        edit.textChanged.connect(changed)
+        self._instructions_edit = edit
+        row.texts.addWidget(edit)
+        took = QWidget()
+        self._took_lay = QVBoxLayout(took)
+        self._took_lay.setContentsMargins(0, 4, 0, 0)
+        self._took_lay.setSpacing(3)
+        row.texts.addWidget(took)
+        self._fill_took()
+        return row
+
+    def _names(self):
+        """Something that names items and heroes: the running engine's knowledge, else names made from the keys."""
+        kb = self.ctl.doty.kb if self.ctl.doty is not None else None
+        if kb is not None and kb.items:
+            return kb
+        if getattr(self, "_names_kb", None) is not None:  # (the one the last reading loaded)
+            return self._names_kb
+        from ..knowledge.constants import Knowledge
+
+        return Knowledge()
+
+    def _fill_took(self) -> None:
+        """'What Doty took from this': each setting it made, ticked (untick to drop it), then what it kept as style."""
+        from PySide6.QtWidgets import QCheckBox
+
+        lay, d = self._took_lay, self.draft
+        if lay is None:
+            return
+        while lay.count():
+            w = lay.takeAt(0).widget()
+            if w is not None:
+                w.deleteLater()
+        kb = self._names()
+        entries: list[tuple[str, bool, object]] = []  # (text, ticked, what unticking undoes)
+        base = self._base.coach
+        for item in dict.fromkeys(list(base.never_suggest) + list(d.coach.never_suggest)):
+            entries.append((tr("Never suggest {item}", item=kb.item_name(item)), item in d.coach.never_suggest,
+                            ("never", item)))
+        for hero, items in {**base.hero_builds, **d.coach.hero_builds}.items():
+            entries.append((tr("On {hero}: {items}", hero=kb.hero_name(hero),
+                               items=", ".join(kb.item_name(i) for i in items)),
+                            hero in d.coach.hero_builds, ("build", hero, list(items))))
+        for topic in self._read_extra.get("topics", []):
+            entries.append((tr("Don't bring up: {topic}", topic=tr(TOPIC_TITLES.get(topic, topic))),
+                            not getattr(d.suggest, topic, True), ("topic", topic)))
+        speak = self._read_extra.get("speak")
+        if speak:
+            entries.append((tr("When it talks: {choice}", choice=tr(dict(SPEAK_UP).get(speak[0], speak[0]))),
+                            d.coach.speak_up == speak[0], ("speak",) + tuple(speak)))
+        style = list(d.coach.instructions_style)
+        if not entries and not style:
+            if not self._read_note:
+                return
+        head = label("What Doty took from this", "eyebrow")
+        head.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
+        lay.addWidget(head)
+        for text, ticked, what in entries:
+            box = QCheckBox(text)
+            box.setChecked(ticked)
+            box.setCursor(Qt.PointingHandCursor)
+            box.toggled.connect(lambda on, what=what: self._untick(what, on))
+            lay.addWidget(box)
+        for line in style:
+            kept = label(tr("Kept as style: {text}", text=line), "muted", wrap=True)
+            kept.setStyleSheet("font-size: 9pt;")
+            lay.addWidget(kept)
+        if not entries and not style:
+            lay.addWidget(label("Nothing yet. Write your instructions and save.", "muted", wrap=True))
+        if self._read_note:
+            note = label(self._read_note, "faint", wrap=True)
+            note.setStyleSheet("font-size: 8.5pt;")
+            lay.addWidget(note)
+
+    def _untick(self, what: tuple, on: bool) -> None:
+        """A setting taken from the instructions, ticked or unticked (a draft change, saved with Save)."""
+        coach = self.draft.coach
+        kind = what[0]
+        if kind == "never":
+            item = what[1]
+            now = [i for i in coach.never_suggest if i != item]
+            coach.never_suggest = now + [item] if on else now
+        elif kind == "build":
+            builds = dict(coach.hero_builds)
+            if on:
+                builds[what[1]] = list(what[2])
+            else:
+                builds.pop(what[1], None)
+            coach.hero_builds = builds
+        elif kind in ("topic", "speak"):
+            # (through the setting's own control on this page, so the switch or picker shows it too)
+            key = ("suggest", what[1]) if kind == "topic" else ("coach", "speak_up")
+            control = next((r.control for r, keys, _tab in self._tracked if key in keys and r.control is not None
+                            and key != ("coach", "instructions")), None)
+            if kind == "topic":
+                if isinstance(control, Switch):
+                    control.setChecked(not on)
+                setattr(self.draft.suggest, what[1], not on)
+            else:
+                value = what[1] if on else what[2]
+                if isinstance(control, QComboBox) and control.findData(value) >= 0:
+                    control.setCurrentIndex(control.findData(value))
+                coach.speak_up = value
+        self._dirty()
+
+    def _reading_kb(self):
+        """Knowledge with the real item and hero names to check a reading against (on a worker thread)."""
+        kb = self.ctl.doty.kb if self.ctl.doty is not None else None
+        if kb is not None and kb.items:
+            return kb
+        import asyncio
+
+        from ..knowledge.constants import Knowledge
+
+        kb = Knowledge()
+        try:
+            asyncio.run(kb.load())
+        except Exception as exc:  # (no names: the reading keeps everything as style)
+            print(f"[doty] couldn't load item names to read your instructions: {exc!r}")
+        return kb
+
+    def _read_job(self, text: str, coach_cfg, before: tuple) -> tuple:
+        """Read the instructions (the AI when one is set up, else Doty's own reader). Runs off the GUI thread."""
+        import asyncio
+
+        from ..coach import instructions
+        from ..coach.backends import BackendError, make_backend
+
+        kb = self._reading_kb()
+        if kb.items:
+            self._names_kb = kb  # (so the list names items as the game does)
+
+        async def read():
+            backend = None
+            if coach_cfg.enabled:
+                try:
+                    backend = make_backend(coach_cfg)
+                except (BackendError, Exception) as exc:  # (no key, no provider: read in code)
+                    print(f"[doty] no AI to read your instructions: {exc}")
+            try:
+                return await instructions.read_with_ai(text, kb, backend)
+            finally:
+                if backend is not None:
+                    await backend.aclose()
+
+        try:
+            reading = asyncio.run(read())
+        except Exception as exc:
+            print(f"[doty] reading your instructions failed: {exc!r}")
+            reading = instructions.read_simply(text, kb)
+        return reading, before
+
+    def _read_instructions(self, text: str) -> None:
+        """Saved new instructions: read them into settings, in the background (the AI may take a few seconds)."""
+        cfg = self.ctl.cfg
+        before = (list(cfg.coach.never_suggest), dict(cfg.coach.hero_builds), cfg.coach.speak_up)
+        if not text.strip():
+            self._read_extra, self._read_note = {}, ""
+            self.ctl.set_preferences(instructions_style=[])
+            return
+        self._read_note = tr("Reading your instructions with the AI…") if cfg.coach.enabled else ""
+        coach_cfg = copy.deepcopy(cfg.coach)
+        if not self._read_in_background:
+            self._on_instructions_read(self._read_job(text, coach_cfg, before))
+            return
+        threading.Thread(target=lambda: self.instructions_read.emit(self._read_job(text, coach_cfg, before)),
+                         daemon=True, name="doty-read-instructions").start()
+
+    def _on_instructions_read(self, result) -> None:
+        """A reading is in: into the saved (and running) settings at once, with no restart, and shown to untick."""
+        from ..coach import instructions
+
+        reading, (never, builds, speak_was) = result
+        cfg = copy.deepcopy(self.ctl.cfg)
+        instructions.apply(cfg, reading, never, builds)
+        self._read_extra = {"topics": list(reading.topics_off)}
+        if reading.speak_up:
+            self._read_extra["speak"] = (reading.speak_up, speak_was)
+        self._read_note = tr("Read by the AI.") if reading.by == "ai" else tr("Read by Doty itself, without the AI.")
+        self.ctl.set_preferences(suggest={t: False for t in reading.topics_off},
+                                 never_suggest=cfg.coach.never_suggest, hero_builds=cfg.coach.hero_builds,
+                                 speak_up=cfg.coach.speak_up, instructions_style=cfg.coach.instructions_style)
+
+    def _on_preferences_changed(self) -> None:
+        """The never-suggest list or a reading changed outside the page: shown at once. With nothing unsaved the page
+        is rebuilt (the switches show it too); otherwise only those fields and the list change."""
+        try:
+            pending = bool(self._pending())
+        except AttributeError:
+            return
+        if not pending:
+            self._build()
+            return
+        for name in ("never_suggest", "hero_builds", "instructions_style"):
+            value = copy.deepcopy(getattr(self.ctl.cfg.coach, name))
+            setattr(self._base.coach, name, value)
+            setattr(self.draft.coach, name, copy.deepcopy(value))
+        self._fill_took()
+        self._dirty()
 
     def _slider(self, lo: int, hi: int, value: int, fmt, on_change, step: int = 1) -> QWidget:
         w = QWidget()
@@ -1990,6 +2245,8 @@ class SettingsPage(QWidget):
             row(SG.STAR, "Your rank", "Draft help and builds use games at this rank.",
                 self._combo(d.coach, "bracket", [(k, v) for k, v in BRACKETS.items()])),
         ]))
+        # (not behind the main switch: what Doty takes from them is enforced by the rules too, with the AI off)
+        card.add(SettingsGroup("Your instructions", [self._instructions_row(d)]))
         self._main_switch(card, on)
 
         # Voice
@@ -2144,6 +2401,9 @@ class SettingsPage(QWidget):
         card.add(SettingsGroup("What Doty suggests", [
             row(SG.STAR, "Items to buy", "Buy calls, item timings and the coach's item advice. Off: you pick your "
                 "own items, and Doty only talks about them when you ask.", self._switch(d.suggest, "items")),
+            row(SG.PERSON, "When I go my own way", "When you build something other than what Doty suggests. Once: it "
+                "may say so one time per item, with a reason from this game, then follows your build.",
+                self._combo(d.coach, "own_way", OWN_WAY)),
             row(SG.CAP, "Skill points", "Reminders to spend a skill point, and the level 6 call.",
                 self._switch(d.suggest, "skills")),
             row(SG.CHART, "Farm and lane", "Last-hit, deny and farm pace checks.",
@@ -2367,12 +2627,15 @@ class SettingsPage(QWidget):
             changes = self._changes()
             if getattr(changes.app, "language", "en") != before:
                 changes.app.language_picked = True  # (chosen here: the opening choice needn't ask)
+            reread = changes.coach.instructions != self._base.coach.instructions
             self.ctl.apply_config(changes)
         except Exception as exc:
             self.toast.show_message(tr("Couldn't save: {error}", error=exc))
             return
         self.bar.setVisible(False)
         self.draft = copy.deepcopy(self.ctl.cfg)
+        if reread:  # (new instructions: what can be a setting is taken out of them, then shown to untick)
+            self._read_instructions(self.ctl.cfg.coach.instructions)
         self._build()
         if getattr(self.ctl.cfg.app, "language", "en") != before:  # (the screens are built in one language)
             from PySide6.QtCore import QTimer
