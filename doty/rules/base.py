@@ -27,6 +27,8 @@ class RuleContext:
     new_events: list[dict[str, Any]]
     level: str = "some"  # the player's level (CoachConfig.level)
     topics_off: frozenset = frozenset()  # subjects turned off in Settings (config.SuggestConfig field names)
+    # The player's coaching preferences (config.CoachConfig: own_way, never_suggest, hero_builds); None = defaults.
+    prefs: Any = None
 
     @property
     def mem(self) -> dict[str, Any]:

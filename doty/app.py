@@ -70,6 +70,7 @@ class Doty:
         self.engine = RuleEngine(self.store, self.bus, cfg.rules, self.kb)
         self.engine.level_of = lambda: self.cfg.coach.level  # (live: the Learn tab can change it mid-game)
         self.engine.suggest = cfg.suggest  # which subjects Doty brings up (Settings > Alerts)
+        self.engine.prefs = cfg.coach  # "When I go my own way", items never to suggest, your build per hero
         self.voice = Voice(cfg.voice)
         from . import i18n
 

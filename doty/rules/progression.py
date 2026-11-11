@@ -6,6 +6,7 @@ from typing import Iterable
 
 from ..advice import Advice, Priority
 from ..knowledge import mode as game_mode
+from . import own_way
 from .base import Rule, RuleContext, mmss
 
 
@@ -179,6 +180,11 @@ class ItemPace(Rule):
         due = sorted((when, item) for item in kb.typical_items(hero_id, 4)
                      if item not in owned and item not in kb.skipped and not kb.second_boots(item, have)
                      and (when := kb.typical_time(hero_id, item)) is not None)
+        if own_way.mode_of(getattr(ctx, "prefs", None)) != own_way.REMIND:
+            # "Usually lands by" about an item the player isn't building is an argument for it: unless "When I go
+            # my own way" is on "remind", the pace is only given for the item they're building now.
+            target = kb.next_target(s.hero_name, s.clock, s.item_list())
+            due = [(when, item) for when, item in due if item == target]
         for when, item in due:  # in the order they usually land
             if s.clock >= when:
                 continue  # its time has passed (skipped, sold or just late): the next one matters now

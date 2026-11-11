@@ -55,7 +55,8 @@ def _kb():
 
 
 def _coach(kb, store, **suggest):
-    coach = Coach(CoachConfig(), store, AdviceBus(), kb)
+    # (These tests pin the old way, "remind"; the new default "once" is in test_coach_etiquette.py.)
+    coach = Coach(CoachConfig(own_way="remind"), store, AdviceBus(), kb)
     coach.suggest = SuggestConfig(**suggest)
     heard = Recorder()
     coach.bus.subscribe(heard)
@@ -160,6 +161,7 @@ def test_you_can_afford_it_is_said_twice_then_the_item_is_dropped(monkeypatch):
     bus.subscribe(rec)
     rule, clock = AffordableBuildItem(), [1000.0]
     engine = RuleEngine(store, bus, RulesConfig(), kb, rules=[rule])
+    engine.prefs = CoachConfig(own_way="remind")  # (the old way: "once", the default, says it once)
     monkeypatch.setattr(time, "monotonic", lambda: clock[0])
     for _ in range(FINISH_CALLS + 1):
         for tick in range(3):  # (several updates a second: still one call)
@@ -177,7 +179,7 @@ def test_item_pace_leaves_out_what_you_passed_on():
     kb.item_timings[(8, BKB)] = [{"hero_id": 8, "time": 1200, "games": 100, "wins": 50}]
     kb.item_timings[(8, "item_power_treads")] = [{"hero_id": 8, "time": 450, "games": 100, "wins": 50}]
     snap = _feed(store, 1.0, clock=1100, gold=100, items=["item_power_treads"])
-    ctx = RuleContext(snap, None, store, RulesConfig(), kb, [])
+    ctx = RuleContext(snap, None, store, RulesConfig(), kb, [], prefs=CoachConfig(own_way="remind"))
     assert any("Black King Bar" in a.text for a in ItemPace().evaluate(ctx))
     store.memory.clear()
     kb.skip(BKB)
