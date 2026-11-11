@@ -31,24 +31,58 @@ STRONG = 0.6
 
 # What a disable is, from its description and its numbers' labels ("STUN DURATION:"). Strongest first: an ability
 # is the first kind it matches.
+# (Reviewed against every hero's descriptions with `--audit`, patch 7.41: see the test that pins the result.)
 DISABLE_WORDS = (
-    ("hex", re.compile(r"\bhex\b|transforms? (an|the) enemy|harmless (beast|creature)")),
-    ("stun", re.compile(r"\bstun")),
-    ("sleep", re.compile(r"\bto sleep\b|\basleep\b")),
-    ("taunt", re.compile(r"\bforced to attack|\btaunt")),
+    ("hex", re.compile(r"\bhex(es|ed)?\b|transforms? (an|the) enemy|harmless (beast|creature)")),
+    # A full disable: they can't move, attack or cast (Black Hole, Flaming Lasso, Shackles, Song of the Siren),
+    # are banished (Disruption, Astral Imprisonment), trapped by Chronosphere, gripped (Fiend's Grip), locked in
+    # time (Time Lock) or pulled in (Electric Vortex, Aether Remnant).
+    ("disable", re.compile(r"cannot (move|act)\b[^.]{0,12}\b(attack|cast)|cannot act\b|\bbanishes\b|"
+                           r"invulnerable and disabled|\btrapping all\b|\bdisabling (it|them|the target)\b(?! as)|"
+                           r"\block (an|the) enemy|\bdisables? (the )?(target|enemy)|"
+                           r"\bpull(s|ing)? (an enemy|it in|all units)")),
+    ("sleep", re.compile(r"\bto sleep\b|\basleep\b|\bunconscious\b|\bsleep duration")),
+    # (A bash is a stun; so is being launched into the air: Walrus PUNCH!, Tornado.)
+    ("stun", re.compile(r"\bstun|\bbash|(launch|lift|hurl)\w* [^.]{0,30}into the air|\bbe (briefly )?frozen\b")),
+    ("taunt", re.compile(r"\bforced to attack|\bcauses? them to attack|\btaunt")),
     ("silence", re.compile(r"\bsilenc|cannot (use|cast) (abilities|spells)|prevents? them from casting")),
-    ("fear", re.compile(r"\bfear")),
-    ("root", re.compile(r"\broot|cannot move|prohibiting movement|entangl|ensnar")),
-    ("cyclone", re.compile(r"\bcyclone")),
-    ("disable", re.compile(r"\bdisabling\b|\btrapping\b|\block (an|the) enemy|\bdisables? (the )?(target|enemy)")),
+    ("fear", re.compile(r"\bfear(?!some)|\bflee|\bhypnoti")),
+    ("root", re.compile(r"\broot|cannot move|prohibiting movement|prevents? them from moving|entangl|ensnar|"
+                        r"\b(anchoring|trapping|freezes?|holding) (them |it |an enemy |the target )?in place|"
+                        r"\btrapping (any|it|units)\b|\bleash|can'?t pass|cannot pass")),
+    ("cyclone", re.compile(r"\bcyclone|(suspend|hold)\w* [^.]{0,30}in the air")),
+    ("disarm", re.compile(r"\bdisarm|unable to attack")),
 )
-# How much each kind of disable costs you: a stun or hex loses a fight, a root less so.
+# How much each kind of disable costs you: a stun or hex loses a fight, a root less so, a disarm only a carry.
 DISABLE_WEIGHT = {"hex": 1.0, "stun": 1.0, "disable": 1.0, "silence": 0.9, "sleep": 0.8, "taunt": 0.8,
-                  "fear": 0.8, "root": 0.6, "cyclone": 0.6}
+                  "fear": 0.8, "root": 0.6, "cyclone": 0.6, "disarm": 0.3}
+# A label naming a kind ("FEAR DURATION:"): when every such label is 0, the word in the description is flavour
+# (Howl "strikes fear", with FEAR DURATION 0).
+KIND_LABEL = {"stun": "STUN", "silence": "SILENCE", "fear": "FEAR", "root": "ROOT", "sleep": "SLEEP",
+              "hex": "HEX", "disarm": "DISARM"}
+SELF_SENTENCE = re.compile(r"\b(he|she) (is|becomes|gets|falls|loses)\b|\b(himself|herself)\b|"
+                           r"be attacked, (he|she)\b|\bis unable to attack\b|loses the ability|"
+                           r"for the duration of the ability|\bdo(es)? not\b", re.I)
+# Heroes whose real spells are listed as hidden (Invoker's invoked spells): those are read too.
+HIDDEN_SPELLS_COUNT = frozenset({"npc_dota_hero_invoker"})
 EVASION = re.compile(r"\bevasion|\bevade")
 # Healing that keeps them alive: heals, health regen, lifesteal (not mana regen, not a heal they take away).
 HEAL = re.compile(r"\bheal(s|ing|ed)?\b|\bhealth regen|lifesteal")
-NOT_HEAL = re.compile(r"heal(ing)? reduction|reduc\w* (their |the target's )?heal|prevents?[^.]*heal|negative heal")
+NOT_HEAL = re.compile(r"heal(ing)? reduction|reduc\w* (their |the target's )?heal|prevents?[^.]*heal|negative heal|"
+                      r"lifesteal penalty|golem health")
+INVIS = re.compile(r"\binvisib|\bturns? invisible|\bfades? (away|from view)")
+
+# What the data gets wrong or can't say, reviewed by hand against the ability's own description: ability key ->
+# (facts to set, why, the patch it was checked on). Keep it small: a fix to the reading above beats an entry here.
+OVERRIDES: dict[str, tuple[dict[str, Any], str, str]] = {
+    # The stun in its numbers ("UNPERCHED STUNNED DURATION") is Monkey King's own, when his tree is cut down.
+    "monkey_king_tree_dance": ({"hostile": False, "disable": "", "unit": False, "dmg": ""},
+                               "a jump onto a tree; the stun it lists is his own when the tree falls", "7.41"),
+    # "Strikes fear into enemies" with FEAR DURATION 0, and no target team: read as a buff on Lycan's side, which
+    # would make Nullifier "dispel" it. It's a debuff on the enemies (armor and attack damage), no disable.
+    "lycan_howl": ({"hostile": True, "self_buff": False, "disable": "", "unit": False},
+                   "a debuff on all enemies (armor, attack damage), not a buff and not a fear", "7.41"),
+}
 
 
 def _listed(value: Any) -> list[str]:
@@ -57,41 +91,88 @@ def _listed(value: Any) -> list[str]:
     return [str(value)] if value else []
 
 
-def ability_facts(raw: dict[str, Any]) -> dict[str, Any]:
-    """What one ability (a dotaconstants abilities.json entry) does to the other team, as the item judgement
-    reads it: "dmg" (magical, physical, pure or ''), "hostile" (it hits or disables enemies), "unit" (it
-    targets one unit, so Linken's Sphere or Lotus Orb can take it), "disable" (the kind: stun, hex, silence,
-    root...; '' for none), "evasion", "heal" and "self_buff" (a buff on their own side a basic dispel removes)."""
+def _zero(value: Any) -> bool:
+    """An attribute with no effect of its own: every level 0 ("STUN DURATION: 0", "DOES ROOT: 0"), or given as
+    "+2.5" (what a talent or facet adds, not what the spell does)."""
+    values = value if isinstance(value, list) else [value]
+    if any(str(v).strip().startswith("+") for v in values):
+        return True
+    try:
+        return all(float(str(v).split("/")[0].strip().rstrip("%") or 0) == 0 for v in values)
+    except ValueError:
+        return False
+
+
+def _labels(raw: dict[str, Any]) -> tuple[str, str]:
+    """The labels of the ability's numbers that have a value ("STUN DURATION:" when it stuns), and those that are
+    0. Not the yes/no switches ("DOES ROOT:", "PIERCES IMMUNITY:"), which say what a variant or a talent could
+    do, nor what it does to its own caster ("SELF STUN DURATION PERCENT:" on Meat Hook)."""
+    live, dead = [], []
+    for a in raw.get("attrib") or []:
+        if not isinstance(a, dict):
+            continue
+        header = str(a.get("header") or "")
+        if "DOES" in header or "PIERCE" in header or "SELF" in header:
+            continue
+        (dead if _zero(a.get("value")) else live).append(header)
+    return " ".join(live), " ".join(dead)
+
+
+def ability_facts(raw: dict[str, Any], name: str = "") -> dict[str, Any]:
+    """What one ability (a dotaconstants abilities.json entry, `name` its key) does to the other team, as the
+    item judgement reads it: "dmg" (magical, physical, pure or ''), "hostile" (it hits or disables enemies),
+    "unit" (it targets one unit, so Linken's Sphere or Lotus Orb can take it), "disable" (the kind: stun, hex,
+    silence, root...; '' for none) with "why" (the words that showed it), "evasion", "heal", "self_buff" (a buff
+    on their own side a basic dispel removes) and "invis". Then OVERRIDES, for what the data gets wrong."""
     behavior = _listed(raw.get("behavior"))
     team = _listed(raw.get("target_team"))
     dmg = raw.get("dmg_type")
     dmg = dmg.lower() if isinstance(dmg, str) and dmg.lower() in ("magical", "physical", "pure") else ""
-    # (Labels of yes/no switches, "DOES ROOT:", say what a variant could do, not what the spell does.)
-    headers = " ".join(h for a in raw.get("attrib") or [] if isinstance(a, dict)
-                       and "DOES" not in (h := str(a.get("header") or "")))
     desc = str(raw.get("desc") or "")
-    text = f"{raw.get('dname') or ''} {desc} {headers}".lower()
-    kind = next((k for k, pattern in DISABLE_WORDS if pattern.search(text)), "")
+    live, dead = _labels(raw)
+    # Sentences about the caster ("he falls and is stunned", "Largo... He is disarmed", "Timbersaw loses the
+    # ability to attack") or saying what it doesn't do ("These beams do not stun") aren't about the enemy.
+    told = " ".join(s for s in re.split(r"(?<=[.!?])\s+", desc) if not SELF_SENTENCE.search(s))
+    text = f"{raw.get('dname') or ''} {told} {live}".lower()
+    kind, why = "", ""
+    for k, pattern in DISABLE_WORDS:
+        m = pattern.search(text)
+        if not m:
+            continue
+        label = KIND_LABEL.get(k)
+        if label and label in dead and label not in live.upper():
+            continue  # (its duration is 0: the word is flavour)
+        kind, why = k, m.group(0)
+        break
+    enemies = bool(re.search(r"\benem", desc, re.I))
     if "Enemy" in team or "Both" in team:
         hostile = True
     elif "Friendly" in team:
-        hostile = False
+        # Cast on a friend, but it hits enemies where it lands (Firesnap Cookie, Rebound, Supernova).
+        hostile = bool(dmg and kind and enemies and why in told.lower())
     else:  # (no target team listed: an area spell or a passive; it's hostile when it hurts or holds someone)
         hostile = bool(dmg or kind)
     if not hostile:
-        kind = ""  # ("Removes debuffs and disables": a save, not a disable)
+        kind = why = ""  # ("Removes debuffs and disables": a save, not a disable)
     passive = "Passive" in behavior
     dispel = str(raw.get("dispellable") or "")
-    return {
+    facts = {
         "dmg": dmg if hostile else "",
         "hostile": hostile,
         "unit": hostile and "Unit Target" in behavior and "Point Target" not in behavior,
         "disable": kind,
+        "why": why,
         "evasion": not hostile and bool(EVASION.search(text)),
         "heal": bool(HEAL.search(text)) and not NOT_HEAL.search(text),
         "self_buff": (not hostile and not passive and not dmg and dispel == "Yes"
                       and "Hidden" not in behavior and ("Friendly" in team or not team)),
+        "invis": bool(INVIS.search(desc)) and "Enemy" not in team,
     }
+    fix = OVERRIDES.get(name)
+    if fix:
+        facts.update(fix[0])
+        facts["why"] = "override: " + fix[1]
+    return facts
 
 
 @dataclass
@@ -139,8 +220,10 @@ def _enemy(kb: "Knowledge", npc: str) -> _Enemy:
     spells, seen = [], set()
     for ability in (kb.hero_abilities.get(npc) or {}).get("abilities", []):
         info = kb.ability_info.get(ability)
-        if ability == "generic_hidden" or not info or not info.get("dname") or info.get("hidden"):
+        if ability == "generic_hidden" or not info or not info.get("dname"):
             continue
+        if info.get("hidden") and npc not in HIDDEN_SPELLS_COUNT:
+            continue  # (a Shard or Scepter spell, or a sub-spell)
         # One spell per name: Shadowraze three times, Whirling Axes (Ranged) and (Melee) once.
         label = re.sub(r"\s*\([^)]*\)$", "", info["dname"])
         if label in seen:
@@ -403,3 +486,97 @@ def cases(kb: "Knowledge", enemy_npcs: list[str]) -> dict[str, ItemCase]:
         answers = list(dict.fromkeys((h, s) for h, s, _w in found))
         out[item] = ItemCase(item, score, reason, answers, detail)
     return out
+
+
+# the audit: what Doty believes each hero's spells do ----------------------------------------------------------
+def load_cached(cache_dir: Any = None) -> "Knowledge":
+    """A Knowledge with the hero, item and ability data from the cache folder only (no download): for the audit
+    and offline checks."""
+    import json
+    from pathlib import Path
+
+    from ..config import CACHE_DIR
+    from .constants import Knowledge, ability_entry
+
+    folder = Path(cache_dir or CACHE_DIR)
+    kb = Knowledge(folder)
+
+    def read(name: str) -> Any:
+        try:
+            return json.loads((folder / name).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+
+    heroes, items, hero_abilities, abilities = (read(f"{n}.json") for n in
+                                                ("heroes", "items", "hero_abilities", "abilities"))
+    if isinstance(heroes, dict):
+        kb.heroes = {h["name"]: h for h in heroes.values() if isinstance(h, dict) and "name" in h}
+    if isinstance(items, dict):
+        kb.items = {f"item_{k}": v for k, v in items.items() if isinstance(v, dict)}
+    if isinstance(hero_abilities, dict):
+        kb.hero_abilities = {k: v for k, v in hero_abilities.items() if isinstance(v, dict)}
+    if isinstance(abilities, dict):
+        wanted = {a for h in kb.hero_abilities.values() for a in h.get("abilities", [])}
+        kb.ability_info = {n: ability_entry(v, n) for n, v in abilities.items()
+                           if isinstance(v, dict) and (n in wanted or not wanted)}
+    return kb
+
+
+def _flag_text(facts: dict[str, Any]) -> str:
+    if not facts.get("hostile"):
+        flags = [f for f in ("evasion", "heal", "self_buff", "invis") if facts.get(f)]
+        return "own side" + (f" [{', '.join(flags)}]" if flags else "")
+    parts = [facts.get("dmg") or "no damage", "single target" if facts.get("unit") else "area/other",
+             facts.get("disable") or "no disable",
+             "goes through BKB" if facts.get("bkb") else "BKB blocks it",
+             f"dispel: {facts.get('dispel') or '?'}"]
+    flags = [f for f in ("heal",) if facts.get(f)]
+    return ", ".join(parts) + (f" [{', '.join(flags)}]" if flags else "")
+
+
+def audit(kb: "Knowledge", heroes: list[str] | None = None, why: bool = False) -> list[str]:
+    """What the engine believes each hero's visible spells do, one line per spell (the heroes named, or all):
+    for checking the readings against the descriptions by eye."""
+    npcs = []
+    for name in heroes or sorted(kb.hero_abilities, key=kb.hero_name):
+        npc = name if name in kb.heroes or name.startswith("npc_dota_hero_") else kb.find_hero(name)
+        if npc and npc in kb.hero_abilities:
+            npcs.append(npc)
+    lines = []
+    for npc in npcs:
+        e = _enemy(kb, npc)
+        lines.append(f"{e.name} ({npc.removeprefix('npc_dota_hero_')}): traits {sorted(e.traits) or '-'}"
+                     + (", right-click" if e.right_click else ""))
+        for s in e.spells:
+            line = f"  {s.name:28s} {_flag_text(s.facts)}"
+            if why and s.facts.get("why"):
+                line += f'   <- "{s.facts["why"]}"'
+            lines.append(line)
+    return lines
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="python -m doty.knowledge.judgement",
+                                     description="Print what Doty believes each hero's spells do, from the cached "
+                                                 "ability data (no download).")
+    parser.add_argument("--audit", action="store_true", help="list each hero's spells as Doty reads them")
+    parser.add_argument("--why", action="store_true", help="show the words that decided each disable")
+    parser.add_argument("--cache", default=None, help="the cache folder (default: Doty's own)")
+    parser.add_argument("heroes", nargs="*", help="hero names (default: every hero)")
+    args = parser.parse_args(argv)
+    if not args.audit:
+        parser.print_help()
+        return 2
+    kb = load_cached(args.cache)
+    if not kb.hero_abilities or not kb.ability_info:
+        print("No cached ability data: start Doty once with a network connection.")
+        return 1
+    for line in audit(kb, args.heroes or None, args.why):
+        print(line)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

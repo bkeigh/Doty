@@ -1,0 +1,21 @@
+{
+ "fixture": 1,
+ "kind": "watch",
+ "clock": 300,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "Lion's Hex hexes you; answer: Black King Bar.",
+ "said": true,
+ "state": {
+  "alive": true,
+  "fighting": false,
+  "gold": 600,
+  "items": ["item_power_treads"],
+  "tp": true,
+  "passed_on": [],
+  "enemies": ["npc_dota_hero_lion", "npc_dota_hero_lina", "npc_dota_hero_bane", "npc_dota_hero_troll_warlord",
+              "npc_dota_hero_sniper"]
+ },
+ "expect": "pass",
+ "checks": [],
+ "note": "synthetic: a threat card's line, a spell from the hero's own list"
+}
