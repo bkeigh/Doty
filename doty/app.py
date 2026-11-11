@@ -12,11 +12,12 @@ from __future__ import annotations
 import asyncio
 import json
 import math
+import os
 import signal
 import sys
 import threading
 import time
-from collections import deque
+from collections import Counter, deque
 
 from .advice import Advice, AdviceBus, Priority
 from .capture import StripGrabber, grab_views, grab_window
@@ -122,6 +123,7 @@ class Doty:
         self._usual_pending = False  # that lookup is running
         self._usual_asked = 0.0  # when it last started (monotonic)
         self._match_gone = False  # the match's source was stopped on purpose (the demo): not live, as of now
+        self._study_stop: threading.Event | None = None  # set to stop the background study (_start_study)
 
         # The session log opens with its first line, so a launch without a match leaves no empty file.
         self._log_path = LOG_DIR / time.strftime("session-%Y%m%d-%H%M%S.jsonl")
@@ -191,6 +193,8 @@ class Doty:
         else:
             self.store.memory.pop("mode_pending", None)
         roles.observe(snap, self.store, self.kb)  # which role the player has this game (the rules and coach use it)
+        # Your rank (Settings, or the Learn tab mid-game): the hero card's pace and matchups are read at it.
+        self.kb.bracket = int(getattr(self.cfg.coach, "bracket", 0) or 0)
         # The player's own build: an item they were pointed at and bought around leaves it (knowledge/build.py).
         for item in build.observe(snap, self.store, self.kb):
             self.bus.publish(build.note(self.kb, item))
@@ -664,6 +668,45 @@ class Doty:
             raise
         self.running = True
         self._start_vision()
+        self._start_study()
+
+    # studying the game's data in the background (knowledge/study.py) --------------------------------------
+    def _start_study(self) -> None:
+        """Hero cards for the heroes you meet: a daemon thread fetching public statistics a few requests at a
+        time, this match's heroes first. Off with Settings' switch (cfg.app.study) and in tests (DOTY_STUDY=0)."""
+        if not getattr(self.cfg.app, "study", True) or os.environ.get("DOTY_STUDY") == "0":
+            return
+        from .knowledge import study
+
+        self._study_stop = threading.Event()
+        threading.Thread(target=study.watch, args=(self._study_current, self._study_favourites, self._study_stop),
+                         kwargs={"cache_dir": self.kb.cache_dir}, name="doty-study", daemon=True).start()
+
+    def _study_current(self) -> list[int]:
+        """Hero ids of this match: your own, then the lineup as far as it's known."""
+        snap = self.store.current
+        ids = [snap.hero_id] if snap is not None and snap.hero_id else []
+        for names in (self.store.memory.get("lineup") or {}).values():
+            for name in names or []:
+                npc = self.kb.find_hero(name) if name else None
+                hid = int((self.kb.heroes.get(npc or "") or {}).get("id") or 0)
+                if hid:
+                    ids.append(hid)
+        return ids
+
+    def _study_favourites(self) -> list[int]:
+        """Your most-played heroes, from your recent matches as the Profile page and the game-mode lookup already
+        saved them (read from that file only: nothing is fetched or sent here)."""
+        account = self._account_id(self.store.current)
+        if not account:
+            return []
+        try:
+            rows = json.loads((self.stats.cache_dir / f"recent_{account}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        played = Counter(int(r.get("hero_id") or 0) for r in rows if isinstance(r, dict)) if isinstance(rows, list) \
+            else Counter()
+        return [h for h, _n in played.most_common(10) if h]
 
     # Doty's own top-bar reader ------------------------------------------------------------------
     VISION_EVERY_S = 1.0
@@ -838,6 +881,8 @@ class Doty:
     def shutdown(self) -> None:
         """Stop everything and release the port, hotkeys and mic. Safe to call twice."""
         self.running = False
+        if self._study_stop is not None:
+            self._study_stop.set()
         self.request_stop()
         if self._loop_thread is not None:
             self._loop_thread.join(5)

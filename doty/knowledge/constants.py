@@ -193,6 +193,11 @@ class Knowledge:
         # Timings learned from normal games (when an item usually lands, the phases of a build) are given on
         # this game's clock.
         self.mode = game_mode.NORMAL
+        # The player's rank bracket (CoachConfig.bracket: 0 all ranks, 1 Herald ... 8 Immortal; the app sets it) and
+        # role this game (knowledge/roles.py sets it on every update): the hero card (knowledge/cards.py) is read
+        # at them, and once the role is known the build is the one players of that role finish.
+        self.bracket = 0
+        self.role = None
         self.patch_notes: dict[int, list[str]] = {}  # hero id -> this patch's changes, newest first
         self._patch_notes_asked = False
         self.skill_rows: dict[int, list[dict[str, Any]]] = {}  # hero id -> explorer rows (lvl, ab, n)
@@ -593,9 +598,13 @@ class Knowledge:
         return plan + offers[:1]
 
     def _popular_plan(self, hero_npc: str, clock: int) -> list[str]:
-        """What this hero's players buy most in this phase of the game (see `build_plan`)."""
+        """What this hero's players buy most in this phase of the game (see `build_plan`): the players of the
+        player's role when that's known and the hero card has their build (`_role_plan`), else all of them."""
         hero = self.heroes.get(hero_npc)
         hero_id = int(hero["id"]) if hero else 0
+        role_plan = self._role_plan(hero_id, clock)
+        if role_plan:
+            return role_plan
         pop = self.item_popularity.get(hero_id)
         if not pop:
             return []
@@ -633,6 +642,42 @@ class Knowledge:
             plan += [i for i in most_bought(PHASES[phase][0]) if i not in plan]
         self._plans[(hero_id, phase)] = (key, plan)
         return plan
+
+    def _role_known(self) -> bool:
+        """The player's role is settled enough to choose a build by: the lanes have been seen (a position), or
+        roles.py is sure. A first guess from the hero's tags isn't (Spirit Breaker is tagged Carry, and is
+        mostly played as a support)."""
+        role = self.role
+        return role is not None and (bool(getattr(role, "position", 0)) or bool(getattr(role, "sure", False)))
+
+    def _role_plan(self, hero_id: int, clock: int) -> list[str]:
+        """The build of the player's role from the hero card (pro players of that position on this patch,
+        knowledge/cards.py), in the order its items land: the boots, then the finished items still ahead of this
+        moment, and those already due that are dear enough to still be worth it (as `_popular_plan` carries them
+        over). [] when the role isn't known or there's no card for it: then the all-roles list stands."""
+        if not hero_id or not self.items or not self._role_known():
+            return []
+        from . import cards  # (cards imports this module)
+
+        found = cards.role_build(hero_id, self.role, self.cache_dir)
+        if found is None:
+            return []
+        _key, build = found
+        now = self.mode.as_normal(clock)
+        plan = [f"item_{e['item']}" for e in (build.get("boots") or [])[:1]]
+        for e in [e for ph in ("early", "mid", "late") for e in build.get(ph) or []]:
+            item = f"item_{e['item']}"
+            if item in plan or item not in self.items or not self._is_build_target(item):
+                continue
+            if now < 0 or int(e.get("by_s") or 0) >= now or self.item_cost(item) >= CARRY_OVER_MIN_COST:
+                plan.append(item)
+        return plan[:2 * PLAN_PER_PHASE]
+
+    def has_card(self, hero_id: int) -> bool:
+        """A hero card (knowledge/cards.py) has been studied for this hero."""
+        from . import cards
+
+        return bool(hero_id) and cards.load(int(hero_id), self.cache_dir) is not None
 
     def shopping(self, hero_npc: str, clock: int, owned, gold: int, n: int = 3) -> list[dict[str, Any]]:
         """What to buy, in order: the one answer every part of Doty gives (the rules' "Buy ..." calls, the
@@ -1293,6 +1338,11 @@ class Knowledge:
             typical = [self.item_name(i) for i in self.typical_items(int(hero["id"])) if open_(i)]
             if typical:
                 out["typical_items"] = typical
+            if self.has_card(int(hero["id"])):
+                # The hero card (state "hero_card") gives the item timings with their win rates and the skill
+                # order for the player's role: the all-roles versions below would only repeat it, less well.
+                notes = self.ability_notes(hero_npc)
+                return {**out, "your_abilities": notes} if notes else out
             odds = {}
             for item in self.typical_items(int(hero["id"]), 4):
                 if not open_(item):

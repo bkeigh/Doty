@@ -17,6 +17,16 @@ def _no_real_kokoro(tmp_path_factory):
     """Tests never load the real 330 MB Kokoro model by accident: its folder is empty here."""
     os.environ["DOTY_KOKORO_DIR"] = str(tmp_path_factory.mktemp("kokoro-none"))
     os.environ["DOTY_ART"] = "0"  # no hero portraits or item icons from the internet either
+    os.environ["DOTY_STUDY"] = "0"  # nor the app's background study of public match data
+
+
+@pytest.fixture(autouse=True)
+def _no_real_hero_cards(monkeypatch):
+    """Hero cards the player's own Doty has studied (cache/cards) never leak into a test: tests read and write
+    cards in a folder of their own name, which only a test's own temporary cache holds."""
+    from doty.knowledge import cards
+
+    monkeypatch.setattr(cards, "CARDS_DIR", "cards-test")
 
 
 @pytest.fixture(scope="session")

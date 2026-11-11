@@ -658,6 +658,21 @@ def _role_key(card: dict, role: Any) -> tuple[str, str]:
     return ("all", "all_roles") if (roles.get("all") or {}).get("games", 0) >= MIN_ROLE_GAMES else ("", "no_data")
 
 
+def role_build(hero: Any, role: Any, cache_dir: Path | None = None, data: dict | None = None) -> tuple[str, dict] | None:
+    """(the card's role key, its build: {"start", "boots", "early", "mid", "late"}, items without the item_
+    prefix, each phase in the order its items land) for the player's role, cheaply (the rules ask on every
+    update). None without a card, or when the card has nothing for this role but every position mixed (then the
+    hero's usual popularity list is as good)."""
+    c = data if data is not None else load(hero, cache_dir)
+    if not c:
+        return None
+    key, _why = _role_key(c, role)
+    build = ((c.get("roles") or {}).get(key) or {}).get("build")
+    if not key or key == "all" or not build:
+        return None
+    return key, build
+
+
 def role_label(key: str) -> str:
     if key.isdigit():
         return f"{ROLE_NAMES[int(key)]} (position {key})"
@@ -967,7 +982,8 @@ _REASON_TEXT = {
 }
 
 
-def _reason(why: list[str]) -> str:
+def reason_text(why: list[str]) -> str:
+    """A matchup's reason (`matchup_reason`) as " (their Hex goes through BKB)", or '."""
     if not why or why[0] not in _REASON_TEXT:
         return ""
     return " (" + _REASON_TEXT[why[0]].format(*why[1:], "", "") + ")"
@@ -994,7 +1010,7 @@ def prompt_block(hero: Any, role: Any = None, bracket: int = 0, mode: Any = "nor
     mu = v.get("matchups") or {}
     if mu.get("lineup"):
         lines.append("Vs this lineup: " + "; ".join(
-            f"{r['name']} {r['delta'] * 100:+.1f} pts ({_games(r['n'])} g){_reason(r['why'])}"
+            f"{r['name']} {r['delta'] * 100:+.1f} pts ({_games(r['n'])} g){reason_text(r['why'])}"
             for r in mu["lineup"]) + ".")
     who = (f"{ROLE_NAMES[int(v['role'])]}, pos {v['role']}" if v["role"].isdigit()
            else v["role_label"].split(" (")[0])
@@ -1040,7 +1056,7 @@ def prompt_block(hero: Any, role: Any = None, bracket: int = 0, mode: Any = "nor
     worst, best = mu.get("worst") or [], mu.get("best") or []
     if worst or best:
         lines.append("Matchups " + rank + ": worst " + ", ".join(
-            f"{r['name']} {r['delta'] * 100:+.1f}{_reason(r['why'])}" for r in worst[:2])
+            f"{r['name']} {r['delta'] * 100:+.1f}{reason_text(r['why'])}" for r in worst[:2])
             + ("; best " + ", ".join(f"{r['name']} {r['delta'] * 100:+.1f}" for r in best[:2]) if best else "") + ".")
     gl = v.get("game_length") or {}
     if gl:

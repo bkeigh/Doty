@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from ..advice import Advice, Priority
+from ..knowledge import cards
 from ..knowledge import mode as game_mode
 from . import own_way
 from .base import Rule, RuleContext, mmss
@@ -17,9 +18,14 @@ def _is_support(ctx: RuleContext) -> bool:
 
 
 class UnspentSkillPoint(Rule):
+    """A skill point held for a few seconds: said once per point (the level it came with), and again only if it's
+    still held after a long while. (Every 45 s, as before, was nagging: a replay showed "Skill point: take Healing
+    Ward" three times for one point.)"""
+
     id = "skill_point"
-    cooldown_s = 45.0
+    cooldown_s = 1.0  # (the rule keeps its own once-per-point memory)
     DWELL_S = 6.0
+    AGAIN_S = 240.0  # the same point, still not spent: one more reminder after this long
     # Innate abilities and level-17+ point rules make the count noisy late; the
     # reminder matters most in the laning stage anyway.
     MAX_LEVEL = 16
@@ -31,7 +37,11 @@ class UnspentSkillPoint(Rule):
             ctx.mem.pop("skill_since", None)
             return
         since = ctx.mem.setdefault("skill_since", s.received_t)
+        said = ctx.mem.get("skill_said")  # (level, when) of the last reminder
+        if said is not None and said[0] == s.level and s.received_t - said[1] < self.AGAIN_S:
+            return
         if s.received_t - since >= self.DWELL_S:
+            ctx.mem["skill_said"] = (s.level, s.received_t)
             nxt = kb.next_skill(s) if kb else None
             if nxt:  # the pro order this patch, from where you are now
                 name = kb.ability_name(nxt)
@@ -91,29 +101,37 @@ class PowerSpike(Rule):
 
 
 class FarmCheck(Rule):
-    """At 10/20 minutes compare last-hit pace to the hero's OpenDota median.
-
-    OpenDota benchmarks are full-match averages and pace climbs as a game goes
-    on, so this only speaks up when the gap is large, and says what it compares.
-    They are from normal games: a Turbo game has no such benchmark yet, so this
-    stays quiet there (the 5:00 lane check still runs: a lane's creeps are the same).
+    """At 10/20 minutes compare your last hits with players of your hero, role and rank and the rank above (the
+    hero card's pace, knowledge/cards.py: an estimate from public benchmarks, so said with "about"). Without a
+    card, with the hero's OpenDota median as before: those are full-match averages and pace climbs as a game goes
+    on, so that check only speaks up when the gap is large, and says what it compares. Both are from normal games:
+    a Turbo game has no such benchmark yet, so this stays quiet there (the 5:00 lane check still runs: a lane's
+    creeps are the same).
     """
 
     id = "farm_check"
     CHECKPOINTS = (600, 1200)
     SLOW, FAST = 0.7, 1.15
+    BEHIND_UP = 0.8  # under this share of what players one rank up have is worth saying
 
     def evaluate(self, ctx: RuleContext) -> Iterable[Advice]:
         s, kb = ctx.snap, ctx.kb
-        if kb is None or _is_support(ctx) or game_mode.of(ctx.mem).turbo:
+        mode = game_mode.of(ctx.mem)
+        if kb is None or _is_support(ctx) or mode.turbo:
             return  # (a support's job isn't last hits: the hero's farm benchmark doesn't apply)
         for cp in self.CHECKPOINTS:
             if not cp <= s.clock < cp + 5:
                 continue
+            lh = int(s.player("last_hits", 0) or 0)
+            pace = cards.pace(s.hero_id, ctx.mem.get("role"), getattr(kb, "bracket", 0), mode,
+                              getattr(kb, "cache_dir", None)) if s.hero_id else {}
+            ref = ((pace.get("ref") or {}).get(cp) or {}).get("lh") if pace.get("available") else None
+            if ref:
+                yield from self._by_rank(lh, cp, ref, ((pace.get("up") or {}).get(cp) or {}).get("lh"))
+                return
             median = kb.benchmark_median(s.hero_id, "last_hits_per_min")
             if not median:
                 return
-            lh = int(s.player("last_hits", 0) or 0)
             pace = lh / (s.clock / 60.0)
             hero = kb.hero_name(s.hero_name)
             if pace < median * self.SLOW:
@@ -123,6 +141,21 @@ class FarmCheck(Rule):
             elif pace > median * self.FAST:
                 yield Advice(f"{lh} last hits at {cp // 60}:00 ({pace:.1f}/min) — ahead of the typical {hero} "
                              f"pace of {median:.1f}/min", Priority.INFO, "progression", key=f"farm@{cp}")
+
+    def _by_rank(self, lh: int, cp: int, ref: int, up: int | None) -> Iterable[Advice]:
+        """Against the rank above ("Players one rank up have about 48 last hits at 10:00; you have 31"), or your
+        own rank's at the top of the ladder or with no rank set."""
+        at = f"{cp // 60}:00"
+        if up and lh < up * self.BEHIND_UP:
+            yield Advice(f"Players one rank up have about {up} last hits at {at}; you have {lh}. Farm between fights",
+                         Priority.INFO, "progression", key=f"farm@{cp}", speech="Farm is behind. Focus last hits.")
+        elif not up and lh < ref * self.SLOW:
+            yield Advice(f"Players of your rank have about {ref} last hits at {at}; you have {lh}. Farm between "
+                         "fights", Priority.INFO, "progression", key=f"farm@{cp}",
+                         speech="Farm is behind. Focus last hits.")
+        elif up and lh >= up:
+            yield Advice(f"{lh} last hits at {at}: ahead of players one rank up (about {up})", Priority.INFO,
+                         "progression", key=f"farm@{cp}")
 
 
 class GameStartCard(Rule):
@@ -179,6 +212,7 @@ class ItemPace(Rule):
         owned = kb.owned_with_parts(have)
         due = sorted((when, item) for item in kb.typical_items(hero_id, 4)
                      if item not in owned and item not in kb.skipped and not kb.second_boots(item, have)
+                     and not kb.weak_here(item)  # (a counter item that answers little of this lineup)
                      and (when := kb.typical_time(hero_id, item)) is not None)
         if own_way.mode_of(getattr(ctx, "prefs", None)) != own_way.REMIND:
             # "Usually lands by" about an item the player isn't building is an argument for it: unless "When I go
