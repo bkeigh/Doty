@@ -22,7 +22,7 @@ from .advice import Advice, AdviceBus, Priority
 from .capture import StripGrabber, grab_views, grab_window
 from .coach import Coach
 from .coach.prompts import SCREEN_FRESH_S
-from .config import LOG_DIR, Config
+from .config import LOG_DIR, Config, is_user_config, save_config
 from .gsi.server import GsiServer
 from .hotkeys import Hotkeys
 from .knowledge import mode as game_mode
@@ -86,6 +86,10 @@ class Doty:
         self.coach.language = getattr(cfg.app, "language", "en")
         self.coach.signals = self._screen_signals
         self.coach.suggest = cfg.suggest
+        # "Never suggest X again" said out loud is saved with your settings (the window's controller replaces this
+        # with its own, which saves the settings it shows).
+        self.coach.on_remember = lambda _items, _added: (
+            save_config(cfg) if cfg.source_path is not None and is_user_config(cfg) else None)
         self.server = GsiServer(cfg.gsi.host, cfg.gsi.port, cfg.gsi.auth_token, self._on_payload,
                                 cfg.gsi.record_dir)
         self.hotkeys = Hotkeys()
