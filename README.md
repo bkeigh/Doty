@@ -238,8 +238,8 @@ Closing the window keeps Doty coaching from the tray; quit from the tray icon.
 **Live coaching.** With an API key set, the coach looks at your screen and game state on its own (every
 30 game seconds by default) and speaks up when something is worth interrupting you for: a fight going
 wrong, an objective about to happen, an item or farm mistake. Quiet observations show dimmed in the feed. The coaching button
-on the Coach page (and the tray menu) has four presets: **Quiet** (looks every minute, about 7¢ a 40-minute
-game), **Balanced** (every 30 s, about 8¢), **Chatty** (every 15 s and says what it sees, about 12¢) and
+on the Coach page (and the tray menu) has four presets: **Quiet** (looks every minute, about 6¢ a 40-minute
+game), **Balanced** (every 30 s, about 8¢), **Chatty** (every 15 s and says what it sees, about 11¢) and
 **Only when I ask** (about 5¢: the opening plan and death looks). Live looks run on Haiku 5.5 and the parts of
 each request that repeat are read from Anthropic's prompt cache; the Coach status shows what this game has cost
 so far. Settings > AI coach has the exact intervals. Besides that rhythm it looks at calm

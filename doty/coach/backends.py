@@ -24,10 +24,11 @@ from ..config import CoachConfig
 
 # US dollars per million tokens: (input, output, cache read, cache write), from Anthropic's price list (2026-11).
 # For the app's "this match cost about..." line; other providers show tokens only. Cache writes: 1.25x input for the
-# default five minutes, 2x for an hour (HOUR_WRITE).
+# default five minutes, 2x for an hour (HOUR_WRITE). Sonnet 5.5 reads its cache at 0.05x input ($0.10), the one price
+# where it differs from Sonnet 5.
 PRICES = {
     "claude-haiku-5-5": (0.10, 0.50, 0.01, 0.125),
-    "claude-sonnet-5-5": (2.0, 10.0, 0.20, 2.50),
+    "claude-sonnet-5-5": (2.0, 10.0, 0.10, 2.50),
     "claude-opus-5-5": (4.0, 20.0, 0.20, 5.0),
 }
 HOUR_WRITE = 2.0  # a one-hour cache write, times the input price
@@ -37,8 +38,8 @@ HOUR_WRITE = 2.0  # a one-hour cache write, times the input price
 # (the state at the death, the instruction) is about 2,000 more, uncached; the answer, thinking off, ~80 tokens.
 #   "model" (Sonnet 5.5, between_tools, 5-minute cache): cold at most deaths (nothing else on Sonnet uses that
 #     entry: between_tools is a different thinking setting from the plan's, which the second run showed is a separate
-#     entry, system prompt included), so it writes 8,500 tokens each time: ~$0.026 a death ($0.0065 when warm).
-#   "model_1h": the first death of the hour writes for an hour (~$0.039), every later one reads (~$0.0065): ~$0.013 a
+#     entry, system prompt included), so it writes 8,500 tokens each time: ~$0.026 a death ($0.0057 when warm).
+#   "model_1h": the first death of the hour writes for an hour (~$0.039), every later one reads (~$0.0057): ~$0.012 a
 #     death over five deaths.
 #   "watch" (Haiku 5.5, thinking off): reads the entry the live looks every 30 s keep warm: ~$0.0003 a death.
 
@@ -172,11 +173,18 @@ class Backend:
 # --------------------------------------------------------------------------- Claude
 
 
+# Looks nobody is waiting for, on the fast model: the live look, and a "what now?" refreshed in the background for the
+# ask key (Coach._run sends it as "now_quiet"): the routine look while the player is dead, every look interval, and
+# the refresh after the ask key answered from the cache. Same model, thinking and effort as the live looks, so they
+# read the prompt cache those keep warm.
+BACKGROUND_KINDS = ("watch", "now_quiet")
+
+
 def request_model(cfg: CoachConfig, kind: str) -> str:
     """The model a request of this kind goes to. Live looks run on the fast model (watch_model): a tip that lands
     sooner beats a slightly deeper one. The death answer does too when the player chose so (death_answer "watch")."""
     watch = getattr(cfg, "watch_model", "")
-    if watch and (kind == "watch" or (kind == "death" and getattr(cfg, "death_answer", "model") == "watch")):
+    if watch and (kind in BACKGROUND_KINDS or (kind == "death" and getattr(cfg, "death_answer", "model") == "watch")):
         return watch
     return cfg.model
 
@@ -199,7 +207,7 @@ def claude_request(cfg: CoachConfig, system: str, content: list, kind: str, max_
         "messages": [{"role": "user", "content": content}],
         "output_config": {"effort": cfg.effort},
     }
-    fast = kind == "watch" or kind in FAST_KINDS
+    fast = kind in BACKGROUND_KINDS or kind in FAST_KINDS
     if fast and model.startswith(NO_THINKING_MODELS) and cfg.effort in NO_THINKING_EFFORTS:
         req["thinking"] = {"type": "disabled"}
     elif kind in FAST_KINDS and model.startswith(BETWEEN_TOOLS_MODELS) and cfg.effort in NO_THINKING_EFFORTS:

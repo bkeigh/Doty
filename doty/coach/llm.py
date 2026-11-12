@@ -878,7 +878,11 @@ class Coach:
         if kind == "watch" and isinstance(self.backend, ClaudeBackend):
             max_tokens = WATCH_MAX_TOKENS
         try:
-            async for chunk in self.backend.stream(prompts.SYSTEM_PROMPT, content, max_tokens, kind):
+            # A "what now?" nobody is waiting for (the routine look while dead, the refresh after the ask key) is a
+            # background look like the live ones, and goes to the same fast model (backends.BACKGROUND_KINDS). It
+            # used to go to the main model: up to three Sonnet requests a death, each writing the cache cold.
+            api_kind = "now_quiet" if kind == "now" and not visible else kind
+            async for chunk in self.backend.stream(prompts.SYSTEM_PROMPT, content, max_tokens, api_kind):
                 if first_token_t is None:
                     first_token_t = time.perf_counter()
                     self.last_ttft_ms = (first_token_t - t0) * 1000.0

@@ -269,6 +269,41 @@ async def test_4_the_death_look_goes_to_the_watch_model_when_chosen(coach_at):
     assert "fallbacks" not in sent
 
 
+async def test_4_background_looks_while_dead_go_to_the_watch_model(coach_at, monkeypatch):
+    """While dead, the routine look (one every look interval: kind "now", kept for the ask key) went to the main
+    model, cold-cache Sonnet requests nobody waited for. They're background looks like the live ones now; the death
+    answer itself stays where death_answer puts it."""
+    coach, fake, rec, store, match = await coach_at(285, model="claude-sonnet-5-5", effort="low",
+                                                    speculative_interval_s=10)
+    coach._last_warm = 1e12  # (no warm-up pings in this test)
+    fake.reply = "Buy a Broadsword on respawn and farm the safe lane."
+    kinds = []
+    real = coach._launch
+
+    def launch(kind, visible, *a, **k):
+        started = real(kind, visible, *a, **k)
+        if started:
+            kinds.append((kind, visible, store.current.alive))
+        return started
+
+    coach._launch = launch
+    while match.s.clock < 312:  # death at 4:46, respawn at 5:10
+        match.step(1.0)
+        coach._last_spec_wall = 0.0  # (as if a game second were a wall second: MIN_SPEC_WALL_S never holds a look)
+        coach.on_snapshot(store.ingest(match.payload(TOKEN)))
+        for _ in range(30):
+            await asyncio.sleep(0.01)
+    dead = [k for k in kinds if not k[2]]
+    assert ("death", True, False) in dead
+    quiet = [k for k in dead if k[0] == "now" and not k[1]]
+    assert 1 <= len(quiet) <= 3  # (24 s dead, a look every 10 s once the death answer is done)
+    models = {(r["model"], r.get("thinking", {}).get("type")) for r in fake.requests if r.get("stream")}
+    assert ("claude-sonnet-5-5", "between_tools") in models  # the death answer
+    assert [r["model"] for r in fake.requests if r.get("stream")].count("claude-sonnet-5-5") == 1
+    assert claude_request(coach.cfg, "s", BRIEF, "now_quiet")["thinking"] == {"type": "disabled"}
+    assert claude_request(coach.cfg, "s", BRIEF, "now")["model"] == "claude-sonnet-5-5"  # (the ask key, waited for)
+
+
 def test_4_the_cost_of_one_death_answer():
     """The table in the report, from the prices: an 8,500-token cached prefix, 2,000 more input, 80 out."""
     prefix, rest, out = 8500, 2000, 80
@@ -277,9 +312,12 @@ def test_4_the_cost_of_one_death_answer():
     hour = cost_usd("claude-sonnet-5-5", {"in": rest, "written": prefix, "written_1h": prefix, "out": out})
     haiku = cost_usd("claude-haiku-5-5", {"in": rest, "cached": prefix, "out": out})
     near = lambda x: pytest.approx(x, abs=1e-6)  # noqa: E731
-    assert (cold, warm, hour, haiku) == (near(0.02605), near(0.0065), near(0.0388), near(0.000325))
-    assert (hour + 4 * warm) / 5 == near(0.01296)  # five deaths in an hour, the first one writing
-    assert PRICES["claude-sonnet-5-5"][3] == 2.50 and HOUR_WRITE == 2.0
+    assert (cold, warm, hour, haiku) == (near(0.02605), near(0.00565), near(0.0388), near(0.000325))
+    assert (hour + 4 * warm) / 5 == near(0.01228)  # five deaths in an hour, the first one writing
+    # Anthropic's reference (2026-11): Sonnet 5.5 $2 / $10, cache reads $0.10; Opus 5.5 $4 / $20, reads $0.20; Haiku
+    # 5.5 $0.10 / $0.50 (prompts up to 100K tokens).
+    assert PRICES["claude-sonnet-5-5"] == (2.0, 10.0, 0.10, 2.50) and HOUR_WRITE == 2.0
+    assert PRICES["claude-opus-5-5"][:3] == (4.0, 20.0, 0.20) and PRICES["claude-haiku-5-5"][:2] == (0.10, 0.50)
 
 
 def test_4_one_hour_writes_are_counted():
