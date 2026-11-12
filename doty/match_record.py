@@ -207,6 +207,10 @@ class MatchRecord:
 
     # what Doty said ---------------------------------------------------------------------------------------------
     def on_advice(self, adv) -> None:
+        if not self.on:  # switched off mid-match: not one more line, and the match's files are finished now
+            if self.folder is not None:
+                self.close()
+            return
         if not adv.final or not adv.display or adv.source == "player" or not adv.text.strip():
             return  # (what you said over push-to-talk stays out of the record)
         with self._lock:

@@ -544,9 +544,8 @@ section will say: free code signing provided by [SignPath.io](https://about.sign
   published.
 - **Committers and reviewers:** [bkeigh](https://github.com/bkeigh)
 - **Approvers:** [bkeigh](https://github.com/bkeigh)
-- **Privacy policy:** [SECURITY.md](SECURITY.md) lists everything Doty sends, to whom, and when. In short:
-  nothing goes anywhere except to the AI service you choose and enter a key for, plus requests for public
-  hero data and pictures. There is no Doty server and no telemetry.
+- **Privacy policy:** there is no Doty server and no telemetry. [SECURITY.md](SECURITY.md) lists everything
+  Doty sends, to whom and when, and what it keeps on your PC.
 
 ## License
 
