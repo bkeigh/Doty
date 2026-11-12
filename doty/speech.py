@@ -14,9 +14,10 @@ The policy, in order:
      players, else "normal"). See TALK.
   4. One item is named in buy lines at most ITEM_CAP times, whoever says it (rules or coach), until a part of it
      is bought.
-  5. A line that can't be said now waits up to HOLD_S for a slot (less if it goes stale sooner), then is dropped:
-     never said late. When a slot opens and several lines wait, the one that most changes what the player does in
-     the next 30 seconds is said (SCORES).
+  5. A line that can't be said now waits for a slot (HOLD_S, or the gap and two seconds when that's longer; never
+     past the line's own staleness), then is dropped: never said late. When a slot opens and several lines wait,
+     the one that most changes what the player does in the next 30 seconds is said (SCORES; while dead,
+     DEAD_BONUS favours buying and planning over calls to go somewhere now).
 
 `SpeechGate.admit` is called by the advice bus on every line before anyone sees it (AdviceBus.gate) and turns
 `speak` off for a line that isn't said now; `SpeechGate.release` gives back held lines whose slot has come, which
