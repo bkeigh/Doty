@@ -144,15 +144,16 @@ MADE_INTO = re.compile(r"\s+(into|to make|to finish)\b", re.IGNORECASE)
 BUY_REACH = 4  # words between the buy word and the item ("buy Yasha and then" Manta Style)
 
 
-def ability_entry(v: dict[str, Any]) -> dict[str, Any]:
-    """What Doty keeps of one dotaconstants ability (the file is ~2 MB): what the coach reads, and what the item
-    judgement reads (judgement.ability_facts: damage type, disable, single-target...)."""
+def ability_entry(v: dict[str, Any], name: str = "") -> dict[str, Any]:
+    """What Doty keeps of one dotaconstants ability (the file is ~2 MB, `name` its key): what the coach reads, and
+    what the item judgement reads (judgement.ability_facts: damage type, disable, single-target..., with its
+    reviewed overrides, which may also correct "bkb" or "dispel")."""
     behavior = v.get("behavior") if isinstance(v.get("behavior"), list) else [v.get("behavior")]
     return {"dname": str(v.get("dname") or ""), "desc": str(v.get("desc") or ""),
             "innate": bool(v.get("is_innate")), "hidden": "Hidden" in behavior,
             "cd": _last_number(v.get("cd")), "bkb": str(v.get("bkbpierce") or "") == "Yes",
             "dispel": DISPEL_WORDS.get(str(v.get("dispellable") or ""), ""),
-            "passive": "Passive" in behavior, **judgement.ability_facts(v)}
+            "passive": "Passive" in behavior, **judgement.ability_facts(v, name)}
 
 
 def _name_pattern(names) -> "re.Pattern | None":
@@ -253,7 +254,7 @@ class Knowledge:
             self.hero_abilities = {k: v for k, v in hero_abilities.items() if isinstance(v, dict)}
         if isinstance(abilities, dict):  # keep only what the coach reads (the file is ~2 MB)
             wanted = {a for h in self.hero_abilities.values() for a in h.get("abilities", [])}
-            self.ability_info = {name: ability_entry(v) for name, v in abilities.items()
+            self.ability_info = {name: ability_entry(v, name) for name, v in abilities.items()
                                  if isinstance(v, dict) and (name in wanted or not wanted)}
         self._cases.clear()  # (the item judgement reads the abilities)
         if isinstance(ability_ids, dict):

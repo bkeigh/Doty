@@ -12,6 +12,7 @@ from typing import Iterable
 
 from ..advice import Advice, Priority
 from ..knowledge import mode as game_mode
+from ..knowledge import threats
 from ..lineup import SIDES, other
 from .base import Rule, RuleContext, mmss
 
@@ -97,6 +98,37 @@ class GamePlan(Rule):
                          speech="You scale better. Play safe.")
 
 
+class ThreatCall(Rule):
+    """Once all five enemies are known, at a calm moment: ONE spoken line naming the enemy spell most likely to
+    kill the player's hero and what answers it (knowledge/threats.py: from their abilities, ranked for this hero
+    and role), and a card in the feed with every enemy's line, shown only. Once a match."""
+
+    id = "threat_call"
+
+    def evaluate(self, ctx: RuleContext) -> Iterable[Advice]:
+        s, kb, mem = ctx.snap, ctx.kb, ctx.mem
+        if "enemy" in ctx.topics_off or kb is None or mem.get("threat_call"):
+            return
+        tracker = mem.get("lineup_votes")
+        team = (s.team or "").lower()
+        if tracker is None or not tracker.complete or team not in SIDES:
+            return
+        if not s.alive or ctx.store.in_fight():
+            return  # (a calm moment: not dead, not in a fight)
+        found = threats.cards(kb, tracker.confirmed(other(team)), s.hero_name, mem.get("role"))
+        if not found or found[0].top is None:
+            return  # (no ability data yet: asked again on a later update)
+        mem["threat_call"] = True
+        yield Advice(f"Their threats: {' · '.join(c.line for c in found)}", Priority.INFO, "plan",
+                     key="threat_card", ttl_s=25.0, speak=False)
+        top = found[0]
+        t = top.top
+        line = top.line
+        if ctx.level in ("experienced", "pro") and t.spell and t.answer:
+            line = f"{top.hero}'s {t.spell}: {t.answer}"  # (terse: they know what it does)
+        yield Advice(top.line, Priority.NORMAL, "plan", key="threat_call", speech=line)
+
+
 # Spoken word for word, so the local voice makes them ahead of time (listed in rules.FIXED_LINES).
 PICKOFF_LINES = {
     2: "Two enemies dead. Push a tower.",
@@ -167,4 +199,4 @@ class PickOff(Rule):
 
 
 def rules() -> list[Rule]:
-    return [GamePlan(), EnemySpikes(), PickOff()]
+    return [GamePlan(), EnemySpikes(), PickOff(), ThreatCall()]

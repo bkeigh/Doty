@@ -1,0 +1,4271 @@
+{
+ "source": "odota/dotaconstants build/abilities.json (MIT), patch 7.41, reviewed with --audit",
+ "abilities": {
+  "lion_impale": {
+   "raw": {
+    "dname": "Earth Spike",
+    "behavior": [
+     "Point Target",
+     "Unit Target"
+    ],
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "Strong Dispels Only",
+    "desc": "Rock spikes burst from the earth along a straight path. Enemy units are hurled into the air, then are stunned and take damage when they fall.",
+    "attrib": [
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "650",
+      "generated": true
+     },
+     {
+      "key": "damage",
+      "header": "DAMAGE:",
+      "value": [
+       "105",
+       "170",
+       "235",
+       "300"
+      ]
+     },
+     {
+      "key": "width",
+      "header": "WIDTH:",
+      "value": "140",
+      "generated": true
+     },
+     {
+      "key": "duration",
+      "header": "STUN DURATION:",
+      "value": [
+       "1.3",
+       "1.6",
+       "1.9",
+       "2.2"
+      ]
+     },
+     {
+      "key": "length_buffer",
+      "header": "LENGTH BUFFER:",
+      "value": "275",
+      "generated": true
+     },
+     {
+      "key": "speed",
+      "header": "SPEED:",
+      "value": "2800",
+      "generated": true
+     },
+     {
+      "key": "pierces_immunity",
+      "header": "PIERCES IMMUNITY:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "cone_shaped",
+      "header": "CONE SHAPED:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "stun"
+  },
+  "lion_voodoo": {
+   "raw": {
+    "dname": "Hex",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "bkbpierce": "No",
+    "dispellable": "Strong Dispels Only",
+    "desc": "Transforms an enemy unit into a harmless beast, with all special abilities disabled.",
+    "attrib": [
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "2",
+       "2.4",
+       "2.8",
+       "3.2"
+      ]
+     },
+     {
+      "key": "movespeed",
+      "header": "MOVESPEED:",
+      "value": "120",
+      "generated": true
+     },
+     {
+      "key": "radius",
+      "header": "RADIUS:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": [
+       "575",
+       "600",
+       "625",
+       "650"
+      ],
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "hex"
+  },
+  "shadow_shaman_voodoo": {
+   "raw": {
+    "dname": "Hex",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "bkbpierce": "No",
+    "dispellable": "Strong Dispels Only",
+    "desc": "Transforms an enemy unit into a harmless creature, disabling their attacks and abilities.",
+    "attrib": [
+     {
+      "key": "movespeed",
+      "header": "MOVESPEED:",
+      "value": "100",
+      "generated": true
+     },
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "2",
+       "2.3",
+       "2.6",
+       "2.9"
+      ]
+     },
+     {
+      "key": "damage_amp",
+      "header": "DAMAGE AMP:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "550",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "hex"
+  },
+  "shadow_shaman_shackles": {
+   "raw": {
+    "dname": "Shackles",
+    "behavior": [
+     "Unit Target",
+     "Channeled"
+    ],
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "Strong Dispels Only",
+    "desc": "CHANNELED - Magically binds an enemy unit so that it cannot move or attack, absorbing their life energy over time.",
+    "attrib": [
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "450",
+      "generated": true
+     },
+     {
+      "key": "tick_interval",
+      "header": "TICK INTERVAL:",
+      "value": "0.1",
+      "generated": true
+     },
+     {
+      "key": "total_damage",
+      "header": "TOTAL DAMAGE/HEAL:",
+      "value": [
+       "100",
+       "160",
+       "220",
+       "280"
+      ]
+     },
+     {
+      "key": "channel_time",
+      "header": "MAX DURATION:",
+      "value": [
+       "2.4",
+       "3",
+       "3.6",
+       "4.2"
+      ]
+     },
+     {
+      "key": "ward_linger_duration",
+      "header": "WARD LINGER DURATION:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "bonus_targets",
+      "header": "BONUS TARGETS:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "bonus_targets_search_range",
+      "header": "BONUS TARGETS SEARCH RANGE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "bonus_target_channel_time_pct",
+      "header": "BONUS TARGET CHANNEL TIME PCT:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "heal_percentage",
+      "header": "HEAL PERCENTAGE:",
+      "value": "100",
+      "generated": true
+     },
+     {
+      "key": "abilitychanneltime",
+      "header": "CHANNEL TIME:",
+      "value": [
+       "2.4",
+       "3",
+       "3.6",
+       "4.2"
+      ],
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "disable"
+  },
+  "bane_nightmare": {
+   "raw": {
+    "dname": "Nightmare",
+    "behavior": "Unit Target",
+    "target_team": "Both",
+    "target_type": "Hero",
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "Puts the target enemy or friendly Hero to sleep. Sleeping units walk in Bane's chosen direction and are awakened when damaged. If the target was directly attacked, the Nightmare passes to the attacking unit. Bane can attack and damage Nightmared targets freely.\n\n Can be put on alt-cast to have the target stand still.",
+    "attrib": [
+     {
+      "key": "nightmare_invuln_time",
+      "header": "NIGHTMARE INVULN TIME:",
+      "value": "1",
+      "generated": true
+     },
+     {
+      "key": "animation_rate",
+      "header": "ANIMATION RATE:",
+      "value": "0.2",
+      "generated": true
+     },
+     {
+      "key": "bonus_attack_speed",
+      "header": "ATTACK SPEED BONUS:",
+      "value": "0"
+     },
+     {
+      "key": "vector_render_radius",
+      "header": "VECTOR RENDER RADIUS:",
+      "value": "120",
+      "generated": true
+     },
+     {
+      "key": "walk_speed",
+      "header": "WALK SPEED:",
+      "value": "110"
+     },
+     {
+      "key": "turn_rate",
+      "header": "TURN RATE:",
+      "value": "200",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": [
+       "550",
+       "600",
+       "650",
+       "700"
+      ],
+      "generated": true
+     },
+     {
+      "key": "abilityduration",
+      "header": "DURATION:",
+      "value": [
+       "3",
+       "4",
+       "5",
+       "6"
+      ],
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.4",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "sleep"
+  },
+  "bane_fiends_grip": {
+   "raw": {
+    "dname": "Fiend's Grip",
+    "behavior": [
+     "Unit Target",
+     "Channeled"
+    ],
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Pure",
+    "bkbpierce": "Yes",
+    "dispellable": "Strong Dispels Only",
+    "desc": "CHANNELED - Grips an enemy unit, disabling it and causing heavy damage over time, while stealing mana every 0.5 seconds based on the unit's maximum mana.",
+    "attrib": [
+     {
+      "key": "fiend_grip_tick_interval",
+      "header": "FIEND GRIP TICK INTERVAL:",
+      "value": "0.5",
+      "generated": true
+     },
+     {
+      "key": "fiend_grip_mana_drain",
+      "header": "MANA DRAIN PER SECOND:",
+      "value": "5%"
+     },
+     {
+      "key": "abilitychanneltime",
+      "header": "DURATION:",
+      "value": [
+       "4.75",
+       "5.25",
+       "5.75"
+      ]
+     },
+     {
+      "key": "fiend_grip_damage",
+      "header": "DAMAGE:",
+      "value": [
+       "70",
+       "110",
+       "150"
+      ]
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "625",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.2",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "disable"
+  },
+  "lina_light_strike_array": {
+   "raw": {
+    "dname": "Light Strike Array",
+    "behavior": [
+     "Point Target",
+     "AOE"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "Strong Dispels Only",
+    "desc": "Summons a column of flames that damages and stuns enemies.",
+    "attrib": [
+     {
+      "key": "light_strike_array_aoe",
+      "header": "RADIUS:",
+      "value": "250"
+     },
+     {
+      "key": "light_strike_array_delay_time",
+      "header": "CAST DELAY:",
+      "value": "0.5"
+     },
+     {
+      "key": "light_strike_array_stun_duration",
+      "header": "STUN DURATION:",
+      "value": [
+       "1.2",
+       "1.6",
+       "2",
+       "2.4"
+      ]
+     },
+     {
+      "key": "light_strike_array_damage",
+      "header": "DAMAGE:",
+      "value": [
+       "80",
+       "125",
+       "170",
+       "215"
+      ]
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "700",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.45",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "stun"
+  },
+  "silencer_last_word": {
+   "raw": {
+    "dname": "Last Word",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "Enchants a target, providing vision of them and causing them to be damaged and silenced if they cast a spell or if the enchantment timer expires. Deals extra damage based on the difference in intelligence between Silencer and the target.",
+    "attrib": [
+     {
+      "key": "damage",
+      "header": "BASE DAMAGE:",
+      "value": [
+       "120",
+       "160",
+       "200",
+       "240"
+      ]
+     },
+     {
+      "key": "int_multiplier",
+      "header": "INT DIFF MULTIPLIER:",
+      "value": [
+       "1",
+       "1.5",
+       "2",
+       "2.5"
+      ]
+     },
+     {
+      "key": "debuff_duration",
+      "header": "ENEMY CAST TIMER:",
+      "value": "4"
+     },
+     {
+      "key": "duration",
+      "header": "SILENCE DURATION:",
+      "value": [
+       "3",
+       "4",
+       "5",
+       "6"
+      ]
+     },
+     {
+      "key": "radius",
+      "header": "AOE:",
+      "value": "0"
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "900",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "silence"
+  },
+  "skywrath_mage_ancient_seal": {
+   "raw": {
+    "dname": "Ancient Seal",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "Skywrath Mage seals the targeted unit with an ancient rune, silencing it and causing it to take additional damage from spells.",
+    "attrib": [
+     {
+      "key": "resist_debuff",
+      "header": "INCREASED MAGIC DAMAGE:",
+      "value": [
+       "-20%",
+       "-25%",
+       "-30%",
+       "-35%"
+      ]
+     },
+     {
+      "key": "seal_duration",
+      "header": "DURATION:",
+      "value": [
+       "3",
+       "4",
+       "5",
+       "6"
+      ]
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": [
+       "700",
+       "750",
+       "800",
+       "850"
+      ],
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.1",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "silence"
+  },
+  "doom_bringer_doom": {
+   "raw": {
+    "dname": "Doom",
+    "behavior": "Unit Target",
+    "target_team": "Both",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Pure",
+    "bkbpierce": "Yes",
+    "dispellable": "No",
+    "desc": "Inflicts a curse that dispels an enemy and prevents them from casting spells or healing in any way, while taking damage over time.\n\nDISPEL TYPE: Basic Dispel",
+    "attrib": [
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "12",
+       "14",
+       "16"
+      ]
+     },
+     {
+      "key": "damage",
+      "header": "DAMAGE PER SECOND:",
+      "value": [
+       "22",
+       "44",
+       "66"
+      ]
+     },
+     {
+      "key": "deniable_pct",
+      "header": "DENIABLE PCT:",
+      "value": "25",
+      "generated": true
+     },
+     {
+      "key": "does_break",
+      "header": "DOES BREAK:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "does_mute",
+      "header": "DOES MUTE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "scepter_aura_radius",
+      "header": "SCEPTER AURA RADIUS:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "upgrade_interval",
+      "header": "UPGRADE INTERVAL:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "upgrade_amount",
+      "header": "UPGRADE AMOUNT:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "400",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.5",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "silence"
+  },
+  "legion_commander_duel": {
+   "raw": {
+    "dname": "Duel",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": "Hero",
+    "bkbpierce": "Yes",
+    "dispellable": "No",
+    "desc": "Legion Commander and the target enemy hero are forced to attack each other for a short duration. Neither hero can use items, and the target enemy hero cannot use abilities. If either hero dies during the duration, the hero winning the Duel gains permanent bonus damage.",
+    "attrib": [
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "4",
+       "4.5",
+       "5"
+      ]
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "200",
+      "generated": true
+     },
+     {
+      "key": "reward_damage",
+      "header": "BONUS DAMAGE:",
+      "value": [
+       "10",
+       "20",
+       "30"
+      ]
+     },
+     {
+      "key": "trigger_pta_on_victory",
+      "header": "TRIGGER PTA ON VICTORY:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "duel_refresh_on_victory",
+      "header": "DUEL REFRESH ON VICTORY:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "damage_reduction_pct",
+      "header": "DAMAGE REDUCTION PCT:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "team_duel",
+      "header": "TEAM DUEL:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "team_duel_damage_pct",
+      "header": "TEAM DUEL DAMAGE PCT:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "team_duel_radius",
+      "header": "TEAM DUEL RADIUS:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "taunt"
+  },
+  "axe_berserkers_call": {
+   "raw": {
+    "dname": "Berserker's Call",
+    "behavior": "No Target",
+    "bkbpierce": "Yes",
+    "dispellable": "No",
+    "desc": "Axe taunts nearby enemy units, forcing them to attack him while he gains bonus armor during the duration.",
+    "attrib": [
+     {
+      "key": "radius",
+      "header": "RADIUS:",
+      "value": "315"
+     },
+     {
+      "key": "bonus_armor",
+      "header": "BONUS ARMOR:",
+      "value": [
+       "12",
+       "13",
+       "14",
+       "15"
+      ]
+     },
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "2.1",
+       "2.4",
+       "2.7",
+       "3"
+      ]
+     },
+     {
+      "key": "bonus_attack_speed",
+      "header": "ENEMY ATTACK SPEED BONUS:",
+      "value": "0"
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "taunt"
+  },
+  "crystal_maiden_frostbite": {
+   "raw": {
+    "dname": "Frostbite",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "Encases an enemy unit in ice, prohibiting movement and attack, while dealing damage over time. Deals 4x damage to non-ancient creeps.",
+    "attrib": [
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "600",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     },
+     {
+      "key": "damage_per_second",
+      "header": "DAMAGE PER SECOND:",
+      "value": "100"
+     },
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "1.5",
+       "2",
+       "2.5",
+       "3"
+      ]
+     },
+     {
+      "key": "creep_multiplier",
+      "header": "CREEP MULTIPLIER:",
+      "value": "4",
+      "generated": true
+     },
+     {
+      "key": "tick_interval",
+      "header": "TICK INTERVAL:",
+      "value": "0.25",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "root"
+  },
+  "enigma_black_hole": {
+   "raw": {
+    "dname": "Black Hole",
+    "behavior": [
+     "AOE",
+     "Point Target",
+     "Channeled"
+    ],
+    "dmg_type": "Pure",
+    "bkbpierce": "Yes",
+    "desc": "CHANNELED - Summons a vortex that sucks in nearby enemy units. Enemies affected by Black Hole cannot move, attack, or cast spells.",
+    "attrib": [
+     {
+      "key": "damage",
+      "header": "DAMAGE PER SECOND:",
+      "value": [
+       "100",
+       "150",
+       "200"
+      ]
+     },
+     {
+      "key": "radius",
+      "header": "RADIUS:",
+      "value": "420"
+     },
+     {
+      "key": "pull_speed",
+      "header": "PULL SPEED:",
+      "value": "30",
+      "generated": true
+     },
+     {
+      "key": "tick_rate",
+      "header": "TICK RATE:",
+      "value": "0.1",
+      "generated": true
+     },
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": "4"
+     },
+     {
+      "key": "vision_radius",
+      "header": "VISION RADIUS:",
+      "value": "800",
+      "generated": true
+     },
+     {
+      "key": "pull_rotate_speed",
+      "header": "PULL ROTATE SPEED:",
+      "value": "0.25",
+      "generated": true
+     },
+     {
+      "key": "animation_rate",
+      "header": "ANIMATION RATE:",
+      "value": "0.2",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "275",
+      "generated": true
+     },
+     {
+      "key": "abilitychanneltime",
+      "header": "CHANNEL TIME:",
+      "value": "4",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "disable"
+  },
+  "faceless_void_chronosphere": {
+   "raw": {
+    "dname": "Chronosphere",
+    "behavior": [
+     "AOE",
+     "Point Target"
+    ],
+    "bkbpierce": "Yes",
+    "dispellable": "No",
+    "desc": "Creates a blister in spacetime, trapping all units caught in its sphere of influence and causes you to move very quickly inside it. Only Faceless Void and any units he controls are unaffected. Invisible enemies in the sphere will be revealed.",
+    "attrib": [
+     {
+      "key": "radius",
+      "header": "RADIUS:",
+      "value": "500"
+     },
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "3.75",
+       "4.25",
+       "4.75"
+      ]
+     },
+     {
+      "key": "vision_radius",
+      "header": "VISION RADIUS:",
+      "value": "475",
+      "generated": true
+     },
+     {
+      "key": "bonus_attack_speed",
+      "header": "BONUS ATTACK SPEED:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "500",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.35",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "disable"
+  },
+  "naga_siren_song_of_the_siren": {
+   "raw": {
+    "dname": "Song of the Siren",
+    "behavior": "No Target",
+    "bkbpierce": "No",
+    "dispellable": "No",
+    "desc": "All enemies in range of the Naga Siren are put into a magical stasis where they cannot act or be attacked. Using Song of the Siren again will end the duration early.",
+    "attrib": [
+     {
+      "key": "radius",
+      "header": "RADIUS:",
+      "value": [
+       "900",
+       "1150",
+       "1400"
+      ]
+     },
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": "7"
+     },
+     {
+      "key": "animation_rate",
+      "header": "ANIMATION RATE:",
+      "value": "0.55",
+      "generated": true
+     },
+     {
+      "key": "heal_pct",
+      "header": "MAX HP REGEN PER SECOND:",
+      "value": [
+       "1%",
+       "2%",
+       "3%"
+      ]
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": [
+       "900",
+       "1150",
+       "1400"
+      ],
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "1",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "disable"
+  },
+  "batrider_flaming_lasso": {
+   "raw": {
+    "dname": "Flaming Lasso",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "Yes",
+    "dispellable": "Strong Dispels Only",
+    "desc": "Lassoes an enemy and drags them in Batrider's wake. Dragged units cannot move, attack, or use abilities. Teleporting or blinking will break the lasso.",
+    "attrib": [
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "2.25",
+       "2.75",
+       "3.25"
+      ]
+     },
+     {
+      "key": "drag_distance",
+      "header": "DRAG DISTANCE:",
+      "value": "300",
+      "generated": true
+     },
+     {
+      "key": "break_distance",
+      "header": "BREAK DISTANCE:",
+      "value": "425",
+      "generated": true
+     },
+     {
+      "key": "damage",
+      "header": "TOTAL DAMAGE:",
+      "value": [
+       "125",
+       "250",
+       "375"
+      ]
+     },
+     {
+      "key": "tick_rate",
+      "header": "TICK RATE:",
+      "value": "0.5",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "200",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "disable"
+  },
+  "obsidian_destroyer_astral_imprisonment": {
+   "raw": {
+    "dname": "Astral Imprisonment",
+    "behavior": [
+     "Unit Target",
+     "AOE"
+    ],
+    "target_team": [
+     "Enemy",
+     "Friendly"
+    ],
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "No",
+    "desc": "Steals a percentage of the target's max mana and places them into an astral prison. The hidden unit is invulnerable and disabled. When the astral prison implodes, it deals damage to the target.",
+    "attrib": [
+     {
+      "key": "prison_duration",
+      "header": "DURATION:",
+      "value": [
+       "1.75",
+       "2.5",
+       "3.25",
+       "4"
+      ]
+     },
+     {
+      "key": "damage",
+      "header": "DAMAGE:",
+      "value": [
+       "90",
+       "180",
+       "270",
+       "360"
+      ]
+     },
+     {
+      "key": "has_mana_steal",
+      "header": "HAS MANA STEAL:",
+      "value": "1",
+      "generated": true
+     },
+     {
+      "key": "mana_capacity_steal",
+      "header": "MANA CAPACITY STEAL:",
+      "value": [
+       "16%",
+       "19%",
+       "22%",
+       "25%"
+      ]
+     },
+     {
+      "key": "mana_capacity_duration",
+      "header": "STEAL DURATION:",
+      "value": [
+       "30",
+       "40",
+       "50",
+       "60"
+      ]
+     },
+     {
+      "key": "allied_movement_speed_pct",
+      "header": "ALLIED MOVEMENT SPEED PCT:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "650",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "disable"
+  },
+  "shadow_demon_disruption": {
+   "raw": {
+    "dname": "Disruption",
+    "behavior": "Unit Target",
+    "target_team": [
+     "Enemy",
+     "Friendly"
+    ],
+    "target_type": "Hero",
+    "bkbpierce": "No",
+    "dispellable": "No",
+    "desc": "Banishes the targeted unit from the battlefield for a short duration. Upon returning, two illusions of the banished unit with bonus base damage are created under Shadow Demon's control.",
+    "attrib": [
+     {
+      "key": "disruption_duration",
+      "header": "BANISH DURATION:",
+      "value": "2.75"
+     },
+     {
+      "key": "illusion_duration",
+      "header": "ILLUSION DURATION:",
+      "value": [
+       "8",
+       "10",
+       "12",
+       "14"
+      ]
+     },
+     {
+      "key": "illusion_outgoing_damage",
+      "header": "ILLUSION OUTGOING DAMAGE:",
+      "value": [
+       "-80",
+       "-70",
+       "-60",
+       "-50"
+      ],
+      "generated": true
+     },
+     {
+      "key": "illusion_outgoing_tooltip",
+      "header": "ILLUSION DAMAGE:",
+      "value": [
+       "20%",
+       "30%",
+       "40%",
+       "50%"
+      ]
+     },
+     {
+      "key": "illusion_flat_damage",
+      "header": "BONUS BASE DAMAGE:",
+      "value": [
+       "20",
+       "35",
+       "50",
+       "65"
+      ]
+     },
+     {
+      "key": "illusion_incoming_damage",
+      "header": "ILLUSION INCOMING DAMAGE:",
+      "value": "200",
+      "generated": true
+     },
+     {
+      "key": "tooltip_total_illusion_incoming_damage",
+      "header": "ILLUSION DAMAGE TAKEN:",
+      "value": "300%"
+     },
+     {
+      "key": "abilitycharges",
+      "header": "MAX CHARGES:",
+      "value": "",
+      "generated": true
+     },
+     {
+      "key": "abilitychargerestoretime",
+      "header": "CHARGE RESTORE TIME:",
+      "value": [
+       "26",
+       "24",
+       "22",
+       "20"
+      ],
+      "generated": true
+     },
+     {
+      "key": "illusion_bounty_base",
+      "header": "ILLUSION BOUNTY BASE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "illusion_bounty_growth",
+      "header": "ILLUSION BOUNTY GROWTH:",
+      "value": "2",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "675",
+      "generated": true
+     },
+     {
+      "key": "abilityduration",
+      "header": "DURATION:",
+      "value": "2.75",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "disable"
+  },
+  "spirit_breaker_charge_of_darkness": {
+   "raw": {
+    "dname": "Charge of Darkness",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "bkbpierce": "No",
+    "dispellable": "No",
+    "desc": "Spirit Breaker fixes his sight on an enemy unit and starts charging through all objects, starting at 25% of the bonus speed and reaching his max speed after 1.5s.\n\nAll enemy units passed through and the targeted unit will be hit by a Greater Bash. If the targeted unit dies, Spirit Breaker will change his target to the nearest enemy unit to that location.",
+    "attrib": [
+     {
+      "key": "movement_speed",
+      "header": "CHARGE BONUS SPEED:",
+      "value": [
+       "275",
+       "325",
+       "375",
+       "425"
+      ]
+     },
+     {
+      "key": "stun_duration",
+      "header": "STUN DURATION:",
+      "value": [
+       "1.3",
+       "1.6",
+       "1.9",
+       "2.2"
+      ]
+     },
+     {
+      "key": "bash_radius",
+      "header": "BASH RADIUS:",
+      "value": "300",
+      "generated": true
+     },
+     {
+      "key": "vision_radius",
+      "header": "VISION RADIUS:",
+      "value": "400",
+      "generated": true
+     },
+     {
+      "key": "vision_duration",
+      "header": "VISION DURATION:",
+      "value": "0.94",
+      "generated": true
+     },
+     {
+      "key": "out_of_world_time",
+      "header": "OUT OF WORLD TIME:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "guaranteed_bash_time",
+      "header": "GUARANTEED BASH TIME:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "reveal_charge",
+      "header": "REVEAL CHARGE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "windup_time",
+      "header": "WINDUP TIME:",
+      "value": "1.5",
+      "generated": true
+     },
+     {
+      "key": "min_movespeed_bonus_pct",
+      "header": "MIN MOVESPEED BONUS PCT:",
+      "value": "25",
+      "generated": true
+     },
+     {
+      "key": "linger_time_min",
+      "header": "MIN LINGER TIME:",
+      "value": "0"
+     },
+     {
+      "key": "linger_time_max",
+      "header": "MAX LINGER TIME:",
+      "value": "0"
+     },
+     {
+      "key": "charge_for_max_linger",
+      "header": "CHARGE FOR MAX LINGER:",
+      "value": "0"
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.1",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "stun"
+  },
+  "spirit_breaker_greater_bash": {
+   "raw": {
+    "dname": "Greater Bash",
+    "behavior": "Passive",
+    "dmg_type": "Magical",
+    "bkbpierce": "Yes",
+    "dispellable": "Strong Dispels Only",
+    "desc": "Gives a chance to stun and knockback an enemy unit on an attack. Deals a percentage of movement speed as damage.",
+    "attrib": [
+     {
+      "key": "chance_pct",
+      "header": "CHANCE TO BASH:",
+      "value": "17%"
+     },
+     {
+      "key": "bonus_chance_pct",
+      "header": "BONUS CHANCE PCT:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "bonus_chance_duration",
+      "header": "BONUS CHANCE DURATION:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "damage",
+      "header": "MOVEMENT SPEED AS DAMAGE:",
+      "value": [
+       "25%",
+       "30%",
+       "35%",
+       "40%"
+      ]
+     },
+     {
+      "key": "duration",
+      "header": "STUN DURATION:",
+      "value": [
+       "0.9",
+       "1.1",
+       "1.3",
+       "1.5"
+      ]
+     },
+     {
+      "key": "knockback_duration",
+      "header": "KNOCKBACK DURATION:",
+      "value": "0.5"
+     },
+     {
+      "key": "cascading_bash_cooldown",
+      "header": "CASCADING BASH COOLDOWN:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "cascading_bashes_damage_multiplier",
+      "header": "CASCADING BASHES DAMAGE MULTIPLIER:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "cascading_bashes_creep_penalty",
+      "header": "CASCADING BASHES CREEP PENALTY:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "cascading_bashes_nether_strike_additional_cooldown",
+      "header": "CASCADING BASHES NETHER STRIKE ADDITIONAL COOLDOWN:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "cascading_bashes_hero_hitbox",
+      "header": "CASCADING BASHES HERO HITBOX:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "cascading_bashes_creep_hitbox",
+      "header": "CASCADING BASHES CREEP HITBOX:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "knockback_distance",
+      "header": "KNOCKBACK DISTANCE:",
+      "value": [
+       "143",
+       "152",
+       "158",
+       "162"
+      ]
+     },
+     {
+      "key": "knockback_height",
+      "header": "KNOCKBACK HEIGHT:",
+      "value": "50",
+      "generated": true
+     },
+     {
+      "key": "bonus_knockback_multiplier",
+      "header": "BONUS KNOCKBACK MULTIPLIER:",
+      "value": "2",
+      "generated": true
+     },
+     {
+      "key": "bonus_movespeed_pct",
+      "header": "BONUS MOVESPEED PCT:",
+      "value": "17",
+      "generated": true
+     },
+     {
+      "key": "movespeed_duration",
+      "header": "MOVESPEED DURATION:",
+      "value": "3",
+      "generated": true
+     },
+     {
+      "key": "creep_multiplier",
+      "header": "CREEP MULTIPLIER:",
+      "value": "1",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "stun"
+  },
+  "slardar_bash": {
+   "raw": {
+    "dname": "Bash of the Deep",
+    "behavior": "Passive",
+    "dmg_type": "Physical",
+    "bkbpierce": "Yes",
+    "dispellable": "Strong Dispels Only",
+    "desc": "After 3 attacks, your next attack will bash the target.",
+    "attrib": [
+     {
+      "key": "bonus_damage",
+      "header": "BONUS DAMAGE:",
+      "value": [
+       "35",
+       "90",
+       "145",
+       "200"
+      ]
+     },
+     {
+      "key": "duration",
+      "header": "BASH DURATION:",
+      "value": "1"
+     },
+     {
+      "key": "attack_count",
+      "header": "ATTACK COUNT:",
+      "value": "3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "stun"
+  },
+  "tusk_walrus_punch": {
+   "raw": {
+    "dname": "Walrus PUNCH!",
+    "behavior": [
+     "Unit Target",
+     "Autocast",
+     "Attack Modifier"
+    ],
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "bkbpierce": "Yes",
+    "dispellable": "Yes",
+    "desc": "Tusk connects with his mighty Walrus Punch, a critical strike with bonus damage so powerful it launches its victim into the air.",
+    "attrib": [
+     {
+      "key": "bonus_damage",
+      "header": "BONUS DAMAGE:",
+      "value": [
+       "60",
+       "90",
+       "120"
+      ]
+     },
+     {
+      "key": "crit_multiplier",
+      "header": "CRITICAL DAMAGE:",
+      "value": [
+       "200%",
+       "250%",
+       "300%"
+      ]
+     },
+     {
+      "key": "air_time",
+      "header": "AIR TIME:",
+      "value": "1"
+     },
+     {
+      "key": "push_length",
+      "header": "PUSH LENGTH:",
+      "value": "1000",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "150",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "stun"
+  },
+  "elder_titan_echo_stomp": {
+   "raw": {
+    "dname": "Echo Stomp",
+    "behavior": [
+     "No Target",
+     "Channeled"
+    ],
+    "dmg_type": "Physical",
+    "bkbpierce": "No",
+    "dispellable": "Strong Dispels Only",
+    "desc": "CHANNELED - Elder Titan and his Astral Spirit both stomp the ground, damaging and knocking nearby enemy units unconscious around their locations. The Elder Titan stomp deals physical damage, while the Spirit stomp deals magical damage.",
+    "attrib": [
+     {
+      "key": "cast_time",
+      "header": "CAST TIME:",
+      "value": "1.7"
+     },
+     {
+      "key": "radius",
+      "header": "RADIUS:",
+      "value": "475"
+     },
+     {
+      "key": "sleep_duration",
+      "header": "SLEEP DURATION:",
+      "value": [
+       "2",
+       "2.8",
+       "3.6",
+       "4.4"
+      ]
+     },
+     {
+      "key": "stomp_damage",
+      "header": "STOMP DAMAGE:",
+      "value": [
+       "65",
+       "110",
+       "155",
+       "200"
+      ]
+     },
+     {
+      "key": "initial_stun_duration",
+      "header": "INITIAL STUN DURATION:",
+      "value": "0.2",
+      "generated": true
+     },
+     {
+      "key": "animation_rate",
+      "header": "ANIMATION RATE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "wake_damage_limit",
+      "header": "WAKEUP DAMAGE THRESHOLD:",
+      "value": [
+       "100",
+       "150",
+       "200",
+       "250"
+      ]
+     },
+     {
+      "key": "can_swap_places",
+      "header": "CAN SWAP PLACES:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "500",
+      "generated": true
+     },
+     {
+      "key": "abilitychanneltime",
+      "header": "CHANNEL TIME:",
+      "value": "1.3",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.4",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "sleep"
+  },
+  "lone_druid_savage_roar": {
+   "raw": {
+    "dname": "Savage Roar",
+    "behavior": "No Target",
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "Lone Druid and the Spirit Bear roar fiercely causing nearby enemies to flee towards their base in terror. Their movement speed is increased by 20%.",
+    "attrib": [
+     {
+      "key": "radius",
+      "header": "RANGE:",
+      "value": "350"
+     },
+     {
+      "key": "bonus_speed",
+      "header": "ENEMY MOVEMENT SPEED BONUS:",
+      "value": "20%"
+     },
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "1.1",
+       "1.4",
+       "1.7",
+       "2"
+      ]
+     },
+     {
+      "key": "only_affects_player_units",
+      "header": "ONLY AFFECTS PLAYER UNITS:",
+      "value": "1",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.1",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "fear"
+  },
+  "dark_willow_terrorize": {
+   "raw": {
+    "dname": "Terrorize",
+    "behavior": [
+     "Point Target",
+     "AOE"
+    ],
+    "target_team": "Enemy",
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "Dark Willow releases her pet wisp to terrorize her enemies. After a short delay, all enemies in the target area become fearful and run toward their home fountain. Terrorize cannot be used while Bedlam is active.",
+    "attrib": [
+     {
+      "key": "destination_travel_speed",
+      "header": "DESTINATION TRAVEL SPEED:",
+      "value": "2000",
+      "generated": true
+     },
+     {
+      "key": "destination_radius",
+      "header": "RADIUS:",
+      "value": [
+       "450",
+       "500",
+       "550"
+      ]
+     },
+     {
+      "key": "destination_status_duration",
+      "header": "FEAR DURATION:",
+      "value": [
+       "2.8",
+       "3",
+       "3.2"
+      ]
+     },
+     {
+      "key": "return_travel_speed",
+      "header": "RETURN TRAVEL SPEED:",
+      "value": "800",
+      "generated": true
+     },
+     {
+      "key": "starting_height",
+      "header": "STARTING HEIGHT:",
+      "value": "300",
+      "generated": true
+     },
+     {
+      "key": "telegraph_to_enemies",
+      "header": "TELEGRAPH TO ENEMIES:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "1200",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "1",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "fear"
+  },
+  "lich_sinister_gaze": {
+   "raw": {
+    "dname": "Sinister Gaze",
+    "behavior": [
+     "Unit Target",
+     "Channeled"
+    ],
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "CHANNELED - Hypnotizes an enemy unit, causing it to move towards a point between the two of you and drains a percentage of its current mana.",
+    "attrib": [
+     {
+      "key": "abilitychanneltime",
+      "header": "CHANNEL TIME:",
+      "value": [
+       "1.10",
+       "1.4",
+       "1.7",
+       "2"
+      ],
+      "generated": true
+     },
+     {
+      "key": "channel_duration",
+      "header": "CHANNEL DURATION:",
+      "value": [
+       "1.10",
+       "1.4",
+       "1.7",
+       "2"
+      ],
+      "generated": true
+     },
+     {
+      "key": "destination",
+      "header": "DISTANCE MOVED:",
+      "value": [
+       "32%",
+       "38%",
+       "44%",
+       "50%"
+      ]
+     },
+     {
+      "key": "mana_drain",
+      "header": "MANA DRAIN PER SECOND:",
+      "value": "25%"
+     },
+     {
+      "key": "damage",
+      "header": "BONUS DAMAGE:",
+      "value": "0"
+     },
+     {
+      "key": "slow_resistance",
+      "header": "SLOW RESISTANCE REDUCTION:",
+      "value": "0%"
+     },
+     {
+      "key": "post_gaze_debuff_duration_multiplier",
+      "header": "POST GAZE DEBUFF DURATION MULTIPLIER:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "600",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "fear"
+  },
+  "ember_spirit_searing_chains": {
+   "raw": {
+    "dname": "Searing Chains",
+    "behavior": "No Target",
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "Ember Spirit unleashes fiery bolas that wrap around nearby enemies, anchoring them in place and dealing damage each second.",
+    "attrib": [
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "1.25",
+       "1.75",
+       "2.25",
+       "2.75"
+      ]
+     },
+     {
+      "key": "radius",
+      "header": "RADIUS:",
+      "value": "400"
+     },
+     {
+      "key": "damage_per_second",
+      "header": "DAMAGE PER SECOND:",
+      "value": "100"
+     },
+     {
+      "key": "tick_interval",
+      "header": "TICK INTERVAL:",
+      "value": "0.5",
+      "generated": true
+     },
+     {
+      "key": "unit_count",
+      "header": "UNIT COUNT:",
+      "value": "2"
+     },
+     {
+      "key": "remnant_chains",
+      "header": "REMNANT CHAINS:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "400",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "root"
+  },
+  "treant_overgrowth": {
+   "raw": {
+    "dname": "Overgrowth",
+    "behavior": "No Target",
+    "dmg_type": "Magical",
+    "bkbpierce": "Yes",
+    "dispellable": "Yes",
+    "desc": "Summons an overgrowth of vines and branches around Treant that deal damage to afflicted enemies and prevent them from moving, blinking, going invisible, or attacking.",
+    "attrib": [
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "3",
+       "4",
+       "5"
+      ]
+     },
+     {
+      "key": "radius",
+      "header": "RADIUS:",
+      "value": "800"
+     },
+     {
+      "key": "damage",
+      "header": "DAMAGE PER SECOND:",
+      "value": "95"
+     },
+     {
+      "key": "undispellable",
+      "header": "UNDISPELLABLE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.5",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "root"
+  },
+  "slark_pounce": {
+   "raw": {
+    "dname": "Pounce",
+    "behavior": "No Target",
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "No",
+    "desc": "Slark leaps forward, leashing and applying Essence Shift stacks to the first hero he connects. That unit can only move a limited distance away from Slark's landing position.",
+    "attrib": [
+     {
+      "key": "pounce_damage",
+      "header": "POUNCE DAMAGE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "pounce_distance",
+      "header": "DISTANCE:",
+      "value": "700"
+     },
+     {
+      "key": "pounce_speed",
+      "header": "POUNCE SPEED:",
+      "value": "933.33",
+      "generated": true
+     },
+     {
+      "key": "pounce_acceleration",
+      "header": "POUNCE ACCELERATION:",
+      "value": "7000",
+      "generated": true
+     },
+     {
+      "key": "pounce_radius",
+      "header": "POUNCE RADIUS:",
+      "value": "120",
+      "generated": true
+     },
+     {
+      "key": "leash_duration",
+      "header": "LEASH DURATION:",
+      "value": [
+       "2.5",
+       "2.75",
+       "3",
+       "3.25"
+      ]
+     },
+     {
+      "key": "leash_radius",
+      "header": "LEASH RADIUS:",
+      "value": "400"
+     },
+     {
+      "key": "essence_stacks",
+      "header": "ESSENCE SHIFT STACKS:",
+      "value": [
+       "1",
+       "2",
+       "3",
+       "4"
+      ]
+     }
+    ]
+   },
+   "disable": "root"
+  },
+  "disruptor_kinetic_field": {
+   "raw": {
+    "dname": "Kinetic Field",
+    "behavior": [
+     "Point Target",
+     "AOE"
+    ],
+    "bkbpierce": "No",
+    "desc": "After a short formation time, creates a circular barrier of kinetic energy that enemies can't pass.",
+    "attrib": [
+     {
+      "key": "radius",
+      "header": "RADIUS:",
+      "value": "350"
+     },
+     {
+      "key": "formation_time",
+      "header": "FORMATION DELAY:",
+      "value": "1"
+     },
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "2.6",
+       "3.2",
+       "3.8",
+       "4.4"
+      ]
+     },
+     {
+      "key": "damage_per_second",
+      "header": "DAMAGE PER SECOND:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "wall_thickness",
+      "header": "WALL THICKNESS:",
+      "value": "100",
+      "generated": true
+     },
+     {
+      "key": "tick_rate",
+      "header": "TICK RATE:",
+      "value": "0.1",
+      "generated": true
+     },
+     {
+      "key": "cooldown_share",
+      "header": "COOLDOWN SHARE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "strike_on_touch",
+      "header": "STRIKE ON TOUCH:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "900",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.05",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "root"
+  },
+  "invoker_tornado": {
+   "raw": {
+    "dname": "Tornado",
+    "behavior": [
+     "Point Target",
+     "Hidden"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "Unleashes a fast moving tornado that picks up enemy units in its path, suspending them helplessly in the air shortly before allowing them to plummet to their doom. Travels further based on the level of Wex. Holds enemies in the air for a duration based on the level of Quas. Deals base damage plus added damage based on levels in Wex.\n\nDISPEL TYPE: Basic Dispel",
+    "attrib": [
+     {
+      "key": "travel_distance",
+      "header": "TRAVEL DISTANCE (WEX):\\n",
+      "value": [
+       "1500",
+       "1800",
+       "2100",
+       "2400",
+       "2700",
+       "3000",
+       "3300",
+       "3600",
+       "3900"
+      ]
+     },
+     {
+      "key": "travel_speed",
+      "header": "TRAVEL SPEED:",
+      "value": "1000",
+      "generated": true
+     },
+     {
+      "key": "area_of_effect",
+      "header": "RADIUS:",
+      "value": "200"
+     },
+     {
+      "key": "vision_distance",
+      "header": "VISION DISTANCE:",
+      "value": "200",
+      "generated": true
+     },
+     {
+      "key": "end_vision_duration",
+      "header": "END VISION DURATION:",
+      "value": "1.75",
+      "generated": true
+     },
+     {
+      "key": "lift_duration",
+      "header": "LIFT TIME (QUAS):\\n",
+      "value": [
+       "1.2",
+       "1.4",
+       "1.6",
+       "1.8",
+       "2",
+       "2.2",
+       "2.4",
+       "2.6",
+       "2.8"
+      ]
+     },
+     {
+      "key": "base_damage",
+      "header": "BASE DAMAGE:",
+      "value": "50"
+     },
+     {
+      "key": "quas_damage",
+      "header": "QUAS DAMAGE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "wex_damage",
+      "header": "ADDED DAMAGE (WEX):",
+      "value": [
+       "45",
+       "90",
+       "135",
+       "180",
+       "225",
+       "270",
+       "315",
+       "360",
+       "405"
+      ]
+     },
+     {
+      "key": "twister_distance_interval",
+      "header": "TWISTER DISTANCE INTERVAL:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "twister_radius",
+      "header": "TWISTER RADIUS:",
+      "value": "150",
+      "generated": true
+     },
+     {
+      "key": "twister_damage",
+      "header": "TWISTER DAMAGE PER SECOND (WEX):",
+      "value": "0"
+     },
+     {
+      "key": "twister_duration",
+      "header": "TWISTER DURATION (QUAS):",
+      "value": "0"
+     },
+     {
+      "key": "twister_tick_rate",
+      "header": "TWISTER TICK RATE:",
+      "value": "0.25",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "2000",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.05",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "cyclone"
+  },
+  "invoker_cold_snap": {
+   "raw": {
+    "dname": "Cold Snap",
+    "behavior": [
+     "Unit Target",
+     "Hidden"
+    ],
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "Invoker draws the heat from an enemy, chilling them to their very core for a duration based on the level of Quas. The enemy will take damage and be briefly frozen. Further damage taken in this state will freeze the enemy again, dealing bonus damage. The enemy can only be frozen so often, but the freeze cooldown decreases based on the level of Quas.",
+    "attrib": [
+     {
+      "key": "duration",
+      "header": "COLD SNAP DURATION (QUAS):\\n",
+      "value": [
+       "3",
+       "3.4",
+       "3.8",
+       "4.2",
+       "4.6",
+       "5",
+       "5.4",
+       "5.8",
+       "6.2"
+      ]
+     },
+     {
+      "key": "freeze_duration",
+      "header": "FREEZE DURATION:",
+      "value": "0.4"
+     },
+     {
+      "key": "freeze_cooldown",
+      "header": "FREEZE COOLDOWN (QUAS):",
+      "value": [
+       "0.80",
+       "0.77",
+       "0.74",
+       "0.71",
+       "0.68",
+       "0.65",
+       "0.62",
+       "0.59",
+       "0.56"
+      ]
+     },
+     {
+      "key": "freeze_damage",
+      "header": "FREEZE DAMAGE (QUAS):",
+      "value": [
+       "28",
+       "36",
+       "44",
+       "52",
+       "60",
+       "68",
+       "76",
+       "84",
+       "92"
+      ]
+     },
+     {
+      "key": "freeze_heal",
+      "header": "FREEZE HEAL:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "damage_trigger",
+      "header": "DAMAGE TRIGGER:",
+      "value": "10",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "1000",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.05",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "stun"
+  },
+  "invoker_deafening_blast": {
+   "raw": {
+    "dname": "Deafening Blast",
+    "behavior": [
+     "Point Target",
+     "Hidden"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "No",
+    "desc": "Invoker unleashes a mighty sonic wave in front of him, dealing damage to any enemy unit it collides with based on the level of Exort. The sheer impact from the blast is enough to knock those enemy units back for a duration based on the level of Quas, then disarm their attacks for a duration based on the level of Wex.",
+    "attrib": [
+     {
+      "key": "travel_distance",
+      "header": "TRAVEL DISTANCE:",
+      "value": "1000"
+     },
+     {
+      "key": "travel_speed",
+      "header": "TRAVEL SPEED:",
+      "value": "1100",
+      "generated": true
+     },
+     {
+      "key": "radius_start",
+      "header": "RADIUS START:",
+      "value": "175",
+      "generated": true
+     },
+     {
+      "key": "radius_end",
+      "header": "RADIUS END:",
+      "value": "225",
+      "generated": true
+     },
+     {
+      "key": "end_vision_duration",
+      "header": "END VISION DURATION:",
+      "value": "1.75",
+      "generated": true
+     },
+     {
+      "key": "damage",
+      "header": "DAMAGE (EXORT):\\n",
+      "value": [
+       "70",
+       "110",
+       "150",
+       "190",
+       "230",
+       "270",
+       "310",
+       "350",
+       "390"
+      ]
+     },
+     {
+      "key": "knockback_duration",
+      "header": "KNOCKBACK DURATION (QUAS):\\n",
+      "value": [
+       "1.1",
+       "1.2",
+       "1.3",
+       "1.4",
+       "1.5",
+       "1.6",
+       "1.7",
+       "1.8",
+       "1.9"
+      ]
+     },
+     {
+      "key": "disarm_duration",
+      "header": "DISARM DURATION (WEX):\\n",
+      "value": [
+       "1.5",
+       "2",
+       "2.5",
+       "3",
+       "3.5",
+       "4",
+       "4.5",
+       "5",
+       "5.5"
+      ]
+     },
+     {
+      "key": "radial_count",
+      "header": "RADIAL COUNT:",
+      "value": "1",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "1000",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.05",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "disarm"
+  },
+  "oracle_fates_edict": {
+   "raw": {
+    "dname": "Fate's Edict",
+    "behavior": "Unit Target",
+    "target_team": [
+     "Enemy",
+     "Friendly"
+    ],
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "Oracle enraptures a target, disarming them and granting them 100% magic damage resistance.",
+    "attrib": [
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "3.5",
+       "4",
+       "4.5",
+       "5"
+      ]
+     },
+     {
+      "key": "magic_damage_resistance_pct_tooltip",
+      "header": "MAGIC DAMAGE RESISTANCE PCT TOOLTIP:",
+      "value": "100",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "700",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "disarm"
+  },
+  "magnataur_reverse_polarity": {
+   "raw": {
+    "dname": "Reverse Polarity",
+    "behavior": "No Target",
+    "dmg_type": "Magical",
+    "bkbpierce": "Yes",
+    "dispellable": "Strong Dispels Only",
+    "attrib": [
+     {
+      "key": "pull_radius",
+      "header": "PULL RADIUS:",
+      "value": "430"
+     },
+     {
+      "key": "push_radius",
+      "header": "PUSH RADIUS:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "max_knockback_distance",
+      "header": "MAX KNOCKBACK DISTANCE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "knockback_height",
+      "header": "KNOCKBACK HEIGHT:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "polarity_damage",
+      "header": "DAMAGE:",
+      "value": [
+       "100",
+       "200",
+       "300"
+      ]
+     },
+     {
+      "key": "hero_stun_duration",
+      "header": "STUN DURATION:",
+      "value": [
+       "2.5",
+       "3",
+       "3.5"
+      ]
+     },
+     {
+      "key": "pull_duration",
+      "header": "PULL DURATION:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "stat_buff_duration",
+      "header": "STAT BUFF DURATION:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "stats_per_stack",
+      "header": "STATS PER STACK:",
+      "value": "0",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "stun"
+  },
+  "storm_spirit_electric_vortex": {
+   "raw": {
+    "dname": "Electric Vortex",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "bkbpierce": "No",
+    "dispellable": "Strong Dispels Only",
+    "desc": "A vortex that pulls an enemy unit to Storm Spirit's location.",
+    "attrib": [
+     {
+      "key": "electric_vortex_pull_distance",
+      "header": "PULL DISTANCE:",
+      "value": [
+       "180",
+       "220",
+       "260",
+       "300"
+      ]
+     },
+     {
+      "key": "electric_vortex_pull_tether_range",
+      "header": "ELECTRIC VORTEX PULL TETHER RANGE:",
+      "value": "1200",
+      "generated": true
+     },
+     {
+      "key": "electric_vortex_self_slow",
+      "header": "ELECTRIC VORTEX SELF SLOW:",
+      "value": "-50",
+      "generated": true
+     },
+     {
+      "key": "electric_vortex_self_slow_duration",
+      "header": "ELECTRIC VORTEX SELF SLOW DURATION:",
+      "value": "3",
+      "generated": true
+     },
+     {
+      "key": "abilityduration",
+      "header": "DURATION:",
+      "value": [
+       "1.1",
+       "1.4",
+       "1.7",
+       "2"
+      ],
+      "generated": true
+     },
+     {
+      "key": "enemy_overload_duration",
+      "header": "ENEMY OVERLOAD DURATION:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "300",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "disable"
+  },
+  "winter_wyvern_winters_curse": {
+   "raw": {
+    "dname": "Winter's Curse",
+    "behavior": [
+     "Unit Target",
+     "AOE"
+    ],
+    "target_team": "Enemy",
+    "target_type": "Hero",
+    "bkbpierce": "Yes",
+    "desc": "Winter Wyvern dispells then freezes an enemy in place while striking those nearby with a maddening curse which causes them to attack their frozen ally with increased attack speed. The frozen ally and those cursed to attack their ally are immune to all damage from their enemies with the exception of damage from Winter Wyvern or her controlled units. Enemy heroes which enter the cursed area after the cast add to the duration of the curse.",
+    "attrib": [
+     {
+      "key": "radius",
+      "header": "RADIUS:",
+      "value": "525"
+     },
+     {
+      "key": "damage_reduction",
+      "header": "DAMAGE REDUCTION:",
+      "value": "100%"
+     },
+     {
+      "key": "bonus_attack_speed",
+      "header": "ATTACK SPEED:",
+      "value": [
+       "50",
+       "65",
+       "80"
+      ]
+     },
+     {
+      "key": "duration",
+      "header": "MINIMUM DURATION:",
+      "value": "2"
+     },
+     {
+      "key": "max_duration",
+      "header": "MAXIMUM DURATION:",
+      "value": "6"
+     },
+     {
+      "key": "bonus_duration_per_hero",
+      "header": "BONUS DURATION PER HERO:",
+      "value": "1.5"
+     },
+     {
+      "key": "bonus_duration_per_creep",
+      "header": "BONUS DURATION PER CREEP:",
+      "value": "0.5"
+     },
+     {
+      "key": "transfer_on_death",
+      "header": "TRANSFER ON DEATH:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "transfer_duration_pct",
+      "header": "TRANSFER DURATION PCT:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "800",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "taunt"
+  },
+  "phoenix_supernova": {
+   "raw": {
+    "dname": "Supernova",
+    "behavior": "No Target",
+    "target_team": "Friendly",
+    "target_type": "Hero",
+    "dmg_type": "Magical",
+    "bkbpierce": "Yes",
+    "dispellable": "No",
+    "desc": "The Phoenix willingly ends its current life for the chance to be reborn. Transforms into a burning sun that scorches enemies in a huge area. The sun can be destroyed by attacks from enemy Heroes. After 6 seconds the sun explodes, stunning all nearby enemies while restoring Phoenix to full health and mana with refreshed abilities.\n\nDISPEL TYPE: Strong Dispel",
+    "attrib": [
+     {
+      "key": "aura_radius",
+      "header": "RADIUS:",
+      "value": "1200"
+     },
+     {
+      "key": "damage_per_sec",
+      "header": "DAMAGE PER SECOND:",
+      "value": [
+       "50",
+       "80",
+       "110"
+      ]
+     },
+     {
+      "key": "tick_interval",
+      "header": "TICK INTERVAL:",
+      "value": "0.2",
+      "generated": true
+     },
+     {
+      "key": "stun_duration",
+      "header": "STUN DURATION:",
+      "value": [
+       "1.6",
+       "2",
+       "2.4"
+      ]
+     },
+     {
+      "key": "max_hero_attacks",
+      "header": "ATTACKS TO DESTROY:",
+      "value": [
+       "6",
+       "8",
+       "10"
+      ]
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "450",
+      "generated": true
+     },
+     {
+      "key": "abilityduration",
+      "header": "DURATION:",
+      "value": "6"
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.01",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "stun"
+  },
+  "snapfire_firesnap_cookie": {
+   "raw": {
+    "dname": "Firesnap Cookie",
+    "behavior": "Unit Target",
+    "target_team": "Friendly",
+    "target_type": "Hero",
+    "dmg_type": "Magical",
+    "dispellable": "Strong Dispels Only",
+    "desc": "Snapfire feeds a potent cookie to Mortimer or an ally, causing them to hop a short distance. The hopping unit stuns and damages enemies in the landing zone.",
+    "attrib": [
+     {
+      "key": "abilitycharges",
+      "header": "MAX CHARGES:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitychargerestoretime",
+      "header": "CHARGE RESTORE TIME:",
+      "value": [
+       "21",
+       "19",
+       "17",
+       "15"
+      ],
+      "generated": true
+     },
+     {
+      "key": "projectile_speed",
+      "header": "PROJECTILE SPEED:",
+      "value": "1200",
+      "generated": true
+     },
+     {
+      "key": "pre_hop_duration",
+      "header": "PRE HOP DURATION:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "jump_duration",
+      "header": "JUMP DURATION:",
+      "value": "0.484",
+      "generated": true
+     },
+     {
+      "key": "jump_height",
+      "header": "JUMP HEIGHT:",
+      "value": "257",
+      "generated": true
+     },
+     {
+      "key": "jump_horizontal_distance",
+      "header": "HOP DISTANCE:",
+      "value": "425"
+     },
+     {
+      "key": "pre_land_anim_time",
+      "header": "PRE LAND ANIM TIME:",
+      "value": "0.14",
+      "generated": true
+     },
+     {
+      "key": "landing_gesture_duration",
+      "header": "LANDING GESTURE DURATION:",
+      "value": "0.6",
+      "generated": true
+     },
+     {
+      "key": "impact_radius",
+      "header": "IMPACT RADIUS:",
+      "value": "300"
+     },
+     {
+      "key": "impact_damage",
+      "header": "IMPACT DAMAGE:",
+      "value": [
+       "60",
+       "130",
+       "200",
+       "270"
+      ]
+     },
+     {
+      "key": "impact_stun_duration",
+      "header": "IMPACT STUN DURATION:",
+      "value": [
+       "1",
+       "1.4",
+       "1.8",
+       "2.2"
+      ]
+     },
+     {
+      "key": "self_cast_delay",
+      "header": "SELF CAST DELAY:",
+      "value": "0.3",
+      "generated": true
+     },
+     {
+      "key": "target_heal",
+      "header": "HEAL AMOUNT:",
+      "value": "0"
+     },
+     {
+      "key": "shard_damage_multiplier_tooltip",
+      "header": "SHARD DAMAGE MULTIPLIER TOOLTIP:",
+      "value": "40",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "650",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.2",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "stun"
+  },
+  "lycan_howl": {
+   "raw": {
+    "dname": "Howl",
+    "behavior": "No Target",
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "Strikes fear into enemies, reducing armor and attack damage of all enemies within 2000 range of Lycan and his wolves. At night, Howl's armor and attack damage reductions are global.",
+    "attrib": [
+     {
+      "key": "howl_duration",
+      "header": "DURATION:",
+      "value": "8"
+     },
+     {
+      "key": "attack_damage_reduction",
+      "header": "ATTACK DAMAGE REDUCTION:",
+      "value": [
+       "25%",
+       "30%",
+       "35%",
+       "40%"
+      ]
+     },
+     {
+      "key": "total_attack_damage_reduction",
+      "header": "TOTAL ATTACK DAMAGE REDUCTION:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "armor",
+      "header": "ARMOR REDUCTION:",
+      "value": [
+       "4",
+       "5",
+       "6",
+       "7"
+      ]
+     },
+     {
+      "key": "radius",
+      "header": "RADIUS:",
+      "value": "2000",
+      "generated": true
+     },
+     {
+      "key": "fear_duration",
+      "header": "FEAR DURATION:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "max_level",
+      "header": "MAX LEVEL:",
+      "value": "4",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "sandking_sand_storm": {
+   "raw": {
+    "dname": "Sand Storm",
+    "behavior": "No Target",
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "No",
+    "desc": "Sand King creates a fearsome sandstorm that damages enemy units and grants Sand King Invisibility while he is in it. The effect ends when Sand King leaves the area.",
+    "attrib": [
+     {
+      "key": "damage_tick_rate",
+      "header": "DAMAGE TICK RATE:",
+      "value": "0.2",
+      "generated": true
+     },
+     {
+      "key": "abilityduration",
+      "header": "DURATION:",
+      "value": [
+       "16",
+       "20",
+       "24",
+       "28"
+      ],
+      "generated": true
+     },
+     {
+      "key": "sand_storm_radius",
+      "header": "RADIUS:",
+      "value": [
+       "475",
+       "550",
+       "625",
+       "700"
+      ]
+     },
+     {
+      "key": "sand_storm_damage",
+      "header": "DAMAGE PER SECOND:",
+      "value": [
+       "30",
+       "50",
+       "70",
+       "90"
+      ]
+     },
+     {
+      "key": "fade_delay",
+      "header": "FADE DELAY:",
+      "value": "0.7",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "monkey_king_tree_dance": {
+   "raw": {
+    "dname": "Tree Dance",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": "Tree",
+    "desc": "Monkey King jumps to a tree and perches atop it. While perched, he gains the Primal Spring ability-a channeled leap attack. If Monkey King's tree is destroyed, he falls and is stunned for 3s. Taking damage while on the ground puts Tree Dance on cooldown.",
+    "attrib": [
+     {
+      "key": "leap_speed",
+      "header": "LEAP SPEED:",
+      "value": "600",
+      "generated": true
+     },
+     {
+      "key": "spring_leap_speed",
+      "header": "SPRING LEAP SPEED:",
+      "value": "1300",
+      "generated": true
+     },
+     {
+      "key": "give_up_distance",
+      "header": "GIVE UP DISTANCE:",
+      "value": "1850",
+      "generated": true
+     },
+     {
+      "key": "ground_jump_distance",
+      "header": "GROUND JUMP DISTANCE:",
+      "value": "900",
+      "generated": true
+     },
+     {
+      "key": "perched_jump_distance",
+      "header": "DISTANCE:",
+      "value": "900"
+     },
+     {
+      "key": "jump_damage_cooldown",
+      "header": "DAMAGE COOLDOWN:",
+      "value": "3"
+     },
+     {
+      "key": "perched_day_vision",
+      "header": "PERCHED DAY VISION:",
+      "value": "700",
+      "generated": true
+     },
+     {
+      "key": "perched_night_vision",
+      "header": "PERCHED NIGHT VISION:",
+      "value": "500",
+      "generated": true
+     },
+     {
+      "key": "perched_spot_height",
+      "header": "PERCHED SPOT HEIGHT:",
+      "value": "192",
+      "generated": true
+     },
+     {
+      "key": "unperched_stunned_duration",
+      "header": "UNPERCHED STUNNED DURATION:",
+      "value": "3",
+      "generated": true
+     },
+     {
+      "key": "top_level_height",
+      "header": "TOP LEVEL HEIGHT:",
+      "value": "500",
+      "generated": true
+     },
+     {
+      "key": "impact_damage_tooltip",
+      "header": "IMPACT DAMAGE TOOLTIP:",
+      "value": [
+       "140",
+       "210",
+       "280",
+       "350"
+      ],
+      "generated": true
+     },
+     {
+      "key": "impact_movement_slow_tooltip",
+      "header": "IMPACT MOVEMENT SLOW TOOLTIP:",
+      "value": [
+       "20",
+       "40",
+       "60",
+       "80"
+      ],
+      "generated": true
+     },
+     {
+      "key": "range",
+      "header": "RANGE:",
+      "value": "900",
+      "generated": true
+     },
+     {
+      "key": "max_level",
+      "header": "MAX LEVEL:",
+      "value": "4",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "900",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.2",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "pudge_meat_hook": {
+   "raw": {
+    "dname": "Meat Hook",
+    "behavior": "Point Target",
+    "dmg_type": "Pure",
+    "bkbpierce": "Yes",
+    "desc": "Launches a bloody hook toward a unit or location. The hook will snag the first unit it encounters, dragging the unit back to Pudge, killing it if it's a non-ancient creep and dealing damage if it is an enemy otherwise.",
+    "attrib": [
+     {
+      "key": "damage",
+      "header": "DAMAGE:",
+      "value": [
+       "150",
+       "220",
+       "290",
+       "360"
+      ]
+     },
+     {
+      "key": "hook_speed",
+      "header": "HOOK SPEED:",
+      "value": "1600",
+      "generated": true
+     },
+     {
+      "key": "hook_width",
+      "header": "HOOK WIDTH:",
+      "value": "100",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "1300",
+      "generated": true
+     },
+     {
+      "key": "vision_radius",
+      "header": "VISION RADIUS:",
+      "value": "500",
+      "generated": true
+     },
+     {
+      "key": "vision_duration",
+      "header": "VISION DURATION:",
+      "value": "4",
+      "generated": true
+     },
+     {
+      "key": "reveal_duration",
+      "header": "REVEAL DURATION:",
+      "value": "00",
+      "generated": true
+     },
+     {
+      "key": "vector_target_distance",
+      "header": "VECTOR TARGET DISTANCE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "self_stun_duration_percent",
+      "header": "SELF STUN DURATION PERCENT:",
+      "value": "65",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "viper_viper_strike": {
+   "raw": {
+    "dname": "Viper Strike",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "Yes",
+    "dispellable": "No",
+    "desc": "Viper slows the targeted enemy unit's movement and attack speed while also disabling their passives and dealing poison damage over time. The slowing effect reduces over the duration of the poison.",
+    "attrib": [
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": "6"
+     },
+     {
+      "key": "damage",
+      "header": "DAMAGE PER SECOND:",
+      "value": [
+       "70",
+       "110",
+       "150"
+      ]
+     },
+     {
+      "key": "bonus_movement_speed",
+      "header": "MOVE SLOW:",
+      "value": [
+       "60",
+       "70",
+       "80"
+      ]
+     },
+     {
+      "key": "bonus_attack_speed",
+      "header": "ATTACK SLOW:",
+      "value": [
+       "100",
+       "140",
+       "180"
+      ]
+     },
+     {
+      "key": "projectile_speed",
+      "header": "PROJECTILE SPEED:",
+      "value": "1500",
+      "generated": true
+     },
+     {
+      "key": "max_charges",
+      "header": "MAX CHARGES:",
+      "value": "2",
+      "generated": true
+     },
+     {
+      "key": "charge_restore_time",
+      "header": "CHARGE RESTORE TIME:",
+      "value": "30",
+      "generated": true
+     },
+     {
+      "key": "does_break",
+      "header": "DOES BREAK:",
+      "value": "1",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "750",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.2",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "silencer_glaives_of_wisdom": {
+   "raw": {
+    "dname": "Glaives of Wisdom",
+    "behavior": [
+     "Unit Target",
+     "Autocast",
+     "Attack Modifier"
+    ],
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "No",
+    "desc": "Silencer enchants his glaives with his wisdom, stealing his target's Intelligence with each hit and dealing additional damage based on his Intelligence.",
+    "attrib": [
+     {
+      "key": "intellect_damage_pct",
+      "header": "INT TO DAMAGE:",
+      "value": [
+       "35%",
+       "50%",
+       "65%",
+       "80%"
+      ]
+     },
+     {
+      "key": "int_steal",
+      "header": "INT STEAL:",
+      "value": [
+       "2",
+       "3",
+       "4",
+       "5"
+      ]
+     },
+     {
+      "key": "int_steal_duration",
+      "header": "INT STEAL DURATION:",
+      "value": [
+       "10",
+       "20",
+       "30",
+       "40"
+      ]
+     },
+     {
+      "key": "stacks_for_silence",
+      "header": "STACKS FOR SILENCE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "silence_duration",
+      "header": "SILENCE DURATION:",
+      "value": "+2.5",
+      "generated": true
+     },
+     {
+      "key": "debuff_linger_duration",
+      "header": "DEBUFF LINGER DURATION:",
+      "value": [
+       "3",
+       "4",
+       "5",
+       "6"
+      ],
+      "generated": true
+     },
+     {
+      "key": "pure_pierce_debuff",
+      "header": "PURE PIERCE DEBUFF:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "600",
+      "generated": true
+     },
+     {
+      "key": "abilityduration",
+      "header": "DURATION:",
+      "value": "0",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "luna_eclipse": {
+   "raw": {
+    "dname": "Eclipse",
+    "behavior": "No Target",
+    "target_team": "Friendly",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "No",
+    "desc": "Showers random nearby enemies with strikes from Luna's current level of Lucent Beam. These beams do not stun their targets, and there is a maximum number of times that a single target can be struck. Also turns day into night for a short time.",
+    "attrib": [
+     {
+      "key": "beams",
+      "header": "TOTAL BEAMS:",
+      "value": [
+       "6",
+       "9",
+       "12"
+      ]
+     },
+     {
+      "key": "beam_interval",
+      "header": "BEAM INTERVAL:",
+      "value": "0.6",
+      "generated": true
+     },
+     {
+      "key": "beam_interval_scepter",
+      "header": "BEAM INTERVAL SCEPTER:",
+      "value": "0.3",
+      "generated": true
+     },
+     {
+      "key": "radius",
+      "header": "RADIUS:",
+      "value": "675"
+     },
+     {
+      "key": "hit_count",
+      "header": "MAX BEAMS PER UNIT:",
+      "value": "5"
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilityduration",
+      "header": "ECLIPSE DURATION:",
+      "value": [
+       "2.4",
+       "4.2",
+       "6"
+      ]
+     },
+     {
+      "key": "night_duration",
+      "header": "NIGHT DURATION:",
+      "value": "10"
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.5",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "primal_beast_trample": {
+   "raw": {
+    "dname": "Trample",
+    "behavior": [
+     "No Target",
+     "Instant Cast"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "No",
+    "desc": "Primal Beast stomps over everything. For every 140 units traveled, all enemies around the Beast receive damage. Deals base damage plus a multiplier of Primal Beast's attack damage. Primal Beast is disarmed for the duration of the ability.",
+    "attrib": [
+     {
+      "key": "effect_radius",
+      "header": "DAMAGE AOE:",
+      "value": "200"
+     },
+     {
+      "key": "step_distance",
+      "header": "STEP DISTANCE:",
+      "value": "140",
+      "generated": true
+     },
+     {
+      "key": "base_damage",
+      "header": "BASE DAMAGE:",
+      "value": [
+       "15",
+       "30",
+       "45",
+       "60"
+      ]
+     },
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": "5.5"
+     },
+     {
+      "key": "attack_damage",
+      "header": "ATTACK DAMAGE MULTIPLIER:",
+      "value": "35%"
+     },
+     {
+      "key": "bonus_magic_resistance",
+      "header": "BONUS MAGIC RESISTANCE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "unslowable",
+      "header": "UNSLOWABLE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "proc_attack_modifiers",
+      "header": "PROC ATTACK MODIFIERS:",
+      "value": "0",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "sniper_take_aim": {
+   "raw": {
+    "dname": "Take Aim",
+    "behavior": "No Target",
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dispellable": "Yes",
+    "desc": "Passively increases Sniper's attack range by 160.\n\nOn cast, Sniper gains increased vision, Headshot chance, and attack range. Slows you by 65% for the duration and restricts your vision to a frontal cone.",
+    "attrib": [
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": "3"
+     },
+     {
+      "key": "slow",
+      "header": "SLOW:",
+      "value": "65",
+      "generated": true
+     },
+     {
+      "key": "headshot_chance",
+      "header": "HEADSHOT CHANCE:",
+      "value": "100%"
+     },
+     {
+      "key": "active_attack_range_bonus",
+      "header": "ACTIVE BONUS ATTACK RANGE:",
+      "value": [
+       "75",
+       "150",
+       "225",
+       "300"
+      ]
+     },
+     {
+      "key": "passive_attack_range_bonus",
+      "header": "PASSIVE ATTACK RANGE BONUS:",
+      "value": [
+       "160",
+       "240",
+       "320",
+       "400"
+      ],
+      "generated": true
+     },
+     {
+      "key": "bonus_vision",
+      "header": "BONUS VISION:",
+      "value": [
+       "500",
+       "750",
+       "1000",
+       "1250"
+      ]
+     },
+     {
+      "key": "view_restrict",
+      "header": "VIEW RESTRICT:",
+      "value": "140",
+      "generated": true
+     },
+     {
+      "key": "does_root",
+      "header": "DOES ROOT:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "require_target",
+      "header": "REQUIRE TARGET:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "attack_speed",
+      "header": "ATTACK SPEED:",
+      "value": "0"
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "largo_amphibian_rhapsody": {
+   "raw": {
+    "dname": "Amphibian Rhapsody",
+    "behavior": [
+     "No Target",
+     "Instant Cast"
+    ],
+    "dmg_type": "Magical",
+    "desc": "Largo gets ready to groove. He is disarmed and his ability bar switches to 3 song abilities, each with different effects. Songs are only effective if strummed on the beat.\n\nEvery time he strums successfully, he gains a stack of Groovin'. Each stack gives him bonus armor and reduces the mana cost of every song, but he loses a stack if he misses a beat. Stacks linger for a short duration when Largo's song ends.",
+    "attrib": [
+     {
+      "key": "radius",
+      "header": "RADIUS:",
+      "value": "800"
+     },
+     {
+      "key": "rhythm_interval",
+      "header": "BEAT INTERVAL:",
+      "value": "1"
+     },
+     {
+      "key": "rhythm_grace_period",
+      "header": "RHYTHM GRACE PERIOD:",
+      "value": "0.4",
+      "generated": true
+     },
+     {
+      "key": "max_stacks",
+      "header": "MAX STACKS:",
+      "value": "5"
+     },
+     {
+      "key": "armor_per_stack",
+      "header": "ARMOR PER STACK:",
+      "value": [
+       "2",
+       "3",
+       "4"
+      ]
+     },
+     {
+      "key": "song_cost_reduction_per_stack_tooltip",
+      "header": "SONG MANA COST REDUCTION PER STACK:",
+      "value": [
+       "1",
+       "1.5",
+       "2"
+      ]
+     },
+     {
+      "key": "stack_duration",
+      "header": "STACK LINGER DURATION:",
+      "value": "5"
+     },
+     {
+      "key": "double_song",
+      "header": "DOUBLE SONG:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "armor_ally_pct",
+      "header": "ARMOR ALLY PCT:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "stack_decrement_on_exit",
+      "header": "STACK DECREMENT ON EXIT:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "juggernaut_omni_slash": {
+   "raw": {
+    "dname": "Omnislash",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Physical",
+    "bkbpierce": "Yes",
+    "dispellable": "No",
+    "desc": "Juggernaut leaps towards the target enemy units, and then slashes the target and other nearby enemy units at an increased attack rate. Juggernaut is invulnerable for the duration.\n\nDISPEL TYPE: Basic Dispel",
+    "attrib": [
+     {
+      "key": "attack_rate_multiplier",
+      "header": "SLASHES RATE MULTIPLIER:",
+      "value": "1.4"
+     },
+     {
+      "key": "bonus_damage",
+      "header": "BONUS DAMAGE:",
+      "value": [
+       "25",
+       "30",
+       "35"
+      ]
+     },
+     {
+      "key": "bonus_attack_speed",
+      "header": "BONUS ATTACK SPEED:",
+      "value": "40"
+     },
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "3",
+       "3.25",
+       "3.5"
+      ]
+     },
+     {
+      "key": "omni_slash_radius",
+      "header": "SLASH JUMP RADIUS:",
+      "value": "425"
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "450",
+      "generated": true
+     },
+     {
+      "key": "dispel",
+      "header": "DISPEL:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "lina_laguna_blade": {
+   "raw": {
+    "dname": "Laguna Blade",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": [
+     "Hero",
+     "Basic"
+    ],
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "desc": "Fires off a bolt of lightning at a single enemy unit, dealing massive damage.",
+    "attrib": [
+     {
+      "key": "damage",
+      "header": "DAMAGE:",
+      "value": [
+       "400",
+       "580",
+       "760"
+      ]
+     },
+     {
+      "key": "damage_delay",
+      "header": "DAMAGE DELAY:",
+      "value": "0.25",
+      "generated": true
+     },
+     {
+      "key": "pierce_immunity",
+      "header": "PIERCE IMMUNITY:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "supercharge_duration",
+      "header": "SUPERCHARGE DURATION:",
+      "value": "0"
+     },
+     {
+      "key": "supercharge_stacks",
+      "header": "SUPERCHARGE STACKS:",
+      "value": "0"
+     },
+     {
+      "key": "barrier_pct",
+      "header": "BARRIER PCT:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "barrier_duration",
+      "header": "BARRIER DURATION:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "750",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "phantom_assassin_immaterial": {
+   "raw": {
+    "dname": "Immaterial",
+    "behavior": "Passive",
+    "desc": "Phantom Assassin focuses inward, increasing her ability to evade enemy attacks.\n\nStacks diminishingly with other sources of Evasion.",
+    "attrib": [
+     {
+      "key": "evasion",
+      "header": "BONUS EVASION:",
+      "value": [
+       "25%",
+       "35%",
+       "45%",
+       "55%"
+      ]
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "windrunner_windrun": {
+   "raw": {
+    "dname": "Windrun",
+    "behavior": [
+     "No Target",
+     "Instant Cast"
+    ],
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "Increases movement speed and adds evasion from all physical attacks.",
+    "attrib": [
+     {
+      "key": "movespeed_bonus_pct",
+      "header": "MOVE SPEED BONUS:",
+      "value": "50%"
+     },
+     {
+      "key": "evasion_pct_tooltip",
+      "header": "EVASION:",
+      "value": "100%"
+     },
+     {
+      "key": "cannot_be_dispelled",
+      "header": "CANNOT BE DISPELLED:",
+      "value": "+0",
+      "generated": true
+     },
+     {
+      "key": "abilityduration",
+      "header": "DURATION:",
+      "value": [
+       "3",
+       "4",
+       "5",
+       "6"
+      ],
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.3",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "necrolyte_ghost_shroud": {
+   "raw": {
+    "dname": "Ghost Shroud",
+    "behavior": [
+     "No Target",
+     "Instant Cast"
+    ],
+    "bkbpierce": "No",
+    "dispellable": "Yes",
+    "desc": "Necrophos slips into the realm that separates the living from the dead. Unable to attack or be attacked, he emits an aura that slows enemies around him. He takes additional magic damage in this form, but his restorative powers are amplified.",
+    "attrib": [
+     {
+      "key": "duration",
+      "header": "DURATION:",
+      "value": [
+       "3",
+       "3.5",
+       "4",
+       "4.5"
+      ]
+     },
+     {
+      "key": "heal_bonus",
+      "header": "RESTORATION AMPLIFICATION:",
+      "value": [
+       "45%",
+       "55%",
+       "65%",
+       "75%"
+      ]
+     },
+     {
+      "key": "enemies_negative_heal_bonus_as_pct_of_self",
+      "header": "ENEMIES NEGATIVE HEAL BONUS AS PCT OF SELF:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "movement_speed",
+      "header": "MOVEMENT SLOW:",
+      "value": [
+       "16%",
+       "19%",
+       "22%",
+       "25%"
+      ]
+     },
+     {
+      "key": "movement_transfer",
+      "header": "MOVEMENT TRANSFER:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "slow_aoe",
+      "header": "SLOW RADIUS:",
+      "value": "700"
+     },
+     {
+      "key": "bonus_damage",
+      "header": "INCREASED MAGIC DAMAGE:",
+      "value": "-20%"
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0",
+      "generated": true
+     }
+    ]
+   },
+   "disable": ""
+  },
+  "bounty_hunter_wind_walk": {
+   "raw": {
+    "dname": "Shadow Walk",
+    "behavior": [
+     "No Target",
+     "Instant Cast"
+    ],
+    "dispellable": "No",
+    "desc": "Bounty Hunter becomes invisible and gains bonus movement speed and the ability to move through other units until he attacks or casts a spell. If he breaks the invisibility with an attack, that attack will stun the target for a short duration.",
+    "attrib": [
+     {
+      "key": "duration",
+      "header": "INVISIBILITY DURATION:",
+      "value": [
+       "20",
+       "25",
+       "30",
+       "35"
+      ]
+     },
+     {
+      "key": "fade_time",
+      "header": "FADE TIME:",
+      "value": [
+       "1",
+       "0.75",
+       "0.5",
+       "0.25"
+      ]
+     },
+     {
+      "key": "stun_duration",
+      "header": "STUN DURATION:",
+      "value": [
+       "1",
+       "1.2",
+       "1.4",
+       "1.6"
+      ]
+     },
+     {
+      "key": "damage_reduction_pct",
+      "header": "DAMAGE REDUCTION PCT:",
+      "value": "0",
+      "generated": true
+     },
+     {
+      "key": "bonus_move_speed_pct",
+      "header": "BONUS SPEED:",
+      "value": [
+       "11%",
+       "14%",
+       "17%",
+       "20%"
+      ]
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "stun"
+  },
+  "necrolyte_reapers_scythe": {
+   "raw": {
+    "dname": "Reaper's Scythe",
+    "behavior": "Unit Target",
+    "target_team": "Enemy",
+    "target_type": "Hero",
+    "dmg_type": "Magical",
+    "bkbpierce": "No",
+    "dispellable": "No",
+    "desc": "Stuns the target enemy hero, then deals damage based on how much life it is missing. If Necrophos kills an enemy this way, he'll permanently gain Health and Mana Regen. Any kill under this effect is credited to Necrophos.",
+    "attrib": [
+     {
+      "key": "damage_per_health",
+      "header": "DAMAGE PER MISSING HP:",
+      "value": [
+       "0.7",
+       "0.8",
+       "0.9"
+      ]
+     },
+     {
+      "key": "stun_duration",
+      "header": "STUN DURATION:",
+      "value": "1.5"
+     },
+     {
+      "key": "hp_per_kill",
+      "header": "HP REGEN:",
+      "value": [
+       "1",
+       "2",
+       "3"
+      ]
+     },
+     {
+      "key": "mana_per_kill",
+      "header": "MANA REGEN:",
+      "value": [
+       "1",
+       "2",
+       "3"
+      ]
+     },
+     {
+      "key": "abilitycastrange",
+      "header": "CAST RANGE:",
+      "value": "600",
+      "generated": true
+     },
+     {
+      "key": "abilitycastpoint",
+      "header": "CAST TIME:",
+      "value": "0.45",
+      "generated": true
+     }
+    ]
+   },
+   "disable": "stun"
+  }
+ }
+}
