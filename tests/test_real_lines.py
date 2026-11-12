@@ -165,15 +165,61 @@ def test_6_the_death_fact_reads_as_a_sentence():
 async def test_7_the_death_answer_starts_without_thinking_first(coach_at):
     sonnet = CoachConfig(model="claude-sonnet-5-5", effort="low")
     req = claude_request(sonnet, "s", [], "death")
-    assert req["thinking"] == {"type": "between_tools"} and "fallbacks" not in req  # (Sonnet 5.5 refuses "disabled")
+    assert req["thinking"] == {"type": "between_tools"}  # (Sonnet 5.5 refuses "disabled")
+    # The server-side fallback stays on: under -2026-07-01 the server runs a fallen-back between_tools request on
+    # Claude Sonnet 5 with thinking disabled.
+    assert req["fallbacks"] == "default" and req["betas"] == ["server-side-fallback-2026-07-01"]
     assert "thinking" not in claude_request(sonnet, "s", [], "question")  # (questions keep their thinking)
     assert claude_request(CoachConfig(model="claude-haiku-5-5", effort="low"), "s", [], "death")["thinking"] == {
         "type": "disabled"}
-    assert "thinking" not in claude_request(CoachConfig(model="claude-sonnet-5-5", effort="xhigh"), "s", [], "death")
     coach, fake, rec, store, _m = await coach_at(315, model="claude-sonnet-5-5", effort="low")
     fake.reply = "You were caught alone. Walk back with your team next time."
     await _look(coach, "death", visible=True)
-    assert fake.requests[-1]["thinking"] == {"type": "between_tools"}
+    sent = fake.requests[-1]
+    assert sent["thinking"] == {"type": "between_tools"} and sent["fallbacks"] == "default"
+    # Nothing is replayed to the model: one user turn, no earlier assistant turn (so no thinking blocks to carry
+    # over to another model), and no mid-conversation system message (no per-message effort change).
+    assert [m["role"] for m in sent["messages"]] == ["user"]
+    assert not any(isinstance(b, dict) and b.get("type") in ("thinking", "redacted_thinking")
+                   for m in sent["messages"] for b in (m["content"] if isinstance(m["content"], list) else []))
+
+
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
+def test_7_between_tools_only_where_it_is_allowed(effort):
+    """between_tools: Sonnet 5.5 only, effort high or below, nothing else inside `thinking`. Above high, the
+    request falls through to the model's default adaptive thinking (no `thinking` field at all)."""
+    req = claude_request(CoachConfig(model="claude-sonnet-5-5", effort=effort), "s", [], "death")
+    if effort in ("low", "medium", "high"):
+        assert req["thinking"] == {"type": "between_tools"} and set(req["thinking"]) == {"type"}
+    else:
+        assert "thinking" not in req
+    assert req["output_config"] == {"effort": effort}  # (one effort for the whole request: no per-message change)
+
+
+@pytest.mark.parametrize("model", ["claude-sonnet-5", "claude-opus-5-5", "claude-fable-5-2", "claude-haiku-5-5",
+                                   "claude-haiku-4-5", "claude-sonnet-4-6"])
+def test_7_no_other_model_is_sent_between_tools(model):
+    for kind in ("death", "watch", "question", "now", "start", "plan"):
+        req = claude_request(CoachConfig(model=model, watch_model=model, effort="low"), "s", [], kind)
+        assert req.get("thinking", {}).get("type") != "between_tools", (model, kind)
+
+
+async def test_7_other_providers_never_see_a_thinking_field(monkeypatch):
+    from doty.coach.backends import make_backend
+
+    backend = make_backend(CoachConfig(provider="ollama", provider_model="local-model"))
+    bodies = []
+
+    async def sse(url, body):
+        bodies.append(body)
+        if False:
+            yield {}
+
+    monkeypatch.setattr(backend, "_sse", sse)
+    async for _ in backend.stream("system", [{"type": "text", "text": "x"}], 500, "death"):
+        pass
+    await backend.aclose()
+    assert bodies and "thinking" not in bodies[0] and "fallbacks" not in bodies[0]
 
 
 # 8. the feed, look after look -------------------------------------------------------------------------------------------
