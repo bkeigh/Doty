@@ -135,6 +135,55 @@ def test_the_record_is_off_with_its_switch_and_skips_menus(tmp_path):
     assert demo.folder is None
 
 
+def test_switched_off_mid_match_not_one_more_line_is_written(tmp_path):
+    cfg = RecordConfig()
+    store = GameStateStore()
+    record = MatchRecord(cfg, store, root=tmp_path / "records", demos=True)
+    m = ScriptedMatch()
+    for _ in range(30):
+        m.step(1.0)
+        payload = m.payload(TOKEN)
+        record.on_payload(payload, store.ingest(payload))
+    record.on_advice(Advice("Said while on", Priority.NORMAL, "general"))
+    folder = record.folder
+    assert folder is not None
+    cfg.enabled = False  # (the switch, on the config the running record holds)
+    record.on_advice(Advice("Said after the switch", Priority.NORMAL, "general"))
+    assert record.folder is None  # (the match's files are finished at once)
+    for job in record.packing:
+        job.join(10)
+    text = (folder / ADVICE_FILE).read_text(encoding="utf-8")
+    assert "Said while on" in text and "Said after the switch" not in text
+    m.step(1.0)
+    payload = m.payload(TOKEN)
+    record.on_payload(payload, store.ingest(payload))
+    assert record.folder is None and len(list_records(tmp_path / "records")) == 1
+
+
+def test_saving_the_switch_off_reaches_the_running_record_at_once(qapp, tmp_path):  # noqa: F811
+    """Settings' Save goes through Controller.apply_config, which restarts the running engine with the new
+    settings: the old record is closed and the new one is off, mid-match or not."""
+    import copy
+
+    from doty.selftest import quiet_config
+    from doty.ui.controller import Controller
+
+    cfg = quiet_config()
+    cfg.record.enabled, cfg.record.folder = True, str(tmp_path / "records")
+    cfg.source_path = tmp_path / "doty.toml"
+    ctl = Controller(cfg)
+    try:
+        assert ctl.start(), ctl.error
+        old = ctl.doty.record
+        assert old.on
+        changed = copy.deepcopy(cfg)
+        changed.record.enabled = False
+        ctl.apply_config(changed)
+        assert ctl.doty is not None and not ctl.doty.record.on and old.folder is None
+    finally:
+        ctl.stop()
+
+
 def test_old_records_are_pruned_by_count_and_size_and_delete_all_removes_them(tmp_path):
     root = tmp_path / "records"
     for n in range(5):

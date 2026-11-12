@@ -418,7 +418,9 @@ A fact the code doesn't have is left out, never guessed: no data, no verdict; an
   `overlay.mark_opacity` (0.65). **Not yet checked against a real frame:** the HUD numbers
   (`hud.HUD_CALIBRATED = False`) and the minimap placement.
 - **Records and the bench** (`match_record.py`, `doty/bench/`). `MatchRecord` keeps each real match on this PC
-  (on by default, `[record]`): the game data through `match_capture.scrub(keep_match=False)`, at least one update
+  (on by default, `[record]`): the game data through `match_capture.scrub(keep_match=False)` (structural: identity keys anywhere,
+  every subtree under a `player` key treated as a player section, the match id anywhere; and no `previously` or
+  `added`, which nothing reads), at least one update
   a second plus every one that changed items, life, level or events; every line shown with its rule
   (`tag_rules` wraps each rule's `evaluate`), priority and whether it was spoken; and `match.json`. Packed with
   gzip at the match's end, pruned to `keep_matches` and `keep_mb`. The session log gains the rule, `speak` and a

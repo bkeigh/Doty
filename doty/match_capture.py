@@ -44,34 +44,46 @@ def capture_folder(cfg: CaptureConfig) -> Path:
     return Path(cfg.folder) if cfg.folder else documents_dir() / "Doty" / "captures"
 
 
-def _drop_identity(value: Any, in_player: bool) -> Any:
+# Dota's copy of what changed since the last update ("previously": the old values; "added": which fields are new).
+# They mirror the payload's own shape, so a player's name can sit at previously.player.name. Nothing in Doty reads
+# them (the store, the rules and the bench use the current values), so a match record leaves them out altogether.
+CHANGE_KEYS = {"previously", "added"}
+
+
+def _drop_identity(value: Any, in_player: bool, keep_match: bool) -> Any:
+    """The rule is structural, so it holds at any depth and in any mirror of the payload: an identity key goes
+    wherever it is, and everything under a key named "player" (the top-level section, its copies inside
+    "previously" and "added", and the ten per-player blocks a spectator's feed nests under it as
+    team2/team3 > player0..9) is a player section, where "name" and any other text but the team and activity go."""
     if isinstance(value, dict):
         out = {}
         for k, v in value.items():
             key = str(k).lower()
-            if key in IDENTITY_KEYS or "steam" in key or "account" in key:
+            if key in IDENTITY_KEYS or key == "auth" or "steam" in key or "account" in key:
                 continue
             if in_player and (key == "name" or (isinstance(v, str) and key not in PLAYER_TEXT_KEPT)):
                 continue  # (in "player", "name" is the player's name; elsewhere it's a hero, item or ability)
-            out[k] = _drop_identity(v, in_player)
+            if key == "matchid" and not keep_match:
+                out[k] = "recorded"
+                continue
+            out[k] = _drop_identity(v, in_player or key == "player", keep_match)
         return out
     if isinstance(value, list):
-        return [_drop_identity(v, in_player) for v in value]
+        return [_drop_identity(v, in_player, keep_match) for v in value]
     return value
 
 
 def scrub(payload: dict[str, Any], keep_match: bool = True) -> dict[str, Any]:
     """The payload without the auth token or who anyone is: Steam and account IDs and names wherever they appear,
-    and in the player section (yours, and every player's when Dota sends all ten) any text but the team and
-    activity. `keep_match=False` also hides the match id, which anyone can look up to see who played."""
-    out = {}
-    for k, v in payload.items():
-        if k == "auth":
-            continue
-        out[k] = _drop_identity(v, in_player=(k == "player"))
-    if not keep_match and isinstance(out.get("map"), dict) and "matchid" in out["map"]:
-        out["map"] = dict(out["map"], matchid="recorded")
-    return out
+    and in every player section (yours, every player's when Dota sends all ten, and their copies in "previously"
+    and "added") any text but the team and activity.
+
+    `keep_match=False` is the match record's (match_record.py, on by default): it also hides the match id wherever
+    it appears, since anyone can look one up to see who played, and leaves out "previously" and "added", which
+    nothing in Doty reads. Capture mode (off unless turned on) keeps them, scrubbed the same way."""
+    if not keep_match:
+        payload = {k: v for k, v in payload.items() if str(k).lower() not in CHANGE_KEYS}
+    return _drop_identity(payload, False, keep_match)
 
 
 class MatchCapture:

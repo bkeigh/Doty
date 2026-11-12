@@ -322,7 +322,8 @@ What Doty learns about your game stays on your PC, except what goes to the AI yo
 game, a summary of your game state and your instructions, when the coach looks or you ask. Your voice is
 transcribed on your PC. Doty also asks OpenDota for public statistics about heroes (the hero study among them:
 hero numbers only, nothing about you), and for your own public profile and recent matches: on the Profile page,
-and, with Game mode on Automatic, once for your account to tell whether you usually play Turbo.
+and, with Game mode on Automatic (the default), once for your account each time Doty starts coaching, to tell
+whether you usually play Turbo. To stop that lookup, set Settings > Alerts > Game mode to Normal or Turbo.
 
 On your PC: logs in `%LOCALAPPDATA%\Doty\logs`, and the match records in `%LOCALAPPDATA%\Doty\records` (on
 Linux, under `~/.local/share/doty`). Neither is sent anywhere, and neither is in Documents, so OneDrive doesn't
