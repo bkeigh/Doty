@@ -57,6 +57,9 @@ class Focus(Rule):
             line = self._goal(plan)
             if line:
                 yield Advice(line, Priority.NORMAL, "focus", key="focus_start")
+        role = mem.get("role")
+        if not lib.any_role(topic) and lib.settled(role) and lib.role_group(role) not in topic.roles:
+            return  # (chosen from the player's usual role on the hero, and they're playing another one today)
         if plan["key"] == "lh10":
             yield from self._lh_check(ctx, plan)
         elif plan["key"] == "key_item":
@@ -66,9 +69,15 @@ class Focus(Rule):
     def _choose(self, ctx: RuleContext) -> None:
         mem, s, kb = ctx.mem, ctx.snap, ctx.kb
         mode = game_mode.of(mem).key
-        role = mem.get("role")
         history = lib.load_history(self.history_path)
-        choice = lib.choose(history, ctx.level, role, mode, ctx.topics_off)
+        # The role isn't settled until about 4:30 (roles.py). Until then only a topic that suits every role is set,
+        # unless the role is already sure, or this player nearly always plays this hero in one role: telling a
+        # support to get 40 last hits is worse than saying nothing. Once said, the focus stays for the game (one
+        # goal, never a second one a few minutes in).
+        role = mem.get("role")
+        if not lib.settled(role):
+            role = lib.usual_role(history, s.hero_name, mode) or None
+        choice = lib.choose(history, ctx.level, role, mode, ctx.topics_off, any_role_only=role is None)
         mem["focus"] = choice.key if choice else ""
         if choice is None:
             mem["focus_plan"] = {}
@@ -81,7 +90,8 @@ class Focus(Rule):
         except Exception as exc:  # (no card, odd data: a focus without a number is still a focus)
             print(f"[doty] focus target: {exc!r}")
         if target is None and choice.key == "key_item":  # (no card for this hero: the level's next topic)
-            fallback = lib.choose(history, ctx.level, role, mode, ctx.topics_off | {"items"})
+            fallback = lib.choose(history, ctx.level, role, mode, ctx.topics_off | {"items"},
+                                  any_role_only=role is None)
             mem["focus"] = fallback.key if fallback else ""
             if fallback is None:
                 mem["focus_plan"] = {}

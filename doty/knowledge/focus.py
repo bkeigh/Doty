@@ -231,11 +231,44 @@ def role_group(role: Any) -> str:
     return "core" if core is True else "support" if core is False else ""
 
 
+def any_role(topic: Topic) -> bool:
+    """A topic for every role (deaths without a TP, skill points...): fair to set before the role is known."""
+    return {"core", "support"} <= set(topic.roles)
+
+
+def settled(role: Any) -> bool:
+    """The role is known well enough to set a role's topic by: the lanes have been seen (a position) or roles.py is
+    sure. A first guess from the hero's tags isn't (as Knowledge._role_known: Spirit Breaker is tagged Carry and
+    mostly played as a support)."""
+    return role is not None and (bool(getattr(role, "position", 0)) or bool(getattr(role, "sure", False)))
+
+
+HERO_ROLE_GAMES = 3  # the player's own games on this hero before their usual role on it counts...
+HERO_ROLE_SHARE = 0.8  # ...and the share of them in one role group
+
+
+def usual_role(history: list[dict[str, Any]], hero: str, mode: str = "normal") -> str:
+    """The role group the player nearly always plays this hero in ("core"/"support"), from their own graded games
+    of this mode; "" when there aren't enough, or they're mixed."""
+    groups = [g.get("role", "") for g in history if hero and g.get("hero") == hero and g.get("mode", "normal") == mode
+              and g.get("role") in ("core", "support")]
+    if len(groups) < HERO_ROLE_GAMES:
+        return ""
+    for group in ("core", "support"):
+        if groups.count(group) >= HERO_ROLE_SHARE * len(groups):
+            return group
+    return ""
+
+
 def grade(review: "Review", ctx: dict[str, Any]) -> dict[str, list[float]]:
     """Every topic this game measures: {key: [number, target]}. `ctx` gives the targets their data: hero_id, role,
-    bracket, mode, level, cache_dir (or "pace" and "card" directly)."""
+    bracket, mode, level, cache_dir (or "pace" and "card" directly). A role's own topic is graded only when the
+    game's final role is that role (a support's last hits aren't a core's miss, and stay out of the core trend)."""
     out: dict[str, list[float]] = {}
+    group = role_group(ctx.get("role"))
     for topic in TOPICS.values():
+        if not any_role(topic) and group not in topic.roles:
+            continue
         try:
             target = topic.target(ctx)
             value = topic.measure(review, target) if target is not None else None
@@ -284,17 +317,23 @@ def _games(history: list[dict[str, Any]], mode: str, role: str) -> list[dict[str
     return same
 
 
+def _rows(history: list[dict[str, Any]], key: str, mode: str, role: str) -> list[list[float]]:
+    """A topic's [number, target] over the games it was measured in, oldest first. A role's own topic only counts
+    games played in that role (an older history may hold a support game graded on last hits)."""
+    topic = TOPICS[key]
+    return [g["results"][key] for g in _games(history, mode, role) if key in (g.get("results") or {})
+            and (any_role(topic) or g.get("role", "") in topic.roles)]
+
+
 def trend(history: list[dict[str, Any]], key: str, mode: str = "normal", role: str = "",
           n: int = RECENT) -> list[float]:
     """The topic's numbers over the last `n` games it was measured in (oldest first)."""
-    values = [g["results"][key][0] for g in _games(history, mode, role) if key in (g.get("results") or {})]
-    return values[-n:]
+    return [v for v, _t in _rows(history, key, mode, role)][-n:]
 
 
 def mastered(history: list[dict[str, Any]], key: str, mode: str = "normal", role: str = "") -> bool:
     topic = TOPICS[key]
-    rows = [g["results"][key] for g in _games(history, mode, role) if key in (g.get("results") or {})]
-    last = rows[-MASTERED_AFTER:]
+    last = _rows(history, key, mode, role)[-MASTERED_AFTER:]
     return len(last) == MASTERED_AFTER and all(topic.hit(v, t) for v, t in last)
 
 
@@ -311,22 +350,23 @@ class Choice:
 
 
 def choose(history: list[dict[str, Any]], level: str = "some", role: Any = None, mode: str = "normal",
-           topics_off=frozenset()) -> Choice | None:
+           topics_off=frozenset(), any_role_only: bool = False) -> Choice | None:
     """This game's focus: among the topics that suit the level and role (and whose subject isn't switched off),
     the one with the worst average gap to its target over the last games, skipping what's mastered (hit in the
     last MASTERED_AFTER games) and, after ROTATE_AFTER games running, the current focus, so another gets a turn.
-    With no history for any of them: the level's default. None if nothing fits."""
+    With no history for any of them: the level's default. None if nothing fits. `any_role_only`: the role isn't
+    known yet, so only topics that suit every role (no "40 last hits" to a support)."""
     role = role_group(role)
     level = level if level in ALL_LEVELS else "some"
     games = _games(history, mode, role)
-    fit = [t for t in TOPICS.values() if fits(t, level, role, topics_off)]
+    fit = [t for t in TOPICS.values() if fits(t, level, role, topics_off) and (any_role(t) or not any_role_only)]
     if not fit:
         return None
     recent_focus = [g.get("focus", "") for g in games[-ROTATE_AFTER:]]
     stuck = recent_focus[0] if len(recent_focus) == ROTATE_AFTER and len(set(recent_focus)) == 1 else ""
     scored = []
     for t in fit:
-        rows = [g["results"][t.key] for g in games if t.key in (g.get("results") or {})][-RECENT:]
+        rows = _rows(history, t.key, mode, role)[-RECENT:]
         if not rows or mastered(history, t.key, mode, role):
             continue
         gap = sum(t.gap(v, target) for v, target in rows) / len(rows)
@@ -339,7 +379,7 @@ def choose(history: list[dict[str, Any]], level: str = "some", role: Any = None,
         if best == stuck and len(scored) > 1:
             best, why = scored[1][1], "rotation"
         return Choice(best, why, tuple(trend(history, best, mode, role)))
-    measured = {k for g in games for k in (g.get("results") or {})}
+    measured = {t.key for t in fit if _rows(history, t.key, mode, role)}
     order = list(DEFAULTS.get(level, ())) + [t.key for t in fit]
     for key in order:
         t = TOPICS.get(key)

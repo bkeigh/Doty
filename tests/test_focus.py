@@ -6,7 +6,7 @@ import json
 
 from doty.advice import AdviceBus
 from doty.config import Config, SuggestConfig
-from doty.knowledge import focus
+from doty.knowledge import focus, roles
 from doty.review import Death, MatchRecorder, Review
 from doty.rules import RuleEngine, default_rules
 from doty.rules.focus import TITLES, Focus
@@ -76,14 +76,14 @@ def test_skill_points_buyback_and_farm_stalls():
 
 def test_grade_measures_every_topic_it_can():
     r = _review(deaths=[Death(clock=500, had_tp=False)], unspent_point_s=30)
-    got = focus.grade(r, {"level": "some", "pace": {"available": False}, "card": {}})
+    got = focus.grade(r, {"level": "some", "pace": {"available": False}, "card": {}, "role": "core"})
     assert got["lh10"] == [31, 40] and got["deaths_no_tp"] == [1, 0] and got["skill_points"] == [0.5, 1]
     assert "key_item" not in got  # (no card)
 
 
 # choosing ------------------------------------------------------------------------------------------------------------
-def _game(results, focus_key="", mode="normal", role="core"):
-    return {"when": 0, "mode": mode, "role": role, "level": "some", "hero": "", "focus": focus_key,
+def _game(results, focus_key="", mode="normal", role="core", hero="npc_dota_hero_juggernaut"):
+    return {"when": 0, "mode": mode, "role": role, "level": "some", "hero": hero, "focus": focus_key,
             "results": results}
 
 
@@ -136,12 +136,14 @@ def _play(tmp_path, end_clock, history=None, level="some", suggest=None):
     m = ScriptedMatch(end_clock=end_clock)
     while m.s.clock < end_clock:
         m.step(1.0)
-        engine.on_snapshot(store.ingest(m.payload(TOKEN)))
+        snap = store.ingest(m.payload(TOKEN))
+        roles.observe(snap, store, None)  # (as the app does: the role settles by 4:30)
+        engine.on_snapshot(snap)
     return store, rec.items
 
 
 def test_the_focus_is_said_at_the_horn_and_checked_twice_then_nothing(tmp_path):
-    history = [_game({"lh10": [v, 60]}, role="") for v in (28, 30, 35)]
+    history = [_game({"lh10": [v, 60]}) for v in (28, 30, 35)]  # (Juggernaut, always a core: lh10 fits)
     store, said = _play(tmp_path, 26 * 60, history)
     assert store.memory["focus"] == "lh10" and store.memory["focus_plan"]["target"] == 40  # (level "some", no card)
     texts = [a.text for a in said]
@@ -152,7 +154,7 @@ def test_the_focus_is_said_at_the_horn_and_checked_twice_then_nothing(tmp_path):
 
 
 def test_behind_at_five_minutes_says_what_the_target_needs(tmp_path):
-    history = [_game({"lh10": [v, 60]}, role="") for v in (30, 32, 34)]
+    history = [_game({"lh10": [v, 60]}) for v in (30, 32, 34)]
     store, said = _play(tmp_path, 700, history, level="experienced")  # (no hero card: key item can't be the focus)
     assert store.memory["focus"] == "lh10"
     assert [a.text for a in said][1:] == ["23 last hits at 5:00. Your 50 needs 25 by now: stay on the wave.",
@@ -171,14 +173,15 @@ def test_the_focus_rule_is_registered_and_the_prompt_says_it(tmp_path):
     assert any(isinstance(r, Focus) for r in default_rules())
     store, _said = _play(tmp_path, 30)
     summary = prompts.state_summary(store.current, store, None, [])
-    assert summary["practice_focus"] == "Last hits at 10:00 (target 40)"
+    # (no history and the role not settled yet: a topic for every role, not last hits)
+    assert summary["practice_focus"] == "Deaths holding 2,000+ gold (target 0)"
     assert set(TITLES) == set(focus.TOPICS) and all(TITLES[k] == t.title for k, t in focus.TOPICS.items())
 
 
 # after the game ----------------------------------------------------------------------------------------------------
 def test_the_review_grades_the_focus_and_the_history_holds_nothing_identifying(tmp_path):
     path = tmp_path / "focus.json"
-    history = [_game({"lh10": [v, 40]}, role="") for v in (29, 31)]
+    history = [_game({"lh10": [v, 40]}) for v in (27, 29, 31)]
     path.write_text(json.dumps({"format": 1, "games": history}), encoding="utf-8")
     store, bus = GameStateStore(), AdviceBus()
     engine = RuleEngine(store, bus, Config().rules, None, rules=[Focus(history_path=path)])
@@ -191,11 +194,12 @@ def test_the_review_grades_the_focus_and_the_history_holds_nothing_identifying(t
         payload["player"].update(steamid="76561190000000001", accountid="123456789", name="Secret Player")
         snap = store.ingest(payload)
         rec.on_snapshot(snap, store)
+        roles.observe(snap, store, None)
         engine.on_snapshot(snap)
     review = rec.last_review
     p = review.practice
     assert p["key"] == "lh10" and p["value"] == 50 and p["target"] == 40 and p["hit"] is True
-    assert p["trend"] == [29, 31, 50]
+    assert p["trend"] == [27, 29, 31, 50]
     assert review.unspent_point_s > 60  # (the scripted player holds a point from 1:15 to 3:20)
     text = path.read_text(encoding="utf-8")
     for private in ("8123456789", "76561190000000001", "123456789", "Secret Player", "Doty Sim"):
@@ -240,3 +244,116 @@ def test_the_review_card_shows_the_focus_and_how_doty_did(qapp, tmp_path):
     page._show_recap()
     assert page.recap_practice.isHidden()
     win.close()
+
+
+# the focus fits the role the player is playing ------------------------------------------------------------------------
+def _horn(history, memory_role=None, hero="npc_dota_hero_juggernaut", level="some"):
+    """The focus as chosen at the first update of a match (before the horn), with this role already in memory."""
+    from doty.rules.base import RuleContext
+
+    store = GameStateStore()
+    m = ScriptedMatch(match_id="8000000001")
+    m.step(2)
+    payload = m.payload(TOKEN)
+    payload["hero"]["name"] = hero
+    snap = store.ingest(payload)
+    if memory_role is not None:
+        store.memory["role"] = memory_role
+    rule = Focus(history_path=_write(history))
+    list(rule.evaluate(RuleContext(snap, None, store, Config().rules, None, [], level)))
+    return store.memory["focus"]
+
+
+_n = [0]
+
+
+def _write(history):
+    import tempfile
+    from pathlib import Path
+
+    _n[0] += 1
+    path = Path(tempfile.mkdtemp()) / f"h{_n[0]}.json"
+    path.write_text(json.dumps({"format": 1, "games": history}), encoding="utf-8")
+    return path
+
+
+def test_before_the_role_is_settled_only_a_topic_for_every_role_is_set():
+    # Last hits are this player's worst gap, but two games aren't enough to know their role on the hero, and the
+    # role isn't settled yet (a first guess from the hero's tags doesn't count): a topic for every role instead.
+    history = [_game({"lh10": [5, 45], "deaths_no_tp": [1, 0]}) for _ in range(2)]
+    guess = roles.Role(position=0, lane="", core=True, sure=False)
+    assert _horn(history, guess) == "deaths_no_tp"
+    assert _horn([]) == "deaths_with_gold"  # (no history, "climbing": the first default for every role)
+    assert _horn([], level="new") == "deaths_no_tp"
+    assert _horn([], level="experienced") == "deaths_with_gold" and _horn([], level="pro") == "buyback"
+    # A settled role (the lanes seen, or roles.py sure): a core's own topic can be the focus.
+    assert _horn(history, roles.Role(position=1, lane="safe", core=True, sure=True)) == "lh10"
+    # (and a support's trend is its own: the core games above say nothing about it, so the default)
+    assert _horn(history, roles.Role(position=5, lane="safe", core=False, sure=True)) == "deaths_with_gold"
+
+
+def test_the_players_usual_role_on_the_hero_counts_when_it_is_overwhelming():
+    core = [_game({"lh10": [5, 45]}) for _ in range(4)]
+    assert focus.usual_role(core + [_game({}, role="support")], "npc_dota_hero_juggernaut") == "core"  # 4 of 5
+    mixed = core[:3] + [_game({}, role="support") for _ in range(2)]
+    assert focus.usual_role(mixed, "npc_dota_hero_juggernaut") == ""  # 3 of 5: mixed
+    assert focus.usual_role(core, "npc_dota_hero_lion") == ""  # (another hero's games say nothing)
+    assert focus.usual_role(core, "npc_dota_hero_juggernaut", "turbo") == ""  # (nor another mode's)
+    assert _horn(core) == "lh10"
+    assert _horn(mixed) != "lh10"
+
+
+def test_the_focus_never_changes_once_said_and_a_core_topic_goes_quiet_for_a_support(tmp_path):
+    store, said = _play(tmp_path, 700, history=[_game({"deaths_no_tp": [2, 0]}) for _ in range(2)])
+    assert store.memory["focus"] == "deaths_no_tp" and store.memory["role"].sure  # (settled as a core by then)
+    assert len(said) == 1  # the horn line only: no second goal after the role settled
+    # Chosen from the usual role (core), but today the role settles as a support: no last-hit check-ins.
+    from doty.rules.base import RuleContext
+
+    rule, s2 = Focus(history_path=tmp_path / "none.json"), GameStateStore()
+    m = ScriptedMatch(match_id="8000000002")
+    m.step(392)  # (the 5:00 check-in's moment)
+    snap = s2.ingest(m.payload(TOKEN))
+    s2.memory.update(focus="lh10", focus_plan={"key": "lh10", "target": 40, "recent": []}, focus_said=True,
+                     role=roles.Role(position=5, lane="safe", core=False, sure=True))
+    assert list(rule.evaluate(RuleContext(snap, None, s2, Config().rules, None, []))) == []
+    s2.memory["role"] = roles.Role(position=1, lane="safe", core=True, sure=True)  # (a core: it would speak)
+    assert len(list(rule.evaluate(RuleContext(snap, None, s2, Config().rules, None, [])))) == 1
+
+
+def test_a_support_game_is_never_graded_on_a_core_topic():
+    r = _review(minutes=[{"clock": m * 60, "gpm": 300} for m in range(25)])
+    ctx = {"level": "some", "pace": {"available": False}, "card": {"timings": [{"item": "bfury", "target_s": 900}]}}
+    core = focus.grade(r, dict(ctx, role=roles.Role(1, "safe", True, True)))
+    support = focus.grade(r, dict(ctx, role=roles.Role(5, "safe", False, True)))
+    unknown = focus.grade(r, ctx)
+    assert {"lh10", "key_item", "farm_stalls"} <= set(core)
+    assert not {"lh10", "key_item", "farm_stalls"} & set(support) and "deaths_no_tp" in support
+    assert not {"lh10", "key_item", "farm_stalls"} & set(unknown)
+    # An older history that graded a support game on last hits: it stays out of the core trend.
+    old = [_game({"lh10": [2, 40]}, role="support"), _game({"lh10": [35, 40]}), _game({"lh10": [1, 40]}, role="")]
+    assert focus.trend(old, "lh10", role="core") == [35] and focus.trend(old, "lh10") == [35]
+
+
+def test_the_demo_match_never_writes_the_focus_history(tmp_path):
+    path = tmp_path / "focus.json"
+    store = GameStateStore()
+    rec = MatchRecorder(None, out_dir=tmp_path / "reviews")
+    rec.focus_history = path
+    m = ScriptedMatch(end_clock=900)  # (the demo's own match id)
+    while m.s.clock < 900:
+        m.step(1.0)
+        snap = store.ingest(m.payload(TOKEN))
+        rec.on_snapshot(snap, store)
+        roles.observe(snap, store, None)
+    assert rec.last_review is not None and rec.last_review.demo and rec.last_review.practice == {}
+    assert not path.exists()
+
+
+def test_the_self_test_config_plays_no_match():
+    """The self-test (selftest.py) opens the window with game data off: no match, so no review and no focus
+    history. Its quiet config also turns the record and study off."""
+    from doty.selftest import quiet_config
+
+    cfg = quiet_config()
+    assert not cfg.record.enabled and not cfg.app.study and not cfg.coach.enabled
