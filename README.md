@@ -44,6 +44,8 @@ Every card is colour-coded, so you know what it is before you read it.
 - **Draft help.** Counter picks and bans from millions of public games at your rank.
 - **Builds and counters** for every hero, by role and game phase, studied from public match data for this patch.
 - **Your way.** Tell it how you play. It disagrees once, with a reason from this game, then follows your build.
+- **Talks when it matters.** One budget for everything it says out loud; danger always gets through. Ask "why?" any time.
+- **One thing to practise.** A focus each game, graded after it.
 - **Post-game review.** What killed you, and what to fix next game.
 
 ## Get it
@@ -347,6 +349,7 @@ Prefer a terminal? This runs the same engine with just the overlay and tray:
 | Ctrl+Alt+M | Mute / unmute voice |
 | Ctrl+Alt+H | Hide / show the overlay |
 | Ctrl+Alt+X | "Not that one": drop the item Doty is pointing at from this game's build (or say "skip Black King Bar") |
+| Ctrl+Alt+Y | "Why?": the reason for the last tip said (or ask "why?" over push-to-talk) |
 
 ### Push-to-talk
 
@@ -481,8 +484,11 @@ Copy `doty.example.toml` to `doty.toml` and edit it. The main knobs:
 - `coach.speculative_interval_s`: how often the coach looks on its own (default 30 game seconds; 10 s to
   2 min, or 0 = only when you ask). Each look keeps the ask hotkey instant. At 30 s that's roughly $1 per
   40-minute game on Sonnet, $2 on Opus, a few cents on Haiku.
-- `coach.speak_up`: when a look talks: `important` (default), `every` or `never`. The Coach page has quick
-  controls for both, applied instantly.
+- `coach.speak_up`: what a look offers to say: `important` (default), `every` or `never`. The Coach page has
+  quick controls for both, applied instantly.
+- `coach.talk`: how much Doty talks out loud, the alerts and the coach together: `less`, `normal`, `more`, or
+  `""` (default: by your level). Danger calls and your questions are always said. `hotkeys.why` (Ctrl+Alt+Y)
+  explains the last tip.
 - `rules.announce_stacks`: on for supports. `rules.muted_rules` silences specific rules.
 - `voice.engine` (`auto`, `kokoro`, `elevenlabs`, `windows`), `voice.kokoro_voice` (`af_heart`,
   `am_michael`, `bm_george`, …; see `doty/kokoro.py`), `voice.eleven_voice`, `voice.voice` (Windows),
@@ -507,7 +513,8 @@ After changing `[gsi]`, re-run `doty install` and restart Dota.
 | Economy | The next item part by part ("Buy Ogre Axe", then "Finish Black King Bar": parts you hold count), unspent gold (buyback kept from 30:00), items stuck in the stash, shop while dead |
 | Progression | Unspent skill point, level 6, last hits at 10 and 20 minutes vs players of your hero, role and rank and the rank above (from the hero's card; the hero's OpenDota median until the card is studied; not for supports, and quiet in Turbo) |
 | Live strip (overlay) | Countdowns to the next runes and objectives, and the item you're building with the gold still to pay and when you'll have it |
-| Matchup | The game plan (which lineup a long game favours, from public win rates by game length), the enemy's usual power spikes, "two of them are dead: push" |
+| Matchup | The game plan (which lineup a long game favours, from public win rates by game length), the enemy's usual power spikes, "two of them are dead: push", and once all five enemies are known, their biggest threat to your hero and its answer, from their spells ("Lion's Hex hexes you; answer: Linken's Sphere") |
+| Focus | One thing to practise this game, said at the horn with a target ("This game: 40 last hits by 10:00"), checked once or twice, graded in the recap with your trend |
 | Coach (Claude) | Lane plan at the horn, why you died (from your last seconds: HP, stuns, unused items), "what now?", 5-minute plan + build (with how your next item's win rate falls off the later it lands), answers to spoken questions, instant calls it prepares (back off when low, push when two are dead) |
 
 Timings are for patch **7.41f**. Update `doty/knowledge/timings.py` when Valve patches the map.

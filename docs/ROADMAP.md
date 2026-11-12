@@ -348,6 +348,25 @@ One rule throughout: the AI supplies judgement, code supplies the facts. Details
 - Tests: `tests/test_item_judgement.py`, `tests/test_coach_etiquette.py`, `tests/test_bench.py`,
   `tests/test_match_record.py`, `tests/test_drawings.py`, `tests/test_cards.py`, `tests/test_card_wiring.py`.
 
+## Built in the thirteenth pass (how much it talks, the enemy, one thing to practise; 2026-11-11)
+
+Details in `ARCHITECTURE.md` ("What is heard, the enemy, and one thing to practise").
+
+- **One gate for everything said out loud** (`speech.py`): danger calls and your questions always; nothing else
+  in a fight; a budget a minute with gaps between lines; one item named in buy lines only a few times; a
+  line that can't be said soon is dropped, never said late; the line that most changes the next 30 seconds
+  wins. **"How much Doty talks"** (Settings > AI coach: Automatic, Less, Normal, More) replaces "When it talks".
+  The feed still shows everything.
+- **"Why?"** (Ctrl+Alt+Y, or ask "why?"): the reason for the last tip, from Doty's own data where it has it.
+- **Know the enemy** (`knowledge/threats.py`): a threat card per enemy hero, ranked for your hero and role, built
+  from their spells; one spoken line for the biggest threat once all five are known; the death look names the
+  spells that could have done it. The ability facts were reviewed for every hero (`judgement --audit`).
+- **One thing to practise per game** (`knowledge/focus.py`, `rules/focus.py`): picked from your recent games,
+  said at the horn with a target, checked once or twice, graded in the recap with the trend over your last
+  games. The history (`%LOCALAPPDATA%\Doty\focus.json`) holds no ids.
+- **The recap shows "How Doty did"**: the bench's verdict on the last match record, in plain sentences.
+- Tests: `tests/test_speech.py`, `tests/test_threats.py`, `tests/test_focus.py`.
+
 ## Linux (partly done, November 2026: built and tested on Windows, not yet run on a Linux desktop)
 
 Doty runs from source on Linux, with every Windows code path left as it was (`sys.platform` checks;
@@ -384,12 +403,11 @@ Still to do:
 
 ## Next
 
-- **In progress, not merged (documented once they land):** a speech budget with a "why?" hotkey, enemy threat
-  cards, and a "focus of the game" teaching feature.
 - **One real game with this version, then one with capture mode on** (`ACCURACY_PLAN.md`, "What I need from
-  you"): the first scores the coach on today's version; the second checks the drawings' map and HUD positions
-  (`hud.HUD_CALIBRATED`) and the screen readers against real frames.
-- **Show the last game's score in the app's recap** (`bench.records.last_game_summary` is written, not wired).
+  you"): the first scores the coach, the speech gate and the focus on a real match; the second checks the
+  drawings' map and HUD positions (`hud.HUD_CALIBRATED`) and the screen readers against real frames.
+- **Tune the gate on real games:** the budgets and `SCORES` are first guesses; the bench's rate and
+  coach-budget checks on real records say whether they are right.
 - **A score per release:** run the bench on a fixed set of match records for each version and keep the number.
 - **The AI as strategist** (`ACCURACY_PLAN.md` point 5): a match plan the instant rules follow and you can veto.
 - **Polish the translations:** a native speaker's pass over each catalog (they were machine-translated). Still

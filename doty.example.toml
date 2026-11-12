@@ -53,9 +53,14 @@ effort = "low"
 # keeps an instant answer ready for the ask hotkey. Roughly $1 a game at 30 s on
 # Sonnet ($2 on Opus, a few cents on Haiku). 0 = only call Claude when you ask.
 speculative_interval_s = 30
-# What a look may say out loud: "important" (only when it's worth interrupting
+# What a look may offer to say out loud: "important" (only when it's worth interrupting
 # you), "every" (a suggestion on every look) or "never" (the app's feed only).
 speak_up = "important"
+# "How much Doty talks" out loud, the alerts and the coach together (Settings > AI coach): "less", "normal",
+# "more", or "" = by your level ("less" for experienced and top players, else "normal"). It sets how many lines
+# a minute are said and the gaps between them; danger calls and answers you asked for are always said, and
+# everything still shows in the feed. `speak_up` is what a look offers; this decides what is heard.
+talk = ""
 # Without game data (launch option not set), keep coaching from screenshots while
 # Dota is the active window.
 screen_only = true
@@ -172,3 +177,4 @@ plan = "ctrl+alt+p"
 mute = "ctrl+alt+m"
 toggle_overlay = "ctrl+alt+h"
 skip_item = "ctrl+alt+x"     # "not that one": drops the item Doty is pointing at from this match's build
+why = "ctrl+alt+y"           # "why?": the reason for the last tip said (or ask "why?" over push-to-talk)

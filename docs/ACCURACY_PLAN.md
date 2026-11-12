@@ -69,9 +69,9 @@ prompt change makes the coach better or worse.
 Where these stand (2026-11-11): **A1 built** (`match_record.py`: on by default, the last 30 matches or 200 MB,
 game data scrubbed of identity, every line Doty showed; no screenshots). **A2 built** (`doty/bench`: replays a
 record, a capture, a recording or the scripted match through the real rules; the AI coach's part is replayed
-with scripted answers). **A3 partly built:** the bench computes the scorecard per match
-(`python -m doty.bench --latest`), and `bench.records.last_game_summary` writes it in plain sentences, but the
-app doesn't show it in the recap yet; "calls you followed" isn't measured. **A4 not built:** "Wrong tip?" is
+with scripted answers). **A3 mostly built:** the bench computes the scorecard per match
+(`python -m doty.bench --latest`), and the recap shows it in plain sentences ("How Doty did", from the latest
+match record); "calls you followed" isn't measured. **A4 not built:** "Wrong tip?" is
 still a click in the feed; reports do become bench fixtures (`--from-report`).
 
 ### 2. The item brain is still popularity, not judgement
@@ -107,6 +107,16 @@ before it: "farm near your tower until Black King Bar" was the AI having nothing
 - **A budget:** at most one unprompted coach line every 30 s outside danger, enforced in code.
 - **Structured answers** (1.2): fields instead of text, which ends the tag-parsing faults for good.
 - **The stronger model writes the plan, the fast one only checks you against it.**
+
+Where this stands (2026-11-11): **the budget and the one director for what is said out loud are built**
+(`speech.py`): one gate for the rules and the coach together, a budget a minute and gaps between lines set by
+"How much Doty talks", nothing but danger in a fight, one item's buy lines capped, a held line dropped rather
+than said late, and the most useful line first. Danger calls and the player's own questions always pass. In a
+stress test (`tests/test_speech.py`: the scripted match with a coach that has something to say on every
+10-second look and a rule with a new line every 5 seconds, 420 lines shown in 21.5 minutes), Doty said 1.95
+lines a minute on Less, 3.86 on Normal and 5.72 on More, with no rate or coach-budget failures and the one
+danger call said each time. Not built: the match plan (`NEXT_PLAN.md` 1.1), structured answers (1.2), and the
+split between the stronger and the fast model.
 
 ### 4. It can't see the map
 
@@ -212,8 +222,12 @@ In plain words, what would take the coach from "reminders" to "gets a beginner g
    person checks a card.
 8. **A card per enemy.** At the draft, for each enemy hero: the one or two things that kill you and what
    answers them, worked out from their abilities. This is the "threat list" for the match.
-   **Not built.** (The item judgement already works out what each counter item answers; the card itself is
-   being worked on.)
+   **Built, not at the draft** (`knowledge/threats.py`): once all five enemies are known in the match, a card
+   per enemy ranked for your hero and role, built from that enemy's own spells, with answers that are strong
+   item cases or a habit the spell's data shows. One spoken line for the top threat, the rest in the feed; the
+   coach's brief carries them, and after a death the coach gets the spells that could have done it. The
+   ability facts were reviewed for every hero (`python -m doty.knowledge.judgement --audit`). The Draft page
+   doesn't show threat cards yet.
 9. **Really read the map.** Calibrate the minimap reader on the player's own screen so Doty knows who is
    showing and where. Then the calls that matter get simple and exact: "three missing and you're past the
    river: back", "nobody is top: take the tower".
@@ -224,7 +238,13 @@ In plain words, what would take the coach from "reminders" to "gets a beginner g
 11. **Teach one thing per game.** Pick a single focus from the player's last few games (last hits by ten
     minutes, dying with no TP, buyback), coach mostly that, grade it afterwards and track it across games.
     Harder topics unlock as the easy ones stick. This is the part that turns a beginner into a good player.
-    **Not built** (being worked on).
+    **Built** (`knowledge/focus.py`, `rules/focus.py`): seven measurable topics (last hits at 10:00, deaths
+    without a TP scroll, deaths holding unspent gold, the key item's timing, unspent skill points, late deaths
+    without buyback, farm stalls). The focus is picked from the worst recent gap for your level, role and mode;
+    a topic you keep hitting is skipped and one that has run for several games gives way. It is said at the
+    horn with a target and checked once or twice (at most three lines a game), lines about it rank higher in
+    the speech gate, and the coach is told. The recap grades it, hit or missed, with the trend. Not yet seen on
+    a real game.
 12. **Benchmarks by rank.** "Players one rank above you have this item by 14:00; you got it at 17:00."
     Honest, specific and motivating.
     **Partly built:** at 10:00 and 20:00 the farm check compares your last hits with players of your hero,
@@ -233,8 +253,11 @@ In plain words, what would take the coach from "reminders" to "gets a beginner g
 13. **Only the best line.** Score every possible thing to say by how much it changes what the player
     should do in the next thirty seconds, and say only the top one, at a quiet moment unless it's danger.
     A "why?" hotkey expands the last tip for people who want the reasoning.
-    **Not built** (a speech budget and the "why?" key are being worked on). The bench already counts talking
-    too often.
+    **Mostly built** (`speech.py`): when several lines want the same moment, a plain score of how much each
+    changes the next 30 seconds picks one, inside a budget, at a calm moment unless it's danger; see
+    section 3 above for the stress test. "Why?" (Ctrl+Alt+Y, or ask "why?") explains the last tip from Doty's
+    own data, asking the AI only for a coach line it can't explain. What isn't there: scoring every possible
+    line against each other ahead of time; lines that don't compete for a slot are still said in turn.
 14. **Learn from the player.** A thumbs-up and thumbs-down hotkey, plus noticing which advice is followed,
     so the coach leans towards what this player finds useful.
     **Not built.**
@@ -261,8 +284,8 @@ naming one item too many times. These games were played before most of the eleve
 are the "before" mark, not a judgement of today's version. The next real game, with the record on, is the
 "after".
 
-**The scripted match,** today's version: `python -m doty.bench --scripted` scores **100.0** (44 lines said of
-63 shown in 26.5 minutes, 1.66 a minute, none failing). That is the demo's scripted match with the rules only:
+**The scripted match,** today's version (with the speech gate): `python -m doty.bench --scripted` scores
+**100.0** (44 lines said of 64 shown in 26.5 minutes, 1.66 a minute, none failing). That is the demo's scripted match with the rules only:
 the AI coach isn't replayed and the lineup is unknown, so it shows the rules don't contradict the game data on
 that match, not that the coach is accurate.
 
@@ -270,7 +293,8 @@ that match, not that the coach is accurate.
 
 1. **Play one real game with this version.** The match record is on by default, so nothing to set up: the
    game is kept in `%LOCALAPPDATA%\Doty\records` and `python -m doty.bench --latest` scores it against the
-   numbers above.
+   numbers above. It is also the first real test of the speech gate, the threat line and the practice focus:
+   the recap shows the focus's grade and "How Doty did".
 2. **For calibration, one game with capture mode on** (Settings > Advanced > Capture matches). It saves frames
    of the game, which the record doesn't. Those frames are what the map and HUD positions of the drawings, the
    minimap reader and the dead-hero reading get checked and corrected against.
