@@ -1257,5 +1257,10 @@
  "When you build something other than what Doty suggests. Once: it may say so one time per item, with a reason from this game, then follows your build.": "当你出的装备和 Doty 建议的不同时。一次：每件装备只能说一次，并给出本局的理由，之后跟随你的出装。",
  "While Doty runs, it builds a card for each hero from public statistics for this patch (builds, skills, matchups), so the coach knows a hero before you play it.": "Doty 运行时，会根据本补丁的公开统计数据（出装、技能、克制关系）为每位英雄制作一张卡片，让教练在你使用某位英雄之前就了解它。",
  "Your instructions": "你的指令",
- "Your instructions to the coach": "你给教练的指令"
+ "Your instructions to the coach": "你给教练的指令",
+ "Automatic (by your experience)": "自动（按你的经验）",
+ "How much Doty talks": "Doty 说多少",
+ "Less: only what matters most": "少一些：只说最重要的",
+ "More": "多一些",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "出声播报的总量，提醒和教练合计。危险警告和你提问的回答总会说出，所有内容仍会显示在动态中。"
 }

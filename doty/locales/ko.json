@@ -1257,5 +1257,10 @@
  "When you build something other than what Doty suggests. Once: it may say so one time per item, with a reason from this game, then follows your build.": "Doty가 제안한 것과 다른 아이템을 갈 때. 한 번만: 이번 게임의 이유와 함께 아이템마다 한 번만 말하고, 그 뒤엔 내 빌드를 따라요.",
  "While Doty runs, it builds a card for each hero from public statistics for this patch (builds, skills, matchups), so the coach knows a hero before you play it.": "Doty가 실행되는 동안 이번 패치의 공개 통계(빌드, 스킬, 상성)로 영웅마다 카드를 만들어, 직접 플레이하기 전에 코치가 그 영웅을 알 수 있게 합니다.",
  "Your instructions": "내 지시",
- "Your instructions to the coach": "코치에게 주는 지시"
+ "Your instructions to the coach": "코치에게 주는 지시",
+ "Automatic (by your experience)": "자동 (내 경험에 따라)",
+ "How much Doty talks": "Doty가 말하는 양",
+ "Less: only what matters most": "적게: 가장 중요한 것만",
+ "More": "많이",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "소리로 말하는 양, 알림과 코치를 합쳐서. 위험 경고와 내가 물어본 것의 답은 항상 말하고, 모든 것은 피드에도 계속 표시돼요."
 }

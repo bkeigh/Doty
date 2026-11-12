@@ -1256,5 +1256,10 @@
  "When you build something other than what Doty suggests. Once: it may say so one time per item, with a reason from this game, then follows your build.": "Khi bạn lên đồ khác với gợi ý của Doty. Một lần: nó có thể nói một lần cho mỗi món, kèm lý do từ trận này, rồi theo build của bạn.",
  "While Doty runs, it builds a card for each hero from public statistics for this patch (builds, skills, matchups), so the coach knows a hero before you play it.": "Khi Doty đang chạy, nó lập một thẻ cho mỗi tướng từ thống kê công khai của bản cập nhật này (build, kỹ năng, đối đầu), để huấn luyện viên biết tướng đó trước khi bạn chơi.",
  "Your instructions": "Hướng dẫn của bạn",
- "Your instructions to the coach": "Hướng dẫn của bạn cho huấn luyện viên"
+ "Your instructions to the coach": "Hướng dẫn của bạn cho huấn luyện viên",
+ "Automatic (by your experience)": "Tự động (theo kinh nghiệm của bạn)",
+ "How much Doty talks": "Doty nói nhiều đến đâu",
+ "Less: only what matters most": "Ít hơn: chỉ điều quan trọng nhất",
+ "More": "Nhiều hơn",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "Nói thành tiếng, cả cảnh báo lẫn huấn luyện viên. Cảnh báo nguy hiểm và câu trả lời cho điều bạn hỏi luôn được nói, và mọi thứ vẫn hiện trong bảng tin."
 }

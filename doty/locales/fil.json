@@ -1256,5 +1256,10 @@
  "When you build something other than what Doty suggests. Once: it may say so one time per item, with a reason from this game, then follows your build.": "Kapag iba ang binubuo mo sa iminumungkahi ni Doty. Isang beses: puwede nitong sabihin nang isang beses kada item, may dahilan mula sa larong ito, saka susundan ang build mo.",
  "While Doty runs, it builds a card for each hero from public statistics for this patch (builds, skills, matchups), so the coach knows a hero before you play it.": "Habang tumatakbo si Doty, gumagawa ito ng card para sa bawat hero mula sa pampublikong istatistika ng patch na ito (build, skill, matchup), para kilala na ng coach ang hero bago mo pa ito laruin.",
  "Your instructions": "Ang mga instruction mo",
- "Your instructions to the coach": "Ang mga instruction mo sa coach"
+ "Your instructions to the coach": "Ang mga instruction mo sa coach",
+ "Automatic (by your experience)": "Awtomatiko (ayon sa experience mo)",
+ "How much Doty talks": "Gaano karami magsalita si Doty",
+ "Less: only what matters most": "Mas kaunti: ang pinakamahalaga lang",
+ "More": "Mas marami",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "Malakas, ang mga alert at ang coach nang magkasama. Laging sinasabi ang mga babala sa panganib at ang mga sagot sa tanong mo, at nasa feed pa rin ang lahat."
 }

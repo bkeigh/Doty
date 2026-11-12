@@ -1256,5 +1256,10 @@
  "When you build something other than what Doty suggests. Once: it may say so one time per item, with a reason from this game, then follows your build.": "เมื่อคุณออกของต่างจากที่ Doty แนะนำ ครั้งเดียว: จะบอกได้ครั้งเดียวต่อไอเทม พร้อมเหตุผลจากเกมนี้ แล้วจากนั้นจะตามบิลด์ของคุณ",
  "While Doty runs, it builds a card for each hero from public statistics for this patch (builds, skills, matchups), so the coach knows a hero before you play it.": "ระหว่างที่ Doty ทำงาน จะสร้างการ์ดของฮีโร่แต่ละตัวจากสถิติสาธารณะของแพตช์นี้ (บิลด์ สกิล การจับคู่) เพื่อให้โค้ชรู้จักฮีโร่ก่อนที่คุณจะเล่น",
  "Your instructions": "คำสั่งของคุณ",
- "Your instructions to the coach": "คำสั่งของคุณถึงโค้ช"
+ "Your instructions to the coach": "คำสั่งของคุณถึงโค้ช",
+ "Automatic (by your experience)": "อัตโนมัติ (ตามประสบการณ์ของคุณ)",
+ "How much Doty talks": "Doty พูดมากแค่ไหน",
+ "Less: only what matters most": "น้อยลง: เฉพาะเรื่องที่สำคัญที่สุด",
+ "More": "มากขึ้น",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "พูดออกเสียง ทั้งการแจ้งเตือนและโค้ชรวมกัน คำเตือนอันตรายและคำตอบที่คุณถามจะพูดเสมอ และทุกอย่างยังแสดงในฟีด"
 }

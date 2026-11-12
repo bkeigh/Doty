@@ -1257,5 +1257,10 @@
  "When you build something other than what Doty suggests. Once: it may say so one time per item, with a reason from this game, then follows your build.": "Dotyの提案と違うものを作るとき。一度だけ: このゲームの理由を添えて、アイテムごとに一度だけ言い、その後はあなたのビルドに従います。",
  "While Doty runs, it builds a card for each hero from public statistics for this patch (builds, skills, matchups), so the coach knows a hero before you play it.": "Dotyの実行中、このパッチの公開統計（ビルド、スキル、マッチアップ）から各ヒーローのカードを作ります。プレイする前からコーチがそのヒーローを把握できます。",
  "Your instructions": "あなたの指示",
- "Your instructions to the coach": "コーチへの指示"
+ "Your instructions to the coach": "コーチへの指示",
+ "Automatic (by your experience)": "自動（経験に合わせる）",
+ "How much Doty talks": "Dotyが話す量",
+ "Less: only what matters most": "少なめ：本当に大事なことだけ",
+ "More": "多め",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "声に出すのはアラートとコーチを合わせた量です。危険の警告と、あなたが尋ねたことへの答えは必ず話し、すべてフィードにも表示されます。"
 }

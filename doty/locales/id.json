@@ -1256,5 +1256,10 @@
  "When you build something other than what Doty suggests. Once: it may say so one time per item, with a reason from this game, then follows your build.": "Saat kamu membeli sesuatu yang berbeda dari saran Doty. Sekali: Doty boleh mengatakannya satu kali per item, dengan alasan dari game ini, lalu mengikuti build-mu.",
  "While Doty runs, it builds a card for each hero from public statistics for this patch (builds, skills, matchups), so the coach knows a hero before you play it.": "Selama Doty berjalan, Doty membuat kartu untuk setiap hero dari statistik publik patch ini (build, skill, matchup), jadi coach sudah mengenal hero sebelum kamu memainkannya.",
  "Your instructions": "Instruksimu",
- "Your instructions to the coach": "Instruksimu untuk coach"
+ "Your instructions to the coach": "Instruksimu untuk coach",
+ "Automatic (by your experience)": "Otomatis (sesuai pengalamanmu)",
+ "How much Doty talks": "Seberapa banyak Doty bicara",
+ "Less: only what matters most": "Lebih sedikit: hanya yang paling penting",
+ "More": "Lebih banyak",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "Dengan suara, peringatan dan coach bersama. Peringatan bahaya dan jawaban atas pertanyaanmu selalu diucapkan, dan semuanya tetap tampil di feed."
 }

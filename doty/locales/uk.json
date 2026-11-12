@@ -1257,5 +1257,10 @@
  "When you build something other than what Doty suggests. Once: it may say so one time per item, with a reason from this game, then follows your build.": "Коли ти збираєш не те, що пропонує Doty. Один раз: він може сказати про це один раз на предмет, з причиною з цієї гри, а потім іде за твоєю збіркою.",
  "While Doty runs, it builds a card for each hero from public statistics for this patch (builds, skills, matchups), so the coach knows a hero before you play it.": "Поки Doty працює, він складає картку кожного героя з відкритої статистики цього патча (збірки, навички, матчапи), щоб тренер знав героя ще до того, як ви на ньому зіграєте.",
  "Your instructions": "Твої інструкції",
- "Your instructions to the coach": "Твої інструкції для коуча"
+ "Your instructions to the coach": "Твої інструкції для коуча",
+ "Automatic (by your experience)": "Автоматично (за твоїм досвідом)",
+ "How much Doty talks": "Скільки говорить Doty",
+ "Less: only what matters most": "Менше: лише найважливіше",
+ "More": "Більше",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "Уголос, сповіщення й коуч разом. Попередження про небезпеку й відповіді на твої запитання звучать завжди, а все інше й далі видно в стрічці."
 }

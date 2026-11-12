@@ -1256,5 +1256,10 @@
  "When you build something other than what Doty suggests. Once: it may say so one time per item, with a reason from this game, then follows your build.": "Doty'nin önerdiğinden farklı bir şey yaptığında. Bir kez: eşya başına yalnızca bir kez, bu oyundan bir sebeple söyleyebilir, sonra senin build'ini takip eder.",
  "While Doty runs, it builds a card for each hero from public statistics for this patch (builds, skills, matchups), so the coach knows a hero before you play it.": "Doty çalışırken bu yamanın herkese açık istatistiklerinden her kahraman için bir kart hazırlar (build'ler, yetenekler, eşleşmeler); böylece koç, sen oynamadan önce kahramanı tanır.",
  "Your instructions": "Talimatların",
- "Your instructions to the coach": "Koça talimatların"
+ "Your instructions to the coach": "Koça talimatların",
+ "Automatic (by your experience)": "Otomatik (deneyimine göre)",
+ "How much Doty talks": "Doty ne kadar konuşsun",
+ "Less: only what matters most": "Daha az: sadece en önemlisi",
+ "More": "Daha fazla",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "Sesli olarak, uyarılar ve koç birlikte. Tehlike uyarıları ve sorduğun soruların cevapları her zaman söylenir; her şey akışta görünmeye devam eder."
 }

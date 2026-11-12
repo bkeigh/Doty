@@ -1256,5 +1256,10 @@
  "When you build something other than what Doty suggests. Once: it may say so one time per item, with a reason from this game, then follows your build.": "Wenn du etwas anderes baust, als Doty vorschlägt. Einmal: Er darf es pro Item einmal sagen, mit einem Grund aus diesem Spiel, und folgt dann deinem Build.",
  "While Doty runs, it builds a card for each hero from public statistics for this patch (builds, skills, matchups), so the coach knows a hero before you play it.": "Während Doty läuft, erstellt es für jeden Helden eine Karte aus öffentlichen Statistiken für diesen Patch (Builds, Skills, Matchups), damit der Coach einen Helden kennt, bevor du ihn spielst.",
  "Your instructions": "Deine Anweisungen",
- "Your instructions to the coach": "Deine Anweisungen an den Coach"
+ "Your instructions to the coach": "Deine Anweisungen an den Coach",
+ "Automatic (by your experience)": "Automatisch (nach deiner Erfahrung)",
+ "How much Doty talks": "Wie viel Doty redet",
+ "Less: only what matters most": "Weniger: nur das Wichtigste",
+ "More": "Mehr",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "Laut gesagt, Hinweise und Coach zusammen. Gefahrenrufe und Antworten auf deine Fragen kommen immer, und alles steht weiter im Feed."
 }
