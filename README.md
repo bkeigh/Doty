@@ -82,7 +82,7 @@ Timers, alerts, draft and heroes work with no AI at all. For the talking coach, 
 
 **Claude** (default) · **ChatGPT plan** · **Gemini** or **OpenRouter** free tiers · a **local model** with Ollama
 
-On Claude, a 40-minute game costs roughly **5 to 12 cents**.
+On Claude, a 40-minute game costs roughly **5 to 11 cents**.
 
 ---
 
