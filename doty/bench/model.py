@@ -46,6 +46,9 @@ class Line:
     # Heard out loud: True/False when the input knows (a replay), None when it doesn't (a session log only has
     # what was shown; lines at NORMAL priority or above are then counted as said).
     spoken: bool | None = None
+    # The player asked for it (a question, the ask key, "why?"), or it's the start plan or a death answer: said
+    # whatever the budget, so the rate and coach-gap checks leave it out, as the speech gate does (speech.py).
+    asked: bool = False
     ctx: Context | None = None
     index: int = 0  # position in its match
     t: float | None = None  # wall time it was said (session logs and recordings share this clock)

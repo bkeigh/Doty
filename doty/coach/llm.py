@@ -83,6 +83,21 @@ NEVER_ASK = re.compile(
 # "...again", "remember that", "for good": what makes a spoken skip outlast the match.
 FOR_GOOD = re.compile(r"\b(ever\s+again|again|remember\s+(that|this|it)|for\s+good|from\s+now\s+on|in\s+any\s+game|"
                       r"every\s+game)\b", re.IGNORECASE)
+# A claim that the gold covers the whole item now (not only a part of it).
+AFFORD_CLAIM = re.compile(r"\b(have\s+the\s+gold|can\s+afford|affordable\s+now|enough\s+gold|covers?\s+it)\b",
+                          re.IGNORECASE)
+# A claim that the player already holds an item or spent their gold on it (checked against the inventory).
+OWNED_CLAIM = re.compile(r"\b(?:you(?:'ve|\s+have|\s+already\s+have|\s+already\s+bought|\s+bought|\s+got|\s+own|"
+                         r"\s+finished|\s+built|'re\s+holding|\s+are\s+holding)|your\s+gold\s+(?:is|was|went)\s+"
+                         r"(?:spent|going|into)\s+(?:on|to|into)?|now\s+that\s+you\s+have|with\s+your)\b",
+                         re.IGNORECASE)
+# The model talking about the player in the third person, or to itself ("Note: the player has gold..."): never for
+# the player's ears. (A real run had it read out after a blank line.)
+META = re.compile(r"(?:^|\n|(?<=[.!?])\s)\s*(?:note|n\.b\.|aside|reasoning|thinking)\s*:|\bthe\s+(?:player|user)\b",
+                  re.IGNORECASE)
+# Telling the player which skill to take, or to skip one (checked against the order Doty itself says: _wrong_skill).
+LEVEL_SKILL = r"\b(?:level|level\s+up|skill|take|learn|max|put\s+(?:a\s+|your\s+)?points?\s+(?:in|into))"
+SKIP_SKILL = r"\b(?:skip|delay|hold\s+off\s+on|don'?t\s+(?:level|take|skill|learn))"
 # "Why?", "why that?", "and why is that?" said out loud: the last tip explained (Coach._why_on_loop).
 WHY_ASK = re.compile(r"^\s*(and\s+|but\s+|so\s+)?why(\s+(that|this|that\s+one|is\s+that|so|did\s+you\s+say\s+"
                      r"that|should\s+i))?\s*[?.!]?\s*$", re.IGNORECASE)
@@ -194,6 +209,10 @@ class Coach:
         self._last_skipped: list[str] = []  # what "skip ..." last took out this match (for "remember that")
         self.gate = None  # speech.SpeechGate: what was last said out loud (for "why?"); the app sets it
         self._held_tips: dict[int, str] = {}  # live tips the gate is holding for a slot (advice id -> text)
+        self._held_cards: dict[int, Advice] = {}  # answers whose sentences the gate is holding (card id -> card)
+        self._feed_notes: deque[tuple[float, frozenset[str]]] = deque(maxlen=12)  # quiet notes shown lately
+        self._feed_items: dict[str, list[int]] = {}  # item -> [quiet notes naming it, gold left on it then]
+        self._noted: deque[int] = deque(maxlen=64)  # rule lines already noted (a held one comes again when said)
         self.rule_reason: Callable[[str], str] | None = None  # rule id -> its reason (speech.rule_reason)
 
     # lifecycle ---------------------------------------------------------------
@@ -220,7 +239,19 @@ class Coach:
         if adv.source == "coach" and adv.speak and adv.id in self._held_tips:  # a held tip, said after all
             self._tip_heard(self._held_tips.pop(adv.id))
             return
+        if adv.source == "coach" and not adv.held and adv.group in self._held_cards:
+            # The verdict on an answer the gate held: its card is sent again, now saying whether it was heard (the
+            # session log and the match record write it down then).
+            card = self._held_cards.pop(adv.group)
+            card.held, card.heard = False, bool(adv.speak)
+            self.bus.publish(card)
+            return
+        if adv.source == "rules" and adv.final and adv.id in self._noted:
+            if adv.speak and adv.display and adv.priority <= self.spoken_max:  # (held, and said now)
+                self._heard.append((time.monotonic(), content_words(adv.text + " " + adv.spoken)))
+            return
         if adv.source == "rules" and adv.final:
+            self._noted.append(adv.id)
             self.recent_alerts.append(adv.text)
             if adv.speak and adv.display and adv.priority <= self.spoken_max:  # (shown-only isn't heard)
                 self._heard.append((time.monotonic(), content_words(adv.text + " " + adv.spoken)))
@@ -440,6 +471,8 @@ class Coach:
                     continue  # armed minutes ago, and since then the player bought it (or other boots)
                 if self._held_back(adv.text, snap):
                     continue  # a push past what "When I go my own way" allows
+                if self._cant_afford(adv.text, snap) or self._false_ownership(adv.text, snap):
+                    continue  # written when it was true, maybe; checked as it fires ("you have the gold")
                 if self._repeats(adv.text, TRIGGER_REPEAT_S):
                     continue  # (three "walk back to your tower" calls in nine seconds, in a real match)
                 self._pushed(adv.text, snap)
@@ -805,8 +838,12 @@ class Coach:
 
         adv = Advice("…", Priority.HIGH, "coach", source="coach", trigger_t=t0, final=False, speak=False)
         # The player asked for this one (the ask key, a question, a plan): said even when Doty has talked a lot.
-        asked = visible and kind in ("now", "question", "plan")
-        heard_any = False  # a sentence of this answer was said out loud
+        # The player asked for this one (the ask key, a question, a plan), or it is one of the two things the AI
+        # says that must be heard: the plan as the game starts and the answer after a death. Said even when Doty
+        # has talked a lot (speech.py).
+        asked = visible and kind in ("now", "question", "plan", "start", "death")
+        heard_any = held_any = False  # a sentence of this answer was said out loud / is held for a slot
+        adv.asked = asked  # (the card says so too: the bench leaves such a line out of its budget checks)
         if visible:
             self.bus.publish(adv)
         text = ""
@@ -844,7 +881,8 @@ class Coach:
                     parts = SENTENCE_END.split(shown)
                     done = parts[:-1]
                     for sentence in done[spoken_upto:]:
-                        heard_any = self._speak(sentence, adv.id, asked) or heard_any
+                        line = self._speak(sentence, adv.id, asked)
+                        heard_any, held_any = self._spoken(line, heard_any, held_any)
                     spoken_upto = max(spoken_upto, len(done))
         except asyncio.CancelledError:
             raise
@@ -914,9 +952,13 @@ class Coach:
         if visible:
             remaining = SENTENCE_END.split(shown)[spoken_upto:]
             if remaining and any(s.strip() for s in remaining):
-                heard_any = self._speak(" ".join(remaining), adv.id, asked) or heard_any
+                heard_any, held_any = self._spoken(self._speak(" ".join(remaining), adv.id, asked), heard_any,
+                                                   held_any)
             adv.text, adv.final, adv.created_t, adv.marks = shown, True, time.perf_counter(), drawn
             adv.heard = heard_any  # (the card itself isn't spoken: its sentences were, if the speech gate let them)
+            if held_any and not heard_any:  # (held for a slot: the log and the record wait for the verdict)
+                adv.held = True
+                self._held_cards[adv.id] = adv
             self.bus.publish(adv)
             self._keep_evidence(adv.id, kind, summary, shot, text, question)
             if in_match and shown and not _is_waiting(shown) and self.cfg.speak_up != "never" and heard_any:
@@ -944,8 +986,15 @@ class Coach:
         unwanted = (self._unwanted(text, snap) or self._has_tp_already(text, snap)) if in_match else ""
         broke = self._cant_afford(text, snap) if in_match else set()
         foreign = self._foreign_spells(text) if in_match else []
+        skill = self._wrong_skill(text, snap) if in_match else ""
+        claimed = self._false_ownership(text, snap) if in_match else set()
         return self._too_late(kind, game, t0) or (
             f"gives a hero a spell that isn't theirs: {', '.join(foreign)}" if foreign else "") or (
+            f"contradicts the skill order Doty says ({skill})" if skill else "") or (
+            f"says the player has what they don't: {', '.join(sorted(self.kb.item_name(i) for i in claimed))}"
+            if claimed else "") or (
+            "talks about the player instead of to them" if META.search(text) else "") or (
+            "starts mid-sentence" if text[:1].islower() else "") or (
             f"says to buy what you already have (or a second pair of boots): "
             f"{', '.join(sorted(self.kb.item_name(i) for i in have))}" if have else "") or unwanted or (
             f"says to buy now what the gold doesn't cover: "
@@ -989,6 +1038,8 @@ class Coach:
                          recheck=lambda: self._still_right(text, *born))
         else:
             adv = Advice(text, Priority.INFO, "watching", source="coach", trigger_t=t0, speak=False, overlay=False)
+            if self._feed_has(text):
+                return adv  # (the feed said this lately, or named this item often enough: nothing new to show)
         self.bus.publish(adv)
         if say and adv.speak:  # (heard now: the speech gate may have held it for a quieter moment, or dropped it)
             self._tip_heard(text)
@@ -997,6 +1048,37 @@ class Coach:
             for old in list(self._held_tips)[:-8]:  # (the rest were dropped long ago)
                 del self._held_tips[old]
         return adv
+
+    def _feed_has(self, text: str) -> bool:
+        """A quiet look's note (shown, not said) that adds nothing: near the same words as a note in the last
+        REPEAT_S, or a buy line for an item the feed has already named speech.ITEM_CAP times with no part of it
+        bought since. A real run showed Power Treads seven times and Wraith Band four in ten minutes. Notes it
+        lets through are counted."""
+        from ..speech import ITEM_CAP
+
+        now, snap = time.monotonic(), self.store.current
+        words = content_words(text)
+        self._feed_notes = deque(((t, w) for t, w in self._feed_notes if now - t <= REPEAT_S), maxlen=12)
+        if len(words) >= 2 and any(says_again(words, w) for _t, w in self._feed_notes):
+            return True
+        items = {}
+        if self.kb is not None and self.kb.items and snap is not None and snap.has_hero:
+            owned = snap.item_list()
+            named = self.kb.buy_mentions(text, snap.hero_name) | (_items_named(self.kb, text) & self._build_items(snap))
+            for item in named:
+                left = self.kb.cost_left(item, owned)
+                n, was = self._feed_items.get(item, (0, left))
+                n = 0 if left < was else n
+                if n >= ITEM_CAP:
+                    return True
+                items[item] = [n + 1, left]
+        self._feed_notes.append((now, words))
+        self._feed_items.update(items)
+        return False
+
+    def _build_items(self, snap: Snapshot) -> set[str]:
+        """The items of the player's build at this point (what a note about "your next buy" is about)."""
+        return set(self.kb.build_plan(snap.hero_name, snap.clock))
 
     def _tip_heard(self, text: str) -> None:
         self.said.append(text)
@@ -1054,15 +1136,22 @@ class Coach:
         (out / "report.json").write_text(json.dumps(report, indent=1, ensure_ascii=False), encoding="utf-8")
         return out
 
-    def _speak(self, sentence: str, group: int = 0, asked: bool = False) -> None:
+    def _speak(self, sentence: str, group: int = 0, asked: bool = False) -> "Advice | None":
         """One sentence of an answer, to the voice. `group`: the answer's card, so the speech gate says or holds
-        the answer as one; `asked`: the player asked for it (always said)."""
+        the answer as one; `asked`: the player asked for it (always said). The line sent (its `speak` and `held`
+        say what the gate made of it), or None for nothing to say."""
         sentence = sentence.strip()
         if not sentence:
-            return False
+            return None
         line = Advice(sentence, Priority.HIGH, "coach", source="coach", display=False, group=group, asked=asked)
         self.bus.publish(line)
-        return line.speak
+        return line
+
+    @staticmethod
+    def _spoken(line: "Advice | None", heard: bool, held: bool) -> tuple[bool, bool]:
+        if line is None:
+            return heard, held
+        return heard or line.speak, held or line.held
 
     def _fail(self, adv: Advice, visible: bool, msg: str) -> None:
         print(f"[doty] {msg}")
@@ -1207,6 +1296,8 @@ class Coach:
             self.history.clear()
             self.recent_alerts.clear()
             self._pushes.clear()
+            self._feed_notes.clear()
+            self._feed_items.clear()
 
     def _false_skill_claim(self, text: str, snap: Snapshot | None) -> bool:
         """The tip tells the player to spend a skill point or pick a talent they don't have. The AI reads level-up
@@ -1291,7 +1382,21 @@ class Coach:
         # (These answers are asked for, or come after a death, with the shop open: a moment for the one argument.)
         return bool(self._already_have(sentence, snap) or self._unwanted(sentence, snap)
                     or self._has_tp_already(sentence, snap) or self._cant_afford(sentence, snap)
-                    or self._held_back(sentence, snap, asked=True) or bool(self._foreign_spells(sentence)))
+                    or self._held_back(sentence, snap, asked=True) or bool(self._foreign_spells(sentence))
+                    or bool(self._wrong_skill(sentence, snap)) or bool(self._false_ownership(sentence, snap))
+                    or bool(META.search(sentence)))
+
+    def _false_ownership(self, text: str, snap: Snapshot | None) -> set[str]:
+        """Items a line says the player has, or has spent their gold on, that they don't hold. A real run: "Your
+        gold is spent on Wraith Band now" to a player who never bought it, then "Buy Wraith Band now" a minute
+        later. Any item counts, cheap ones too (the claim is about what's in the inventory)."""
+        if self.kb is None or snap is None or not self.kb.items:
+            return set()
+        claimed = owned_claims(self.kb, text)
+        return claimed - self.kb.owned_with_parts(snap.all_item_names()) if claimed else set()
+
+    def _wrong_skill(self, text: str, snap: Snapshot | None) -> str:
+        return wrong_skill(self.kb, text, snap)
 
     def _foreign_spells(self, text: str) -> list[str]:
         """"Lion's Fiend's Grip": a hero named with another hero's spell (knowledge/threats.foreign_spells, the
@@ -1306,8 +1411,13 @@ class Coach:
         if self.kb is None or snap is None or not self.kb.items or not NOW_CLAIM.search(text):
             return set()
         owned, gold = snap.item_list(), spendable(snap, game_mode.of(self.store.memory))
-        return {i for i in self.kb.buy_mentions(text, snap.hero_name)
-                if self.kb.cost_left(i, owned) > 0 and self.kb.next_buy(i, owned, gold) is None}
+        buys = self.kb.buy_mentions(text, snap.hero_name) | (_items_named(self.kb, text) & set(self.kb.items)
+                                                             if AFFORD_CLAIM.search(text) else set())
+        if AFFORD_CLAIM.search(text):
+            # "you have the gold", "you can afford it": the whole of what's left, not a part of it (a prepared call
+            # in a real run: "Buy Power Treads next; you have the gold." with a few hundred gold).
+            return {i for i in buys if 0 < self.kb.cost_left(i, owned) and self.kb.cost_left(i, owned) > gold}
+        return {i for i in buys if self.kb.cost_left(i, owned) > 0 and self.kb.next_buy(i, owned, gold) is None}
 
     def _settings_into(self, summary: dict, snap: Snapshot, asked: bool = False) -> None:
         """What the player's settings and their own build change about the state the coach sees: subjects
@@ -1552,20 +1662,41 @@ def parse_watch(text: str) -> tuple[bool, str]:
         return False, _settled(text)
     tag, rest = m.group(1), text[m.end():]
     later = list(LATER_TAG.finditer(rest))
+    cut = False
     if later:
-        tag, rest = later[-1].group(1), rest[later[-1].end():]
-    return tag.upper() == "SAY", _settled(rest)
+        tag, rest, cut = later[-1].group(1), rest[later[-1].end():], True
+    return tag.upper() == "SAY", _settled(rest, cut)
 
 
-def _settled(tip: str) -> str:
-    """A tip with the coach's second thoughts taken out: a "Wait, ..." after a finished answer is cut off, and
-    a change of mind inside a sentence ("... no: ...") leaves only what came after it."""
+def _settled(tip: str, cut: bool = False) -> str:
+    """A tip with the coach's second thoughts taken out: a "Wait, ..." after a finished answer is cut off, a
+    change of mind inside a sentence ("... no: ...") leaves only what came after it, and what follows a blank line
+    or talks about "the player" (the model writing to itself: "Note: the player has gold for...", read out in a
+    real run) is dropped. Whatever is left after a cut must stand alone as a sentence (_whole)."""
+    tip = re.split(r"\n\s*\n", tip.strip(), maxsplit=1)[0]  # (a blank line: what follows is a note, not the tip)
     tip = SELF_CORRECTION.split(tip, 1)[0].strip()
     turns = list(MID_CORRECTION.finditer(tip))
     if turns:
-        tip = tip[turns[-1].end():].strip()
-        tip = tip[:1].upper() + tip[1:]
-    return tip
+        tip, cut = tip[turns[-1].end():].strip(), True
+    parts = SENTENCE_END.split(tip)
+    kept = [p for p in parts if p.strip() and not META.search(p)]
+    if len(kept) < len(parts):
+        tip, cut = " ".join(kept), True
+    return _whole(tip) if cut else tip
+
+
+# A piece that can't start a sentence of its own: what's left after a cut that took the start of the sentence.
+DANGLING = re.compile(r"^(?:and|or|but|so|then|because|which|until|while|if|when|to|with|of|for|than|as|"
+                      r"after|before|unless)\b", re.IGNORECASE)
+
+
+def _whole(text: str) -> str:
+    """What's left of a line after part of it was cut: a sentence of its own (re-capitalised), or nothing at all.
+    A real run said "keep farming the safe lane." with its start gone."""
+    text = text.strip()
+    if not text or DANGLING.match(text) or len(re.findall(r"[\w']+", text)) < 3:
+        return ""
+    return text[:1].upper() + text[1:]
 
 
 NEXT_TAG = re.compile(r"\s*(BUILD|LINEUP|DRAW|DRAFT|TRIGGER):", re.IGNORECASE)
@@ -1598,6 +1729,67 @@ now then than just still also very more most less too can cant can't could shoul
 don't does did done get got go going into out up down off over under again once only not no yes if when while
 before after until about all any some each every one two three both other others what who which where why how
 right next first last soon keep make take use""".split())
+
+
+_ITEM_NAMES: dict = {}
+
+
+def _items_named(kb: "Knowledge", text: str) -> set[str]:
+    """Every item a piece of text names, cheap ones too (Knowledge.item_mentions is big items only): Wraith Band,
+    Magic Wand, a TP scroll by its full name."""
+    key = (id(kb.items), len(kb.items))
+    if _ITEM_NAMES.get("key") != key:
+        names = {str(v.get("dname") or "").lower(): k for k, v in kb.items.items()
+                 if len(str(v.get("dname") or "")) >= 4 and "recipe" not in k}
+        pattern = "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))
+        _ITEM_NAMES.update(key=key, names=names, re=re.compile(rf"(?<![a-z])({pattern})(?![a-z])") if names else None)
+    found = _ITEM_NAMES["re"].findall(text.lower()) if _ITEM_NAMES["re"] is not None else []
+    return {_ITEM_NAMES["names"][n] for n in found} | set(kb.item_mentions(text))
+
+
+def wrong_skill(kb: "Knowledge | None", text: str, snap: Snapshot | None) -> str:
+    """The line tells the player to skill something other than the next skill in the order Doty itself says
+    out loud ("Skill point: take Healing Ward"; the hero card's skill order), or to skip that one. A real run:
+    "Skip Blade Fury until level 2" with Blade Fury first in the order, and "level Blade Dance" right after the
+    rule said Healing Ward. The player heard two coaches disagree. The ability it names, or ''."""
+    if kb is None or snap is None or not snap.has_hero or not snap.abilities:
+        return ""
+    have = {a.name: a.level for a in snap.abilities if not a.is_talent_or_attr}
+    upcoming: list[str] = []  # the next few upgrades in the order, from where the player is now
+    need: dict[str, int] = {}
+    for ab in kb.skill_order(snap.hero_id):
+        if ab not in have:
+            continue
+        need[ab] = need.get(ab, 0) + 1
+        if need[ab] > have[ab]:
+            upcoming.append(ab)
+            if len(upcoming) >= 3:
+                break
+    if not upcoming:
+        return ""
+    want = kb.ability_name(upcoming[0]).lower()
+    soon = {kb.ability_name(a).lower() for a in upcoming}
+    names = {kb.ability_name(a.name).lower() for a in snap.abilities if not a.is_talent_or_attr}
+    low = text.lower()
+    for name in sorted((n for n in names if len(n) >= 4), key=len, reverse=True):
+        esc = re.escape(name)
+        if name in soon and re.search(rf"{SKIP_SKILL}\s+(?:\w+\s+)?{esc}\b", low):
+            return name
+        if name != want and re.search(rf"{LEVEL_SKILL}\s+(?:your\s+|the\s+|a\s+point\s+(?:in|into)\s+)?{esc}\b",
+                                      low):
+            return name
+    return ""
+
+
+
+def owned_claims(kb: "Knowledge", text: str) -> set[str]:
+    """The items a line says the player has, bought or spent their gold on ("Your gold is spent on Wraith Band
+    now"). One test for the coach's vetting (Coach._false_ownership) and the bench (checks.claims_owned)."""
+    out: set[str] = set()
+    for m in OWNED_CLAIM.finditer(text):
+        clause = re.split(r"[.;:!?]|,\s*(?:so|then|and|but)\b", text[m.end():], maxsplit=1)[0]
+        out |= _items_named(kb, clause)
+    return out
 
 
 def content_words(text: str) -> frozenset[str]:

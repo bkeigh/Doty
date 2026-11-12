@@ -75,6 +75,9 @@ class Advice:
     # runs before saying a held line (False: no longer right, dropped). A coach tip uses both: it stays valid while
     # its own vetting still passes, instead of a fixed few seconds.
     hold_s: float | None = None
+    # The gate is holding it for a slot: shown, but not yet said or dropped (the session log and the match record
+    # wait for the verdict, which comes as the same line sent again with `held` False).
+    held: bool = False
     recheck: Callable[[], bool] | None = field(default=None, repr=False, compare=False)
 
     @property
@@ -110,6 +113,8 @@ class AdviceBus:
         """Say the held lines whose slot has come (and forget those that waited too long)."""
         if self.gate is not None:
             for adv in self.gate.release():
+                self._fan_out(adv)
+            for adv in self.gate.take_dropped():  # (its verdict: not said, for the log and the record)
                 self._fan_out(adv)
 
     def publish(self, advice: Advice) -> None:

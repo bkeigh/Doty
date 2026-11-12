@@ -165,13 +165,14 @@ class Doty:
         print(f"[{clock:>6} | {adv.category:<11} | {lat}] {adv.text}", flush=True)
 
     def _session_log(self, adv: Advice) -> None:
-        if not adv.final or not adv.display or not self._first_time(adv, self._logged):
+        # (a line the speech gate is holding is written once it's said or dropped: it comes again then)
+        if not adv.final or not adv.display or adv.held or not self._first_time(adv, self._logged):
             return
         snap = self.store.current
         if self._log is None:
             LOG_DIR.mkdir(parents=True, exist_ok=True)
             self._log = self._log_path.open("a", encoding="utf-8")
-        from .match_record import rule_of
+        from .match_record import rule_of, spoken
 
         self._log.write(json.dumps({
             "t": time.time(), "clock": snap.clock if snap else None, "source": adv.source,
@@ -179,7 +180,9 @@ class Doty:
             "latency_ms": None if adv.latency_ms is None else round(adv.latency_ms, 2),
             # Which rule said it, whether it was meant to be heard, and which match of this session it belongs
             # to (a count, not the game's id): what the bench needs to score the line.
-            "rule": rule_of(adv), "speak": adv.speak, "match": self.store.generation,
+            # "speak": Doty meant to say it aloud (a coach answer: its sentences were; the voice's priority cut
+            # counts), whether or not a voice is running.
+            "rule": rule_of(adv), "speak": spoken(adv, self.cfg.voice.min_priority), "match": self.store.generation,
         }) + "\n")
         self._log.flush()
 

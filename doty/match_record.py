@@ -216,6 +216,8 @@ class MatchRecord:
             return
         if not adv.final or not adv.display or adv.source == "player" or not adv.text.strip():
             return  # (what you said over push-to-talk stays out of the record)
+        if getattr(adv, "held", False):
+            return  # (the speech gate holds it for a slot: written when it's said or dropped, sent again then)
         with self._lock:
             if self._advice is None or adv.id in self._said:
                 return

@@ -1,0 +1,19 @@
+{
+ "fixture": 1,
+ "kind": "trigger",
+ "clock": 176,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "Buy Power Treads next; you have the gold.",
+ "said": true,
+ "state": {
+  "alive": true,
+  "fighting": false,
+  "gold": 800,
+  "items": ["item_quelling_blade", "item_slippers"],
+  "tp": true,
+  "passed_on": []
+ },
+ "expect": "fail",
+ "checks": ["not_affordable"],
+ "note": "the first real-model run, scripted match: a prepared call that claimed the gold for Power Treads (1,400) as it fired"
+}

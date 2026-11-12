@@ -736,6 +736,11 @@ def _bench_kb():
         kb.heroes.setdefault(npc, hero)
     kb.hero_abilities, kb.ability_info = spells.hero_abilities, spells.ability_info
     kb.items.setdefault("item_manta", {"id": 147, "dname": "Manta Style", "cost": 4850})
+    for key, value in {"slippers": {"id": 14, "dname": "Slippers of Agility", "cost": 140},
+                       "circlet": {"id": 20, "dname": "Circlet", "cost": 155},
+                       "wraith_band": {"id": 75, "dname": "Wraith Band", "cost": 505,
+                                       "components": ["slippers", "circlet"]}}.items():
+        kb.items.setdefault(f"item_{key}", value)  # (the real run's lines name it: tests/test_real_lines.py)
     return kb
 
 

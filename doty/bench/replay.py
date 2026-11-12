@@ -342,8 +342,8 @@ class Replay:
                 line.spoken = True
                 if snap is not None:  # (it's judged at the moment it was heard)
                     line.clock, line.ctx = snap.clock, self._context(snap)
-        if not adv.final or not adv.display or adv.id in self._seen:
-            return
+        if not adv.final or not adv.display or adv.held or adv.id in self._seen:
+            return  # (a held line is recorded once it's said or dropped: at that moment, as the app's log does)
         text = adv.text.strip()
         if not text or text == "…":
             return
@@ -352,7 +352,8 @@ class Replay:
         m = self._match()
         line = Line(clock=snap.clock if snap else 0, text=text, source=adv.source, rule=rule_of(adv),
                     priority=int(adv.priority), category=adv.category,
-                    spoken=spoken(adv, self.cfg.voice.min_priority), ctx=self._context(snap), index=len(m.lines))
+                    spoken=spoken(adv, self.cfg.voice.min_priority), ctx=self._context(snap), index=len(m.lines),
+                    asked=bool(adv.asked))
         m.lines.append(line)
         self._lines[adv.id] = line
 

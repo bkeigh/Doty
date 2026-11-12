@@ -1,0 +1,19 @@
+{
+ "fixture": 1,
+ "kind": "watch",
+ "clock": 399,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "Buy Power Treads now; you have 2,625 gold and are dying with it unspent.\n\nNote: the player has gold for Power Treads and no Town Portal Scroll, so buy the Scroll too if the shop is in reach.",
+ "said": true,
+ "state": {
+  "alive": true,
+  "fighting": false,
+  "gold": 2625,
+  "items": ["item_quelling_blade", "item_slippers"],
+  "tp": false,
+  "passed_on": []
+ },
+ "expect": "fail",
+ "checks": ["format_leak"],
+ "note": "the first real-model run, scripted match: the model's note to itself, after a blank line, was shown"
+}
