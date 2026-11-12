@@ -1288,5 +1288,10 @@
  "You've averaged {n}.": "ค่าเฉลี่ยของคุณ: {n}",
  "Your first key item": "ไอเทมหลักชิ้นแรกของคุณ",
  "Your instructions": "คำสั่งของคุณ",
- "Your instructions to the coach": "คำสั่งของคุณถึงโค้ช"
+ "Your instructions to the coach": "คำสั่งของคุณถึงโค้ช",
+ "Automatic (by your experience)": "อัตโนมัติ (ตามประสบการณ์ของคุณ)",
+ "How much Doty talks": "Doty พูดมากแค่ไหน",
+ "Less: only what matters most": "น้อยลง: เฉพาะเรื่องที่สำคัญที่สุด",
+ "More": "มากขึ้น",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "พูดออกเสียง ทั้งการแจ้งเตือนและโค้ชรวมกัน คำเตือนอันตรายและคำตอบที่คุณถามจะพูดเสมอ และทุกอย่างยังแสดงในฟีด"
 }

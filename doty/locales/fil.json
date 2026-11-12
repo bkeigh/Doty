@@ -1288,5 +1288,10 @@
  "You've averaged {n}.": "Average mo: {n}.",
  "Your first key item": "Ang una mong key item",
  "Your instructions": "Ang mga instruction mo",
- "Your instructions to the coach": "Ang mga instruction mo sa coach"
+ "Your instructions to the coach": "Ang mga instruction mo sa coach",
+ "Automatic (by your experience)": "Awtomatiko (ayon sa experience mo)",
+ "How much Doty talks": "Gaano karami magsalita si Doty",
+ "Less: only what matters most": "Mas kaunti: ang pinakamahalaga lang",
+ "More": "Mas marami",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "Malakas, ang mga alert at ang coach nang magkasama. Laging sinasabi ang mga babala sa panganib at ang mga sagot sa tanong mo, at nasa feed pa rin ang lahat."
 }

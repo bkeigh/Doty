@@ -1289,5 +1289,10 @@
  "You've averaged {n}.": "Ваше среднее: {n}.",
  "Your first key item": "Ваш первый ключевой предмет",
  "Your instructions": "Твои инструкции",
- "Your instructions to the coach": "Твои инструкции для коуча"
+ "Your instructions to the coach": "Твои инструкции для коуча",
+ "Automatic (by your experience)": "Автоматически (по твоему опыту)",
+ "How much Doty talks": "Сколько говорит Doty",
+ "Less: only what matters most": "Меньше: только самое важное",
+ "More": "Больше",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "Вслух, оповещения и коуч вместе. Предупреждения об опасности и ответы на твои вопросы звучат всегда, а всё остальное по-прежнему видно в ленте."
 }

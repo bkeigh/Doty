@@ -62,6 +62,15 @@ class Advice:
     # about the past by then); None = always said. And cut_in: stop whatever is being said for this one.
     stale_s: float | None = None
     cut_in: bool = False
+    # What the speech gate (speech.py) reads: the sentences of one coach answer share `group` (the answer card's
+    # id), so the answer is said or held as one; `asked`: the player asked for it (always said); `why`: the
+    # reason behind the line, in a sentence or two, when the code that made it knows it (what "why?" says).
+    group: int = 0
+    asked: bool = False
+    why: str = ""
+    rule_id: str = ""  # the rule that made it (match_record.tag_rules)
+    # A coach answer's card: whether any of its sentences was said out loud (None: not known, or not an answer).
+    heard: bool | None = None
 
     @property
     def latency_ms(self) -> float | None:
@@ -78,17 +87,35 @@ Subscriber = Callable[[Advice], None]
 
 
 class AdviceBus:
-    """Fan-out to subscribers. Thread-safe; subscribers must not block."""
+    """Fan-out to subscribers. Thread-safe; subscribers must not block.
+
+    `gate` (speech.SpeechGate, set by the app): sees every line first and decides whether it's said now; a line
+    it holds is sent again by `tick` (called on every game update) once its moment comes."""
 
     def __init__(self) -> None:
         self._subs: list[Subscriber] = []
         self._lock = threading.Lock()
+        self.gate = None
 
     def subscribe(self, fn: Subscriber) -> None:
         with self._lock:
             self._subs.append(fn)
 
+    def tick(self) -> None:
+        """Say the held lines whose slot has come (and forget those that waited too long)."""
+        if self.gate is not None:
+            for adv in self.gate.release():
+                self._fan_out(adv)
+
     def publish(self, advice: Advice) -> None:
+        if self.gate is not None:
+            try:
+                self.gate.admit(advice)
+            except Exception as exc:  # (the gate must never silence a line by crashing)
+                print(f"[doty] speech gate failed: {exc!r}")
+        self._fan_out(advice)
+
+    def _fan_out(self, advice: Advice) -> None:
         with self._lock:
             subs = list(self._subs)
         for fn in subs:

@@ -1289,5 +1289,10 @@
  "You've averaged {n}.": "평균 {n}개였습니다.",
  "Your first key item": "첫 핵심 아이템",
  "Your instructions": "내 지시",
- "Your instructions to the coach": "코치에게 주는 지시"
+ "Your instructions to the coach": "코치에게 주는 지시",
+ "Automatic (by your experience)": "자동 (내 경험에 따라)",
+ "How much Doty talks": "Doty가 말하는 양",
+ "Less: only what matters most": "적게: 가장 중요한 것만",
+ "More": "많이",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "소리로 말하는 양, 알림과 코치를 합쳐서. 위험 경고와 내가 물어본 것의 답은 항상 말하고, 모든 것은 피드에도 계속 표시돼요."
 }

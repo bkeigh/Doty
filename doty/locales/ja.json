@@ -1289,5 +1289,10 @@
  "You've averaged {n}.": "平均は{n}。",
  "Your first key item": "最初のキーアイテム",
  "Your instructions": "あなたの指示",
- "Your instructions to the coach": "コーチへの指示"
+ "Your instructions to the coach": "コーチへの指示",
+ "Automatic (by your experience)": "自動（経験に合わせる）",
+ "How much Doty talks": "Dotyが話す量",
+ "Less: only what matters most": "少なめ：本当に大事なことだけ",
+ "More": "多め",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "声に出すのはアラートとコーチを合わせた量です。危険の警告と、あなたが尋ねたことへの答えは必ず話し、すべてフィードにも表示されます。"
 }

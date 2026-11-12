@@ -1288,5 +1288,10 @@
  "You've averaged {n}.": "Rata-ratamu: {n}.",
  "Your first key item": "Item kunci pertamamu",
  "Your instructions": "Instruksimu",
- "Your instructions to the coach": "Instruksimu untuk coach"
+ "Your instructions to the coach": "Instruksimu untuk coach",
+ "Automatic (by your experience)": "Otomatis (sesuai pengalamanmu)",
+ "How much Doty talks": "Seberapa banyak Doty bicara",
+ "Less: only what matters most": "Lebih sedikit: hanya yang paling penting",
+ "More": "Lebih banyak",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "Dengan suara, peringatan dan coach bersama. Peringatan bahaya dan jawaban atas pertanyaanmu selalu diucapkan, dan semuanya tetap tampil di feed."
 }

@@ -82,6 +82,12 @@ class Doty:
 
         self.stats = Stats()
         self.coach = Coach(cfg.coach, self.store, self.bus, self.kb, screenshot=self._screenshot, stats=self.stats)
+        # One gate for everything said out loud (speech.py): a budget a minute, gaps, quiet moments, the best line.
+        from . import speech
+
+        self.bus.gate = speech.gate_for(cfg.coach, cfg.voice.min_priority, self.store, self.kb)
+        self.coach.gate = self.bus.gate
+        self.coach.rule_reason = lambda rule_id: speech.rule_reason(self.engine, rule_id)
         self.coach.on_armed = self.voice.prepare_now  # prepared calls are voiced ahead, so they play instantly
         self.coach.spoken_max = cfg.voice.min_priority  # (what the voice doesn't say, the coach hasn't "said")
         self.coach.language = getattr(cfg.app, "language", "en")
@@ -215,6 +221,7 @@ class Doty:
             self.bus.publish(note)
         self.engine.on_snapshot(snap)
         self.coach.on_snapshot(snap)
+        self.bus.tick()  # (a line held for a quieter moment is said now, or dropped once it's too late)
         if self.capture.on:
             self.capture.on_payload(payload, snap, self.store)
         if snap.hero_id and not self.kb.has_hero_data(snap.hero_id):
@@ -649,6 +656,8 @@ class Doty:
         self.hotkeys.bind(hk.mute, self._toggle_mute)
         if hk.skip_item:
             self.hotkeys.bind(hk.skip_item, self.coach.skip_item)  # "not that one": the next item instead
+        if getattr(hk, "why", ""):
+            self.hotkeys.bind(hk.why, self.coach.why)  # "why?": the reason for the last tip said
         if self.overlay is not None:
             self.hotkeys.bind(hk.toggle_overlay, self.overlay.toggle_visible)
         self.hotkeys.start()
@@ -656,7 +665,7 @@ class Doty:
             print(f"[doty] couldn't register hotkeys {self.hotkeys.failed} (another app owns them?)")
         else:
             print(f"[doty] hotkeys: ask={hk.ask} plan={hk.plan} mute={hk.mute} overlay={hk.toggle_overlay} "
-                  f"skip item={hk.skip_item}")
+                  f"skip item={hk.skip_item} why={getattr(hk, 'why', '')}")
 
     def _toggle_mute(self) -> None:
         muted = self.voice.toggle_mute()

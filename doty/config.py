@@ -104,6 +104,11 @@ class CoachConfig:
     # What a look may say out loud: "important" (only when it's worth interrupting you),
     # "every" (a suggestion on every look), or "never" (the app's feed only).
     speak_up: str = "important"
+    # "How much Doty talks" out loud, rules and coach together (speech.py): "less", "normal" or "more"; "" = by
+    # your level ("less" for experienced and top players, else "normal"). It sets a budget of lines a minute and
+    # the gaps between them; danger calls and answers you asked for are always said. (`speak_up` above is what a
+    # live look offers: the Coach page's presets set it; this decides what is actually heard.)
+    talk: str = ""
     max_words: int = 28
     use_screenshot: bool = True
     screenshot_width: int = 1280
@@ -226,6 +231,8 @@ class HotkeyConfig:
     toggle_overlay: str = "ctrl+alt+h"
     # "Not that one": leaves the item Doty is pointing at out of this match's build and moves to the next.
     skip_item: str = "ctrl+alt+x"
+    # "Why?": explains the last tip Doty said, in a sentence or two (also said out loud: "why?").
+    why: str = "ctrl+alt+y"
 
 
 @dataclass

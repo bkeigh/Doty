@@ -223,8 +223,16 @@ class Replay:
                 backend.store = self.store
             self.bus.subscribe(self.coach.note_alert)
         self.bus.subscribe(self._record)
+        # What's said out loud goes through the same gate as in the app (speech.py): budget, gaps, quiet moments.
+        from .. import speech
+
+        self.bus.gate = speech.gate_for(self.cfg.coach, self.cfg.voice.min_priority, self.store, kb)
+        if self.coach is not None:
+            self.coach.gate = self.bus.gate
+        self.talk = speech.talk_of(self.cfg.coach)
         self._matches: dict[int, Match] = {}
         self._seen: set[int] = set()
+        self._lines: dict[int, Line] = {}  # advice id (an answer's card id) -> its line: said later after a hold
         self._ctx: tuple[int, Context] | None = None  # (id of the snapshot, its context): one per update
         # (wall time, match generation, context) at each new game second: what log lines are judged against.
         self.timeline: list[tuple[float, int, Context]] = []
@@ -293,6 +301,7 @@ class Replay:
         self.engine.on_snapshot(snap)
         if self.coach is not None:
             self.coach.on_snapshot(snap)
+        self.bus.tick()
         if snap.has_hero and snap.game_state in (PRE_GAME, IN_PROGRESS, POST_GAME):
             m = self._match()
             if not m.lines and m.start_clock == m.end_clock == 0:
@@ -309,7 +318,8 @@ class Replay:
         gen = self.store.generation
         m = self._matches.get(gen)
         if m is None:
-            m = self._matches[gen] = Match(label=f"{self.label}#{len(self._matches) + 1}", kind="replay", kb=self.kb)
+            m = self._matches[gen] = Match(label=f"{self.label}#{len(self._matches) + 1}", kind="replay", kb=self.kb,
+                                           talk=self.talk)
             if self.coach is None:
                 m.notes.append("rules only: the AI coach wasn't replayed")
             if not self.heroes:
@@ -323,6 +333,15 @@ class Replay:
         return self._ctx[1]
 
     def _record(self, adv: Advice) -> None:
+        # A line the speech gate held and then let through comes again (now said): its line was said after all.
+        said_later = adv.speak and adv.final and int(adv.priority) <= self.cfg.voice.min_priority
+        if said_later and (adv.id in self._lines or adv.group in self._lines):
+            line = self._lines.get(adv.id) or self._lines.get(adv.group)
+            if line is not None and not line.spoken:
+                snap = self.store.current
+                line.spoken = True
+                if snap is not None:  # (it's judged at the moment it was heard)
+                    line.clock, line.ctx = snap.clock, self._context(snap)
         if not adv.final or not adv.display or adv.id in self._seen:
             return
         text = adv.text.strip()
@@ -331,10 +350,11 @@ class Replay:
         self._seen.add(adv.id)
         snap = self.store.current
         m = self._match()
-        m.lines.append(Line(clock=snap.clock if snap else 0, text=text, source=adv.source, rule=rule_of(adv),
-                            priority=int(adv.priority), category=adv.category,
-                            spoken=spoken(adv, self.cfg.voice.min_priority),
-                            ctx=self._context(snap), index=len(m.lines)))
+        line = Line(clock=snap.clock if snap else 0, text=text, source=adv.source, rule=rule_of(adv),
+                    priority=int(adv.priority), category=adv.category,
+                    spoken=spoken(adv, self.cfg.voice.min_priority), ctx=self._context(snap), index=len(m.lines))
+        m.lines.append(line)
+        self._lines[adv.id] = line
 
     def matches(self) -> list[Match]:
         return [m for m in self._matches.values() if m.lines or m.end_clock > m.start_clock]

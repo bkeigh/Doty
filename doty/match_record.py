@@ -84,7 +84,9 @@ def spoken(adv, voiced_max: int = 3) -> bool:
     """Said out loud (as far as Doty decides it: the voice may still drop a line that comes too late). The coach's
     answers are spoken a sentence at a time, apart from their card, so the card itself says speak=False."""
     if adv.source == "coach" and adv.category == "coach" and int(adv.priority) <= 2:
-        return True
+        # (the speech gate may have kept an answer's sentences quiet: the card knows, speech.py)
+        heard = getattr(adv, "heard", None)
+        return bool(adv.speak) if heard is None else bool(heard)
     return bool(adv.speak) and int(adv.priority) <= voiced_max
 
 

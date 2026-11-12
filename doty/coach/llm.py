@@ -83,6 +83,9 @@ NEVER_ASK = re.compile(
 # "...again", "remember that", "for good": what makes a spoken skip outlast the match.
 FOR_GOOD = re.compile(r"\b(ever\s+again|again|remember\s+(that|this|it)|for\s+good|from\s+now\s+on|in\s+any\s+game|"
                       r"every\s+game)\b", re.IGNORECASE)
+# "Why?", "why that?", "and why is that?" said out loud: the last tip explained (Coach._why_on_loop).
+WHY_ASK = re.compile(r"^\s*(and\s+|but\s+|so\s+)?why(\s+(that|this|that\s+one|is\s+that|so|did\s+you\s+say\s+"
+                     r"that|should\s+i))?\s*[?.!]?\s*$", re.IGNORECASE)
 REMEMBER_THAT = re.compile(r"^\s*(please\s+)?(remember|keep)\s+(that|this|it)(\s+for\s+good)?\s*[.!]?\s*$",
                            re.IGNORECASE)
 # ...unless the line is a call to get out, which is never held back for naming an item.
@@ -186,6 +189,8 @@ class Coach:
         # "Never suggest X again" changed the player's settings: (items, added) -> None, so the app saves them.
         self.on_remember: Callable[[list[str], bool], None] | None = None
         self._last_skipped: list[str] = []  # what "skip ..." last took out this match (for "remember that")
+        self.gate = None  # speech.SpeechGate: what was last said out loud (for "why?"); the app sets it
+        self.rule_reason: Callable[[str], str] | None = None  # rule id -> its reason (speech.rule_reason)
 
     # lifecycle ---------------------------------------------------------------
     async def start(self) -> None:
@@ -612,9 +617,9 @@ class Coach:
                 and 0 <= snap.clock - c.clock <= FRESH_FOR_GAME_S):
             # Instant answer from the speculative cache; refresh in the background.
             adv = Advice(c.text, Priority.HIGH, "coach", source="coach", trigger_t=time.perf_counter(),
-                         speak=False)
+                         speak=False, heard=True)  # (asked for: always said)
             self.bus.publish(adv)
-            self._speak(c.text)
+            self._speak(c.text, adv.id, asked=True)
             self._launch("now", visible=False)
             return
         self._launch(kind, visible=True)
@@ -625,7 +630,49 @@ class Coach:
             return
         self._loop.call_soon_threadsafe(self._question_on_loop, question, screenshot_b64)
 
+    # "why?" ------------------------------------------------------------------------------------------------------
+    def why(self) -> None:
+        """Thread-safe (the why hotkey): explain the last tip said out loud."""
+        if self._loop is not None and not self._loop.is_closed():
+            try:
+                self._loop.call_soon_threadsafe(self._why_on_loop)
+            except RuntimeError:
+                pass
+
+    def explain(self, adv: Advice | None) -> str:
+        """Why a line was said, from what the code already knows: the reason its maker gave (Advice.why), the
+        case for an item it names (its long form: what it answers in this lineup), or the rule's own reason. ''
+        when only the AI could say."""
+        if adv is None:
+            return ""
+        if adv.why:
+            return adv.why
+        snap, kb = self.store.current, self.kb
+        if kb is not None and kb.items and snap is not None:
+            for item in sorted(kb.item_mentions(adv.text, snap.hero_name)):
+                case = kb.case_here(item)
+                if case is not None and case.detail:
+                    return f"{kb.item_name(item)}: {case.detail}."
+        if adv.rule_id and self.rule_reason is not None:
+            return self.rule_reason(adv.rule_id) or ""
+        return ""
+
+    def _why_on_loop(self) -> None:
+        """Said even when Doty has talked a lot: the player asked."""
+        last = self.gate.last if self.gate is not None else None
+        text = self.explain(last)
+        if text:
+            self.bus.publish(Advice(text, Priority.HIGH, "coach", source="coach", asked=True))
+        elif last is not None and last.source == "coach" and self.enabled and self.backend is not None:
+            self._launch("question", visible=True, question=f'Why did you say "{last.text}"? Answer in one or '
+                                                            "two sentences, from this game.")
+        else:
+            self.bus.publish(Advice("Nothing to explain yet.", Priority.INFO, "coach", source="coach", speak=False))
+
     def _question_on_loop(self, question: str, shot: str | None) -> None:
+        if WHY_ASK.match(question):  # "why?", "why that?": the last tip, explained
+            self._why_on_loop()
+            return
         lasting = self._remember_command(question)
         if lasting is not None:  # "never suggest Black King Bar again": into the player's settings, at once
             if lasting:
@@ -727,6 +774,9 @@ class Coach:
                                        language=self.language, instructions=self.cfg.instructions)
 
         adv = Advice("…", Priority.HIGH, "coach", source="coach", trigger_t=t0, final=False, speak=False)
+        # The player asked for this one (the ask key, a question, a plan): said even when Doty has talked a lot.
+        asked = visible and kind in ("now", "question", "plan")
+        heard_any = False  # a sentence of this answer was said out loud
         if visible:
             self.bus.publish(adv)
         text = ""
@@ -764,7 +814,7 @@ class Coach:
                     parts = SENTENCE_END.split(shown)
                     done = parts[:-1]
                     for sentence in done[spoken_upto:]:
-                        self._speak(sentence)
+                        heard_any = self._speak(sentence, adv.id, asked) or heard_any
                     spoken_upto = max(spoken_upto, len(done))
         except asyncio.CancelledError:
             raise
@@ -832,13 +882,14 @@ class Coach:
         if kind == "question" and question:
             self.history.append((question, shown))
         if visible:
-            adv.text, adv.final, adv.created_t, adv.marks = shown, True, time.perf_counter(), drawn
-            self.bus.publish(adv)
-            self._keep_evidence(adv.id, kind, summary, shot, text, question)
             remaining = SENTENCE_END.split(shown)[spoken_upto:]
             if remaining and any(s.strip() for s in remaining):
-                self._speak(" ".join(remaining))
-            if in_match and shown and not _is_waiting(shown) and self.cfg.speak_up != "never":
+                heard_any = self._speak(" ".join(remaining), adv.id, asked) or heard_any
+            adv.text, adv.final, adv.created_t, adv.marks = shown, True, time.perf_counter(), drawn
+            adv.heard = heard_any  # (the card itself isn't spoken: its sentences were, if the speech gate let them)
+            self.bus.publish(adv)
+            self._keep_evidence(adv.id, kind, summary, shot, text, question)
+            if in_match and shown and not _is_waiting(shown) and self.cfg.speak_up != "never" and heard_any:
                 # (the death answer, then the look before respawning, mustn't say the same thing twice)
                 self.said.append(shown)
                 self._heard.append((time.monotonic(), content_words(shown)))
@@ -894,9 +945,6 @@ class Coach:
         mode = self.cfg.speak_up
         say = (say or mode == "every") and mode != "never" and not repeat
         if say:
-            self.said.append(text)
-            self._heard.append((time.monotonic(), content_words(text)))
-            self._pushed(text, self.store.current)
             # The tip's age counts: a reply that took long has less time left to be heard before it's stale.
             left = WATCH_STALE_S - (time.perf_counter() - t0)
             adv = Advice(text, Priority.HIGH, "coach", source="coach", trigger_t=t0, marks=drawn,
@@ -904,6 +952,10 @@ class Coach:
         else:
             adv = Advice(text, Priority.INFO, "watching", source="coach", trigger_t=t0, speak=False, overlay=False)
         self.bus.publish(adv)
+        if say and adv.speak:  # (heard now: the speech gate may have held it for a quieter moment, or dropped it)
+            self.said.append(text)
+            self._heard.append((time.monotonic(), content_words(text)))
+            self._pushed(text, self.store.current)
         return adv
 
     # "Wrong tip?" ---------------------------------------------------------------
@@ -945,10 +997,15 @@ class Coach:
         (out / "report.json").write_text(json.dumps(report, indent=1, ensure_ascii=False), encoding="utf-8")
         return out
 
-    def _speak(self, sentence: str) -> None:
+    def _speak(self, sentence: str, group: int = 0, asked: bool = False) -> None:
+        """One sentence of an answer, to the voice. `group`: the answer's card, so the speech gate says or holds
+        the answer as one; `asked`: the player asked for it (always said)."""
         sentence = sentence.strip()
-        if sentence:
-            self.bus.publish(Advice(sentence, Priority.HIGH, "coach", source="coach", display=False))
+        if not sentence:
+            return False
+        line = Advice(sentence, Priority.HIGH, "coach", source="coach", display=False, group=group, asked=asked)
+        self.bus.publish(line)
+        return line.speak
 
     def _fail(self, adv: Advice, visible: bool, msg: str) -> None:
         print(f"[doty] {msg}")

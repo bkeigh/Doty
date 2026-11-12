@@ -1288,5 +1288,10 @@
  "You've averaged {n}.": "Ortalaman: {n}.",
  "Your first key item": "İlk kilit eşyan",
  "Your instructions": "Talimatların",
- "Your instructions to the coach": "Koça talimatların"
+ "Your instructions to the coach": "Koça talimatların",
+ "Automatic (by your experience)": "Otomatik (deneyimine göre)",
+ "How much Doty talks": "Doty ne kadar konuşsun",
+ "Less: only what matters most": "Daha az: sadece en önemlisi",
+ "More": "Daha fazla",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "Sesli olarak, uyarılar ve koç birlikte. Tehlike uyarıları ve sorduğun soruların cevapları her zaman söylenir; her şey akışta görünmeye devam eder."
 }

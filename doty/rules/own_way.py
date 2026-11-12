@@ -90,6 +90,7 @@ class Reason:
 
     text: str
     facts: frozenset
+    detail: str = ""  # the case's long form (what it answers, what goes through it), for "why?"
 
 
 def item_reason(kb: Knowledge | None, item: str, hero: str, enemies: list[str]) -> Reason | None:
@@ -125,7 +126,7 @@ def item_reason(kb: Knowledge | None, item: str, hero: str, enemies: list[str]) 
             facts = frozenset(tuple(a) for a in (getattr(case, "answers", None) or ()))
         except TypeError:
             facts = frozenset()
-        return Reason(text, facts or frozenset({text}))
+        return Reason(text, facts or frozenset({text}), str(getattr(case, "detail", "") or ""))
     info = kb.heroes.get(hero) if hero else None
     usual = set(kb.typical_items(int(info["id"]), POPULAR_N)) if info else set()
     return Reason("", frozenset({"usual_build"})) if item in usual else None
@@ -246,5 +247,6 @@ class OwnWay(Rule):
                 continue
             n = argued(ctx.store, item, reason)
             text, speech = argument(kb, item, reason)
-            yield Advice(text, Priority.NORMAL, "economy", key=f"own_way:{item}:{n}", speech=speech)
+            yield Advice(text, Priority.NORMAL, "economy", key=f"own_way:{item}:{n}", speech=speech,
+                         why=reason.detail)
             return  # one at a time

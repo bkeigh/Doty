@@ -68,6 +68,9 @@ class Match:
     end_clock: int = 0
     notes: list[str] = field(default_factory=list)  # what this input couldn't judge, said once in the scorecard
     memo: dict[str, Any] = field(default_factory=dict)  # checkers keep per-match work here (counts, indexes)
+    # "How much Doty talks" the match was played (replayed) with (speech.TALK): the rate and coach-gap checks
+    # follow it. None: the "normal" budget (past logs, fixtures).
+    talk: str | None = None
 
     @property
     def minutes(self) -> float:

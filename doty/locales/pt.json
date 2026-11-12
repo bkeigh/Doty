@@ -1289,5 +1289,10 @@
  "You've averaged {n}.": "Sua média: {n}.",
  "Your first key item": "Seu primeiro item-chave",
  "Your instructions": "Suas instruções",
- "Your instructions to the coach": "Suas instruções para o coach"
+ "Your instructions to the coach": "Suas instruções para o coach",
+ "Automatic (by your experience)": "Automático (pela sua experiência)",
+ "How much Doty talks": "Quanto o Doty fala",
+ "Less: only what matters most": "Menos: só o que mais importa",
+ "More": "Mais",
+ "Out loud, the alerts and the coach together. Danger calls and answers you asked for are always said, and everything still shows in the feed.": "Em voz alta, alertas e coach juntos. Avisos de perigo e respostas ao que você pergunta são sempre ditos, e tudo continua aparecendo no feed."
 }
