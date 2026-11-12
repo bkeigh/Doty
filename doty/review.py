@@ -25,6 +25,7 @@ from .advice import Advice, Priority
 from .config import LOG_DIR
 from .knowledge.constants import NOT_BUILD_TARGETS, Knowledge
 from .rules.base import mmss
+from .knowledge import focus as focus_lib
 from .knowledge import mode as game_mode
 from .state import DEMO_MATCH, POST_GAME, GameStateStore, HistoryPoint, Snapshot
 from .rules.survival import TRAVEL_BOOTS
@@ -81,6 +82,8 @@ class Death:
     items: list[str] = field(default_factory=list)
     said: list[dict[str, Any]] = field(default_factory=list)  # Doty's lines in the 20 s before
     causes: list[str] = field(default_factory=list)
+    unspent_points: int | None = None  # skill points waiting to be spent when you died (None: not known)
+    buyback_ready: bool | None = None  # buyback off cooldown and the gold for it, as you died (None: not known)
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Death:
@@ -119,6 +122,12 @@ class Review:
     # Every item that arrived, parts and consumables included, once per copy: (item key, clock). What the bench
     # needs to know what you held when a line was said (`bought` has only the big items).
     purchases: list[tuple[str, int]] = field(default_factory=list)
+    # Seconds you held a skill point past a short grace after each level-up (None: not watched).
+    unspent_point_s: int | None = None
+    role: str = ""  # "core" | "support" | "" (knowledge/roles.py, as it stood at the end)
+    # This game's focus (knowledge/focus.py) and how it went: {"key", "title", "value", "target", "hit", "trend",
+    # "source", "item_name"}; {} when there was none.
+    practice: dict[str, Any] = field(default_factory=dict)
     deaths: list[Death] = field(default_factory=list)
     lh_per_min_10: float | None = None
     benchmark_lh_per_min: float | None = None  # the hero's median over whole games (OpenDota)
@@ -337,6 +346,11 @@ class MatchRecorder:
         self._bought: list[tuple[str, int]] = []  # (item key, clock) for the same items, for timings
         self._purchases: list[tuple[str, int]] = []  # (item key, clock) for every copy of every item that arrived
         self._held: Counter[str] | None = None  # what was held at the last update (None: not seen yet)
+        self._unspent_s = 0  # seconds holding a skill point past the grace
+        self._point_since: int | None = None  # clock a skill point started waiting
+        self._point_clock: int | None = None  # the last clock counted
+        self._role: Any = None
+        self._focus: dict[str, Any] = {}  # store.memory["focus_plan"]: this game's focus, set at the horn
         self._minutes: list[dict[str, int]] = []
         self._deaths: list[Death] = []
 
@@ -400,7 +414,32 @@ class MatchRecorder:
         self._check_death(snap, store)
         self._check_items(snap)
         self._sample_minute(snap)
+        self._watch_points(snap)
+        if store is not None:
+            self._role = store.memory.get("role", self._role)
+            plan = store.memory.get("focus_plan")
+            if isinstance(plan, dict):
+                self._focus = plan
         self._note_end(snap)
+
+    def _unspent(self, snap: Snapshot) -> int | None:
+        if self.kb is not None and self.kb.hero_abilities:
+            try:
+                return self.kb.unspent_points(snap)
+            except Exception:
+                return None
+        return snap.unspent_skill_points
+
+    def _watch_points(self, snap: Snapshot) -> None:
+        """Time spent holding a skill point, once a level-up's few seconds of grace are over (alive only)."""
+        points = self._unspent(snap) if snap.alive and snap.clock >= 0 else None
+        if not points:
+            self._point_since = None
+        elif self._point_since is None:
+            self._point_since = snap.clock
+        elif snap.clock - self._point_since > focus_lib.SKILL_POINT_GRACE_S and self._point_clock is not None:
+            self._unspent_s += max(0, min(5, snap.clock - self._point_clock))  # (a gap in the feed isn't held time)
+        self._point_clock = snap.clock
 
     def _start(self, snap: Snapshot) -> None:
         self._saw_game = True
@@ -486,6 +525,10 @@ class MatchRecorder:
             said=[dict(line) for line in self._said if snap.clock - SAID_WINDOW_S <= line["clock"] <= snap.clock],
         )
         death.causes = death_causes(death, self._team or snap.team)
+        death.unspent_points = self._unspent(before)
+        cost, cooldown = snap.hero("buyback_cost", None), snap.hero("buyback_cooldown", None)
+        if cost is not None and gold_now is not None:
+            death.buyback_ready = _int(cooldown) <= 0 and _int(gold_now) >= _int(cost)
         self._deaths.append(death)
 
     def _check_items(self, snap: Snapshot) -> None:
@@ -540,9 +583,39 @@ class MatchRecorder:
             return None
         self._ended = ended
         review = self._build()
+        if ended and not review.demo:
+            self._grade_focus(review)  # (a match cut short isn't graded: its numbers aren't the game's)
         self.last_review = review
         self.last_path = self._save(review)
         return review
+
+    focus_history: Path | None = None  # (tests point it elsewhere; None = focus.HISTORY_FILE)
+
+    def _grade_focus(self, review: Review) -> None:
+        """Every focus topic's number for this game into the history (knowledge/focus.py), and this game's focus,
+        its target, hit or missed and its trend into the review."""
+        focus = focus_lib
+        plan = self._focus or {}
+        ctx = {"hero_id": review.hero_id, "role": self._role, "mode": review.mode,
+               "bracket": getattr(self.kb, "bracket", 0) if self.kb is not None else 0,
+               "level": plan.get("level", "some"),
+               "cache_dir": getattr(self.kb, "cache_dir", None) if self.kb is not None else None}
+        try:
+            results = focus.grade(review, ctx)
+            key = plan.get("key", "")
+            history = focus.add_game(focus.entry_for(review, results, key, ctx["level"], self._role),
+                                     self.focus_history)
+        except Exception as exc:  # the review must never fail on its focus
+            print(f"[doty] couldn't grade this game's focus: {exc!r}")
+            return
+        topic = focus.TOPICS.get(key)
+        if topic is None or key not in results:
+            return
+        value, target = results[key]
+        role = focus.role_group(self._role)
+        review.practice = {"key": key, "title": topic.title, "value": value, "target": target,
+                           "hit": topic.hit(value, target), "trend": focus.trend(history, key, review.mode, role),
+                           "source": plan.get("source", ""), "item_name": plan.get("item_name", "")}
 
     def _build(self) -> Review:
         p = self._last_player
@@ -566,6 +639,8 @@ class MatchRecorder:
             items=list(self._items),
             bought=list(self._bought),
             purchases=list(self._purchases),
+            unspent_point_s=self._unspent_s,
+            role=focus_lib.role_group(self._role),
             deaths=list(self._deaths),
             minutes=list(self._minutes),
             saved_at=time.time(),

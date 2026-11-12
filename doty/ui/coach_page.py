@@ -369,6 +369,7 @@ class CoachPage(QWidget):
     recheck_setup = Signal()
     open_settings_tab = Signal(int)
     open_hero = Signal(str)
+    coach_summary = Signal(str)  # "How Doty did", worked out on a worker thread from the match record
 
     def __init__(self, ctl: Controller, stats_service=None, toast=None) -> None:
         super().__init__()
@@ -825,6 +826,12 @@ class CoachPage(QWidget):
         self.recap_stats = label("", wrap=True)
         self.recap_stats.setTextFormat(Qt.RichText)
         self.recap_card.body.addWidget(self.recap_stats)
+        # This game's focus (knowledge/focus.py): the number, the target, and the last few games.
+        self.recap_practice = label("", wrap=True)
+        self.recap_practice.setTextFormat(Qt.RichText)
+        self.recap_practice.setStyleSheet("font-size: 10.5pt;")
+        self.recap_practice.hide()
+        self.recap_card.body.addWidget(self.recap_practice)
         # From the post-game review (review.py), most useful first: what to work on, each death with its likely
         # cause, your core items; then the moments Doty noticed.
         self.recap_focus_head = label("WHAT TO WORK ON", "eyebrow")
@@ -854,6 +861,12 @@ class CoachPage(QWidget):
                                 "The coach reads your review and answers out loud: what went wrong and what to try")
         self.recap_ask.clicked.connect(self._ask_about_game)
         self.recap_card.body.addWidget(self.recap_ask, 0, Qt.AlignLeft)
+        # How the coach itself did last game (bench/records.py, from the match record): one muted line.
+        self.recap_coach = label("", "muted", wrap=True)
+        self.recap_coach.setStyleSheet("font-size: 9pt;")
+        self.recap_coach.hide()
+        self.recap_card.body.addWidget(self.recap_coach)
+        self.coach_summary.connect(self._on_coach_summary)
         self.review = None
         for part in (self.recap_focus_head, self.recap_focus, self.recap_items_head, self.recap_items,
                      self.recap_deaths_head, self.recap_deaths, self.recap_ask):
@@ -1021,6 +1034,63 @@ class CoachPage(QWidget):
             return
         self.review = review
         self._show_recap()
+        self._load_coach_summary()
+
+    def _load_coach_summary(self) -> None:
+        """"How Doty did" from the latest match record: a replay of the record, so off the screen's thread."""
+        import threading
+
+        def work() -> None:
+            try:
+                from ..bench.records import last_game_summary
+
+                kb = self.ctl.doty.kb if self.ctl.doty is not None else None
+                text = last_game_summary(kb=kb if kb is not None and kb.items else None)
+            except Exception as exc:  # (no record, or an odd one: the recap just doesn't have this line)
+                print(f"[doty] couldn't judge the coach's last game: {exc!r}")
+                text = ""
+            self.coach_summary.emit(text)
+
+        threading.Thread(target=work, name="doty-coach-summary", daemon=True).start()
+
+    def _on_coach_summary(self, text: str) -> None:
+        try:
+            self.recap_coach.setText(tr("How Doty did: {summary}", summary=text) if text else "")
+            self.recap_coach.setVisible(bool(text) and self.recap is not None)
+        except RuntimeError:
+            pass
+
+    @staticmethod
+    def practice_html(p: dict) -> str:
+        """"Focus: Last hits at 10:00 — 38 (target 45). Last five: 29, 31, 30, 36, 38." with the number green when
+        hit, amber when missed."""
+        def num(v) -> str:
+            v = float(v)
+            return f"{int(v)}" if v.is_integer() else f"{v:.1f}"
+
+        from ..rules.focus import TITLES
+
+        key = p.get("key", "")
+        value, target = p.get("value", 0), p.get("target", 0)
+        if key == "key_item":
+            late = float(value)
+            shown = (tr("{n} min late", n=num(round(late / 60, 1))) if late > 30 else
+                     tr("{n} min early", n=num(round(-late / 60, 1))) if late < -30 else tr("on time"))
+            item = p.get("item_name") or tr(TITLES.get(key, p.get("title", "")))
+            what = tr("{item}: {when}", item=item, when=shown)
+            head = tr("Focus: {what}.", what=what)
+        else:
+            head = tr("Focus: {title} — {value} (target {target}).", title=tr(TITLES.get(key, p.get("title", ""))),
+                      value=num(value), target=num(target))
+        color = theme.GREEN if p.get("hit") else theme.AMBER
+        mark = tr("Hit") if p.get("hit") else tr("Missed")
+        trend = p.get("trend") or []
+        tail = ""
+        if len(trend) > 1:
+            shown = [num(round(v / 60, 1)) if key == "key_item" else num(v) for v in trend]
+            tail = " " + tr("Last {n}: {values}.", n=len(trend), values=", ".join(shown))
+        return (f'<span style="color:{color}; font-weight:800">{_html(mark)}</span>&nbsp;&nbsp;{_html(head)}'
+                f'<span style="color:{theme.MUTED}">{_html(tail)}</span>')
 
     def _ask_about_death(self, link: str) -> None:
         from ..review import death_prompt
@@ -1063,6 +1133,11 @@ class CoachPage(QWidget):
             f'<div style="margin-bottom:5px"><span style="color:{theme.MUTED}">{clock}</span>&nbsp;&nbsp;'
             f'{_html(text)}</div>' for clock, text in lines))
         rv = self.review
+        practice = getattr(rv, "practice", None) if rv is not None else None
+        self.recap_practice.setVisible(bool(practice))
+        self.recap_practice.setText(self.practice_html(practice) if practice else "")
+        if rv is None:
+            self.recap_coach.hide()
         focus = rv.focus if rv is not None else []
         deaths = rv.deaths if rv is not None else []
         self.recap_focus_head.setVisible(bool(focus))
