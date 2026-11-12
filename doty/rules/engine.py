@@ -33,10 +33,14 @@ TOPIC_RULES = {
     "skills": frozenset({"skill_point", "power_spike"}),
     "farm": frozenset({"farm_check", "laning"}),
     "timers": frozenset({"spawn_timer", "roshan", "day_night"}),
-    "enemy": frozenset({"enemy_spikes", "game_plan", "pick_off"}),
+    "enemy": frozenset({"enemy_spikes", "game_plan", "pick_off", "threat_call"}),
     "gold": frozenset({"unspent_gold", "stash_items", "buyback", "missing_tp"}),
     "deaths": frozenset({"death_watch"}),
 }
+# The practice focus (rules/focus.py, id "focus") belongs to no one subject: its topic changes per game (last hits
+# are "farm", a TP scroll "gold"...). It silences itself: it isn't chosen when its subject is off, and stops
+# talking when its subject is switched off mid-game (knowledge/focus.Topic.switch).
+SELF_SILENCED = frozenset({"focus"})
 
 
 def topics_off(suggest) -> frozenset[str]:
@@ -52,7 +56,7 @@ STALE_S = 8.0
 
 
 def default_rules() -> list[Rule]:
-    from . import economy, matchup, progression, survival, timers
+    from . import economy, focus, matchup, progression, survival, timers
 
     return [
         *timers.rules(),
@@ -60,6 +64,7 @@ def default_rules() -> list[Rule]:
         *economy.rules(),
         *progression.rules(),
         *matchup.rules(),
+        *focus.rules(),
     ]
 
 

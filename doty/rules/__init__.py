@@ -1,21 +1,4 @@
-from . import engine as _engine
-from .engine import RuleEngine
-
-
-def _with_focus(base):
-    """The default rules plus this game's focus (rules/focus.py). Registered here, around engine.default_rules,
-    so the engine module itself is unchanged."""
-    def default_rules():
-        from .focus import rules as focus_rules
-
-        return [*base(), *focus_rules()]
-    default_rules._with_focus = True
-    return default_rules
-
-
-if not getattr(_engine.default_rules, "_with_focus", False):
-    _engine.default_rules = _with_focus(_engine.default_rules)
-default_rules = _engine.default_rules
+from .engine import RuleEngine, default_rules
 
 __all__ = ["RuleEngine", "default_rules", "spoken_lines", "urgent_lines"]
 

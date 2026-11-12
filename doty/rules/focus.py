@@ -56,7 +56,7 @@ class Focus(Rule):
             mem["focus_said"] = True
             line = self._goal(plan)
             if line:
-                yield Advice(line, Priority.NORMAL, "focus", key="focus_start")
+                yield Advice(line, Priority.NORMAL, "focus", key="focus_start", why=lib.why_text(plan))
         role = mem.get("role")
         if not lib.any_role(topic) and lib.settled(role) and lib.role_group(role) not in topic.roles:
             return  # (chosen from the player's usual role on the hero, and they're playing another one today)
@@ -149,7 +149,7 @@ class Focus(Rule):
             else:
                 text = tr("{n} last hits at 10:00: {short} short of {target}.", n=lh, short=int(target) - lh,
                           target=int(target))
-            yield Advice(text, Priority.NORMAL, "focus", key=f"focus_lh_{at}")
+            yield Advice(text, Priority.NORMAL, "focus", key=f"focus_lh_{at}", why=lib.why_text(plan))
 
     def _item_check(self, ctx: RuleContext, plan: dict) -> Iterable[Advice]:
         """One word at the item's target time if it isn't done: how much is left."""
@@ -162,7 +162,7 @@ class Focus(Rule):
         left = kb.cost_left(item, s.item_list()) if kb is not None and kb.items else 0
         text = (tr("{item} target time: {left} gold to go.", item=plan.get("item_name") or item, left=f"{left:,}")
                 if left else tr("{item} target time.", item=plan.get("item_name") or item))
-        yield Advice(text, Priority.NORMAL, "focus", key="focus_item")
+        yield Advice(text, Priority.NORMAL, "focus", key="focus_item", why=lib.why_text(plan))
 
 
 def _num(v: float) -> str:

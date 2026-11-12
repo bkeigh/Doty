@@ -71,6 +71,11 @@ class Advice:
     rule_id: str = ""  # the rule that made it (match_record.tag_rules)
     # A coach answer's card: whether any of its sentences was said out loud (None: not known, or not an answer).
     heard: bool | None = None
+    # How long the speech gate may hold this line for a quiet slot (None: the gate's own rule), and a check it
+    # runs before saying a held line (False: no longer right, dropped). A coach tip uses both: it stays valid while
+    # its own vetting still passes, instead of a fixed few seconds.
+    hold_s: float | None = None
+    recheck: Callable[[], bool] | None = field(default=None, repr=False, compare=False)
 
     @property
     def latency_ms(self) -> float | None:

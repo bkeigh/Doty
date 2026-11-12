@@ -118,6 +118,9 @@ REPEAT_OVERLAP = 0.6  # share of the shorter line's words the two lines have in 
 # laning plan knows who you're up against.
 START_LOOK_BY = -30
 WATCH_STALE_SPEECH_S = 6.0  # a live tip that can't start playing within this many seconds is dropped
+# ...but the speech gate (speech.py) may hold a live tip for a quiet slot this long, while it's still right
+# (Coach._still_right, checked again just before it's said).
+TIP_HOLD_S = 25.0
 WATCH_MAX_TOKENS = 600
 # A look this many seconds before you respawn, so its tip (about 1.5 s to think up) is ready as you're back,
 # instead of starting when you respawn.
@@ -190,6 +193,7 @@ class Coach:
         self.on_remember: Callable[[list[str], bool], None] | None = None
         self._last_skipped: list[str] = []  # what "skip ..." last took out this match (for "remember that")
         self.gate = None  # speech.SpeechGate: what was last said out loud (for "why?"); the app sets it
+        self._held_tips: dict[int, str] = {}  # live tips the gate is holding for a slot (advice id -> text)
         self.rule_reason: Callable[[str], str] | None = None  # rule id -> its reason (speech.rule_reason)
 
     # lifecycle ---------------------------------------------------------------
@@ -213,6 +217,9 @@ class Coach:
 
     # inputs ------------------------------------------------------------------
     def note_alert(self, adv: Advice) -> None:
+        if adv.source == "coach" and adv.speak and adv.id in self._held_tips:  # a held tip, said after all
+            self._tip_heard(self._held_tips.pop(adv.id))
+            return
         if adv.source == "rules" and adv.final:
             self.recent_alerts.append(adv.text)
             if adv.speak and adv.display and adv.priority <= self.spoken_max:  # (shown-only isn't heard)
@@ -653,8 +660,31 @@ class Coach:
                 case = kb.case_here(item)
                 if case is not None and case.detail:
                     return f"{kb.item_name(item)}: {case.detail}."
+        fact = self._card_fact(adv)
+        if fact:
+            return fact
         if adv.rule_id and self.rule_reason is not None:
             return self.rule_reason(adv.rule_id) or ""
+        return ""
+
+    def _card_fact(self, adv: Advice) -> str:
+        """The hero card's own fact behind a coach tip that named a timing ("by 14:00") or an item of the build: the
+        line of the card (what public games say for this hero, role and rank) that holds it. '' if none."""
+        if adv.source != "coach":
+            return ""
+        snap, kb = self.store.current, self.kb
+        ev = self.evidence.get(adv.id) or self.evidence.get(adv.group) or {}
+        block = (ev.get("state") or {}).get("hero_card") or ""
+        if not block and snap is not None and snap.has_hero:
+            block = prompts.hero_card(snap, self.store, kb, game_mode.of(self.store.memory))
+        if not block:
+            return ""
+        wanted = [m.group(0) for m in re.finditer(r"\b\d{1,2}:\d{2}\b", adv.text)]
+        if kb is not None and kb.items and snap is not None:
+            wanted += [kb.item_name(i) for i in kb.item_mentions(adv.text, snap.hero_name)]
+        for part in re.split(r"\n|(?<=[.;])\s+", block):
+            if any(w and w.lower() in part.lower() for w in wanted):
+                return f"From the {kb.hero_name(snap.hero_name) if kb and snap else 'hero'} card: {part.strip()}"
         return ""
 
     def _why_on_loop(self) -> None:
@@ -913,7 +943,9 @@ class Coach:
         have = self._already_have(text, snap) if in_match else set()
         unwanted = (self._unwanted(text, snap) or self._has_tp_already(text, snap)) if in_match else ""
         broke = self._cant_afford(text, snap) if in_match else set()
+        foreign = self._foreign_spells(text) if in_match else []
         return self._too_late(kind, game, t0) or (
+            f"gives a hero a spell that isn't theirs: {', '.join(foreign)}" if foreign else "") or (
             f"says to buy what you already have (or a second pair of boots): "
             f"{', '.join(sorted(self.kb.item_name(i) for i in have))}" if have else "") or unwanted or (
             f"says to buy now what the gold doesn't cover: "
@@ -947,16 +979,41 @@ class Coach:
         if say:
             # The tip's age counts: a reply that took long has less time left to be heard before it's stale.
             left = WATCH_STALE_S - (time.perf_counter() - t0)
+            # The speech gate may hold it for a quiet slot (a timer was just said): it stays good while it's still
+            # right, checked again just before it's said (TIP_HOLD_S at most), rather than for a fixed few seconds:
+            # a paid look isn't thrown away because a rune call came first.
+            now = self.store.current
+            born = (now.alive, now.clock) if now is not None else (True, 0)
             adv = Advice(text, Priority.HIGH, "coach", source="coach", trigger_t=t0, marks=drawn,
-                         stale_s=min(WATCH_STALE_SPEECH_S, max(0.5, left)))
+                         stale_s=min(WATCH_STALE_SPEECH_S, max(0.5, left)), hold_s=TIP_HOLD_S,
+                         recheck=lambda: self._still_right(text, *born))
         else:
             adv = Advice(text, Priority.INFO, "watching", source="coach", trigger_t=t0, speak=False, overlay=False)
         self.bus.publish(adv)
         if say and adv.speak:  # (heard now: the speech gate may have held it for a quieter moment, or dropped it)
-            self.said.append(text)
-            self._heard.append((time.monotonic(), content_words(text)))
-            self._pushed(text, self.store.current)
+            self._tip_heard(text)
+        elif say:
+            self._held_tips[adv.id] = text  # (heard later, if the gate finds it a slot: see note_alert)
+            for old in list(self._held_tips)[:-8]:  # (the rest were dropped long ago)
+                del self._held_tips[old]
         return adv
+
+    def _tip_heard(self, text: str) -> None:
+        self.said.append(text)
+        self._heard.append((time.monotonic(), content_words(text)))
+        self._pushed(text, self.store.current)
+
+    def _still_right(self, text: str, alive: bool, clock: int) -> bool:
+        """A live tip held by the speech gate, about to be said after all: still the same moment (alive or dead as
+        it was, no fight since, at most TIP_HOLD_S of game time later) and it still passes the vetting it passed
+        when it was written (nothing bought meanwhile that it sells, the gold still there, not said by now)."""
+        snap = self.store.current
+        if snap is None or not snap.has_hero or snap.alive != alive or self.store.in_fight():
+            return False
+        if snap.clock - clock > TIP_HOLD_S:
+            return False
+        return not (self._already_have(text, snap) or self._unwanted(text, snap) or self._has_tp_already(text, snap)
+                    or self._cant_afford(text, snap) or self._held_back(text, snap) or self._repeats(text))
 
     # "Wrong tip?" ---------------------------------------------------------------
     EVIDENCE_KEPT = 12
@@ -1098,6 +1155,7 @@ class Coach:
         whose has/no item isn't a real item (a wrong name would make "no ..." true forever)."""
         fresh = [t for t in (self._real_items(t) for t in triggerlib.parse(text, snap.clock))
                  if t is not None and not self._phantom_heroes(t.say) and not self._odd_items(t.say, snap)
+                 and not self._foreign_spells(t.say)
                  and not self._already_have(t.say, snap) and not self._unwanted(t.say, snap, t)]
         if fresh:
             self.triggers.arm(fresh)
@@ -1233,7 +1291,14 @@ class Coach:
         # (These answers are asked for, or come after a death, with the shop open: a moment for the one argument.)
         return bool(self._already_have(sentence, snap) or self._unwanted(sentence, snap)
                     or self._has_tp_already(sentence, snap) or self._cant_afford(sentence, snap)
-                    or self._held_back(sentence, snap, asked=True))
+                    or self._held_back(sentence, snap, asked=True) or bool(self._foreign_spells(sentence)))
+
+    def _foreign_spells(self, text: str) -> list[str]:
+        """"Lion's Fiend's Grip": a hero named with another hero's spell (knowledge/threats.foreign_spells, the
+        bench's own test). The player would look for the wrong thing."""
+        from ..knowledge import threats
+
+        return threats.foreign_spells(self.kb, text) if self.kb is not None else []
 
     def _cant_afford(self, text: str, snap: Snapshot | None) -> set[str]:
         """Items a tip says to buy *now* when the player's gold covers no real part of them ("Buy Ogre Axe
@@ -1259,6 +1324,18 @@ class Coach:
         if "skills" in off:
             for key in ("unspent_skill_points", "next_skill", "talent_tiers_not_picked", "pro_skill_order"):
                 summary.pop(key, None)
+        if "deaths" in off:
+            summary.pop("death_cause_candidates", None)  # (no death reviews: nothing to say why with)
+        # This game's practice focus follows its own subject's switch, like the focus rule (rules/focus.py). (The
+        # match brief's threat lines stay with "enemy" off: they're the facts that keep a death answer from naming
+        # a spell nobody here has; "enemy" off stops the threat call and the coach bringing the enemy up.)
+        plan = self.store.memory.get("focus_plan") or {}
+        if "practice_focus" in summary and plan.get("key"):
+            from ..knowledge.focus import TOPICS
+
+            topic = TOPICS.get(plan["key"])
+            if topic is not None and topic.switch in off:
+                summary.pop("practice_focus", None)
         if off:
             summary["dont_advise_on"] = [prompts.TOPIC_WORDS[t] for t in sorted(off) if t in prompts.TOPIC_WORDS]
         if self.kb is None or "items" in off:

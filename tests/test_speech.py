@@ -145,9 +145,15 @@ def test_the_line_that_changes_most_what_you_do_wins():
     assert speech.SCORES["timer_now"] > speech.SCORES["buy_now"] > speech.SCORES["focus"] > \
         speech.SCORES["coach"] > speech.SCORES["general"]
     # The game's focus topic (store.memory["focus"]) counts above general advice.
-    focused = speech.SpeechGate(CoachConfig(), state=Game().state, focus=lambda: "last_hits")
-    assert speech.kind_of(_line("12 last hits at 5:00.", rule_id="farm_check"), "last_hits") == "focus"
-    assert focused.focus() == "last_hits"
+    # (store.memory["focus"] holds the topic's key, knowledge/focus.TOPICS: "lh10" is last hits at 10:00)
+    focused = speech.SpeechGate(CoachConfig(), state=Game().state, focus=lambda: "lh10")
+    assert speech.kind_of(_line("12 last hits at 5:00.", rule_id="farm_check"), "lh10") == "focus"
+    assert speech.kind_of(_line("12 last hits at 5:00.", rule_id="farm_check"), "buyback") == "general"
+    assert speech.kind_of(_line("This game: 45 last hits by 10:00.", category="focus"), "") == "focus"
+    assert focused.focus() == "lh10"
+    from doty.knowledge.focus import TOPICS
+
+    assert set(speech.FOCUS_RULES) == set(TOPICS)  # (every practice topic has its rules)
     # Dead: a buying line is worth more, a call to go and do something now worth less.
     assert speech.score_of("buy_now", dead=True) > speech.score_of("timer_now", dead=True)
 

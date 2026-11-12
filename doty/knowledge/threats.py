@@ -16,6 +16,7 @@ Fair play: the enemy heroes on the player's own top bar and public facts about t
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -213,6 +214,36 @@ def cards(kb: "Knowledge", enemies: list[str], own_npc: str = "", role: Any = No
     out = [c for name in enemies if (c := card(kb, name, own_npc, role, enemies)) is not None]
     out.sort(key=lambda c: -(c.top.weight if c.top else 0.0))
     return out
+
+
+_POSSESSIVE = re.compile(r"\b([A-Z][\w\-]*(?:\s+[A-Z][\w\-]*)*)'s\s+")
+
+
+def foreign_spells(kb: "Knowledge", text: str) -> list[str]:
+    """"Lion's Fiend's Grip": each hero a line names with a spell from another hero's list ("Lion's Fiend's Grip").
+    The cards never say this (they're built from each hero's own abilities); the AI might. One test for the coach's
+    vetting (coach/llm.py) and the bench's check (bench/checks.foreign_spell). [] without ability data."""
+    if kb is None or not kb.ability_info or not kb.hero_abilities or "'s " not in text:
+        return []
+    key = (id(kb.ability_info), len(kb.ability_info))
+    if _SPELL_NAMES.get("key") != key:
+        found = {re.sub(r"\s*\([^)]*\)$", "", str(a.get("dname") or "")) for a in kb.ability_info.values()}
+        _SPELL_NAMES.update(key=key, names=sorted((n for n in found if len(n) >= 3), key=len, reverse=True))
+    names = _SPELL_NAMES["names"]
+    wrong = []
+    for m in _POSSESSIVE.finditer(text):
+        words = m.group(1).split()
+        npc = next((h for i in range(len(words)) if (h := kb.find_hero(" ".join(words[i:])))), None)
+        if not npc:
+            continue
+        rest = text[m.end():]
+        spell = next((n for n in names if rest.startswith(n) and not rest[len(n):len(n) + 1].isalnum()), None)
+        if spell and spell not in hero_spells(kb, npc):
+            wrong.append(f"{kb.hero_name(npc)}'s {spell}")
+    return wrong
+
+
+_SPELL_NAMES: dict = {}
 
 
 def hero_spells(kb: "Knowledge", npc: str) -> set[str]:
