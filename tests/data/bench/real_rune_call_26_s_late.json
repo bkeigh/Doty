@@ -1,0 +1,19 @@
+{
+ "fixture": 1,
+ "kind": "trigger",
+ "clock": 386,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "Grab the power rune at 6:00 if your lane is safe.",
+ "said": false,
+ "state": {
+  "alive": true,
+  "fighting": false,
+  "gold": 600,
+  "items": ["item_quelling_blade", "item_power_treads"],
+  "tp": true,
+  "passed_on": []
+ },
+ "expect": "fail",
+ "checks": ["stale_time"],
+ "note": "the second real-model run, scripted match: a prepared call about the 6:00 rune shown at 6:26"
+}

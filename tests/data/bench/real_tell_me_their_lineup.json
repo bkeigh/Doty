@@ -1,0 +1,19 @@
+{
+ "fixture": 1,
+ "kind": "start",
+ "clock": -10,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "Take the bounty rune at 0:00, then go to the bottom lane. Last hit with Quelling Blade and stay out of harass range. Check the top bar and tell me their lineup.",
+ "said": true,
+ "state": {
+  "alive": true,
+  "fighting": false,
+  "gold": 100,
+  "items": ["item_quelling_blade", "item_tango", "item_branches"],
+  "tp": true,
+  "passed_on": []
+ },
+ "expect": "fail",
+ "checks": ["asks_player"],
+ "note": "the second real-model run, scripted match, no screenshots: the plan asked the player to report the lineup"
+}

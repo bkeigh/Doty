@@ -95,6 +95,27 @@ OWNED_CLAIM = re.compile(r"\b(?:you(?:'ve|\s+have|\s+already\s+have|\s+already\s
 # the player's ears. (A real run had it read out after a blank line.)
 META = re.compile(r"(?:^|\n|(?<=[.!?])\s)\s*(?:note|n\.b\.|aside|reasoning|thinking)\s*:|\bthe\s+(?:player|user)\b",
                   re.IGNORECASE)
+# Asking the player to report something to the coach ("Check the top bar and tell me their lineup.", the last
+# sentence of a real run's plan). Doty reads the game itself, and the coach can't hear an answer.
+ASKS_PLAYER = re.compile(r"\b(?:tell|let|show|ping|message|update)\s+me\b|\bkeep\s+me\s+posted\b|"
+                         r"\breport\s+(?:it\s+|that\s+|them\s+)?back\b|\breport\s+(?:it\s+|that\s+|them\s+)?to\s+me\b|"
+                         r"\bgive\s+me\s+(?:the|their|your)\b", re.IGNORECASE)
+# ...or a question put to the player ("Do you have a TP?"), which nobody will hear the answer to. ("Why" is left out:
+# "Why fight alone?" is a rhetorical way to say "don't".)
+QUESTION_TO_PLAYER = re.compile(r"^\s*(?:do|does|did|are|is|can|could|have|has|what|which|who|where|when|will|would|"
+                                r"how\s+(?:many|much))\b[^?]*\?\s*$", re.IGNORECASE)
+# An item named as a part of another: "Broadsword plus Blades of Attack for Battle Fury", "Ogre Axe, a part of Black
+# King Bar", "your Yasha into Manta Style" (checked by wrong_parts).
+PART_OF = re.compile(r"(?:\s*,\s*|\s*\(\s*|\s+)(?:(?:it'?s|which\s+is)\s+)?(?:(?:a|an|the|one|another)\s+)?"
+                     r"(?:part|piece|component)s?\s+(?:of|for|in)\s+"
+                     r"|\s+(?:for|towards?|into)\s+|\s+to\s+(?:build|finish|complete|make)\s+", re.IGNORECASE)
+PART_FILLER = frozenset("and plus a an the another two second one more your both".split())
+# Words before a run of items that make them something other than parts ("Sell Wraith Band for Battle Fury's slot").
+NOT_PARTS = frozenset("sell selling swap swapping trade trading drop dropping replace replacing disassemble use using "
+                      "press pop cast instead".split())
+# Items whose recipe takes one of several parts: the item data lists one (Power Treads: Belt of Strength), the shop
+# takes any of these.
+PART_CHOICES = {"item_power_treads": {"item_belt_of_strength", "item_boots_of_elves", "item_robe"}}
 # Telling the player which skill to take, or to skip one (checked against the order Doty itself says: _wrong_skill).
 LEVEL_SKILL = r"\b(?:level|level\s+up|skill|take|learn|max|put\s+(?:a\s+|your\s+)?points?\s+(?:in|into))"
 SKIP_SKILL = r"\b(?:skip|delay|hold\s+off\s+on|don'?t\s+(?:level|take|skill|learn))"
@@ -471,7 +492,7 @@ class Coach:
                     continue  # armed minutes ago, and since then the player bought it (or other boots)
                 if self._held_back(adv.text, snap):
                     continue  # a push past what "When I go my own way" allows
-                if self._cant_afford(adv.text, snap) or self._false_ownership(adv.text, snap):
+                if self._wrong_fact(adv.text, snap):
                     continue  # written when it was true, maybe; checked as it fires ("you have the gold")
                 if self._repeats(adv.text, TRIGGER_REPEAT_S):
                     continue  # (three "walk back to your tower" calls in nine seconds, in a real match)
@@ -873,8 +894,8 @@ class Coach:
                     shown = _strip_tags(text)
                     if kind in ("watch", "draft"):
                         shown = WATCH_TAG.sub("", shown, count=1)  # "SAY:" is for Doty, not for you
-                    if in_match and kind != "question":
-                        shown = self._without_bad_sentences(shown, snap)
+                    if in_match:  # (an answer to a question too: asked for is exempt from policy, not from facts)
+                        shown = self._without_bad_sentences(shown, snap, question=kind == "question")
                     adv.text, adv.created_t = shown, time.perf_counter()
                     self.bus.publish(adv)
                     # Speak each completed sentence as soon as it exists.
@@ -910,8 +931,8 @@ class Coach:
                                     markers=marklib.fresh_markers(self.store.memory.get("minimap_markers"))))
         drawn = self._vet_marks(drawn, game, t0)
         shown = _strip_tags(text).strip()
-        if visible and in_match and kind not in ("question", "watch", "draft"):
-            shown = self._without_bad_sentences(shown, snap, complete=True).strip()
+        if visible and in_match and kind not in ("watch", "draft"):
+            shown = self._without_bad_sentences(shown, snap, complete=True, question=kind == "question").strip()
         if in_match:
             if not self._off("items"):
                 self._apply_build(text, snap)
@@ -988,7 +1009,11 @@ class Coach:
         foreign = self._foreign_spells(text) if in_match else []
         skill = self._wrong_skill(text, snap) if in_match else ""
         claimed = self._false_ownership(text, snap) if in_match else set()
+        parts = wrong_parts(self.kb, text) if in_match else []
         return self._too_late(kind, game, t0) or (
+            "names a part that isn't in the item: " + ", ".join(
+                f"{self.kb.item_name(p)} for {self.kb.item_name(w)}" for p, w in parts) if parts else "") or (
+            "asks the player to tell the coach something, or asks them a question" if asks_player(text) else "") or (
             f"gives a hero a spell that isn't theirs: {', '.join(foreign)}" if foreign else "") or (
             f"contradicts the skill order Doty says ({skill})" if skill else "") or (
             f"says the player has what they don't: {', '.join(sorted(self.kb.item_name(i) for i in claimed))}"
@@ -1244,7 +1269,7 @@ class Coach:
         whose has/no item isn't a real item (a wrong name would make "no ..." true forever)."""
         fresh = [t for t in (self._real_items(t) for t in triggerlib.parse(text, snap.clock))
                  if t is not None and not self._phantom_heroes(t.say) and not self._odd_items(t.say, snap)
-                 and not self._foreign_spells(t.say)
+                 and not self._foreign_spells(t.say) and not wrong_parts(self.kb, t.say) and not asks_player(t.say)
                  and not self._already_have(t.say, snap) and not self._unwanted(t.say, snap, t)]
         if fresh:
             self.triggers.arm(fresh)
@@ -1365,26 +1390,70 @@ class Coach:
             return ""
         return "says to buy a TP scroll you already have"
 
-    def _without_bad_sentences(self, text: str, snap: Snapshot | None, complete: bool = False) -> str:
+    def _without_bad_sentences(self, text: str, snap: Snapshot | None, complete: bool = False,
+                               question: bool = False) -> str:
         """An answer the player is reading and hearing as it arrives (after a death, on the ask key) can't be
         dropped whole like a live tip, so it's checked a sentence at a time: one that sells what the player
         has, passed on or can't pay for, or a TP scroll they hold, is left out. `complete`: the whole answer
-        is in, so its last sentence is judged too."""
-        if snap is None or self.kb is None or not self.kb.items:
+        is in, so its last sentence is judged too. `question`: an answer to the player's question, judged on the
+        facts only (_bad_sentence)."""
+        if snap is None:
             return text
         parts = SENTENCE_END.split(text)
         last = parts[-1]
-        if (complete or last.rstrip().endswith((".", "!", "?"))) and self._bad_sentence(last, snap):
+        if (complete or last.rstrip().endswith((".", "!", "?"))) and self._bad_sentence(last, snap, question):
             last = ""  # (otherwise the last part may still be arriving: judged once it's complete)
-        return " ".join(p for p in [*(p for p in parts[:-1] if not self._bad_sentence(p, snap)), last] if p)
+        return " ".join(p for p in [*(p for p in parts[:-1] if not self._bad_sentence(p, snap, question)), last]
+                        if p)
 
-    def _bad_sentence(self, sentence: str, snap: Snapshot) -> bool:
+    def _bad_sentence(self, sentence: str, snap: Snapshot, question: bool = False) -> bool:
+        """A sentence of an answer that is left out. Facts first, for every answer (`_wrong_fact`); then Doty's
+        policy (what the player passed on, the one argument "When I go my own way" allows, the skill order Doty says
+        out loud, a second pair of boots), which an answer to the player's own `question` is exempt from: asked
+        about an item, the coach may talk about it."""
+        if self._wrong_fact(sentence, snap):
+            return True
+        if question:
+            return False
         # (These answers are asked for, or come after a death, with the shop open: a moment for the one argument.)
         return bool(self._already_have(sentence, snap) or self._unwanted(sentence, snap)
-                    or self._has_tp_already(sentence, snap) or self._cant_afford(sentence, snap)
-                    or self._held_back(sentence, snap, asked=True) or bool(self._foreign_spells(sentence))
-                    or bool(self._wrong_skill(sentence, snap)) or bool(self._false_ownership(sentence, snap))
-                    or bool(META.search(sentence)))
+                    or self._held_back(sentence, snap, asked=True) or bool(self._wrong_skill(sentence, snap)))
+
+    def _wrong_fact(self, text: str, snap: Snapshot | None) -> str:
+        """Why a line says something the game data says is false, or isn't for the player's ears ('' if fine). Every
+        line the coach says goes through these: a live tip, a prepared call as it fires, and an answer, asked for or
+        not (a plan, a death answer or an answer to a question may skip the speech budget and Doty's "don't argue"
+        policy, never a fact)."""
+        if snap is not None and self.kb is not None:
+            broke = self._cant_afford(text, snap)
+            if broke:
+                return f"says to buy now what the gold doesn't cover: {self._names(broke)}"
+            claimed = self._false_ownership(text, snap)
+            if claimed:
+                return f"says the player has what they don't: {self._names(claimed)}"
+            tp = self._has_tp_already(text, snap)
+            if tp:
+                return tp
+            if self._false_skill_claim(text, snap):
+                return "says there's a skill point to spend, but there isn't"
+        parts = wrong_parts(self.kb, text)
+        if parts:
+            return "names a part that isn't in the item: " + ", ".join(
+                f"{self.kb.item_name(p)} for {self.kb.item_name(w)}" for p, w in parts)
+        foreign = self._foreign_spells(text)
+        if foreign:
+            return f"gives a hero a spell that isn't theirs: {', '.join(foreign)}"
+        phantom = self._phantom_heroes(text)
+        if phantom:
+            return f"names heroes not in this game: {', '.join(sorted(self._display(h) for h in phantom))}"
+        if META.search(text):
+            return "talks about the player instead of to them"
+        if asks_player(text):
+            return "asks the player to tell the coach something, or asks them a question"
+        return ""
+
+    def _names(self, items) -> str:
+        return ", ".join(sorted(self.kb.item_name(i) for i in items))
 
     def _false_ownership(self, text: str, snap: Snapshot | None) -> set[str]:
         """Items a line says the player has, or has spent their gold on, that they don't hold. A real run: "Your
@@ -1780,6 +1849,85 @@ def wrong_skill(kb: "Knowledge | None", text: str, snap: Snapshot | None) -> str
             return name
     return ""
 
+
+
+def asks_player(text: str) -> bool:
+    """The line asks the player to tell the coach something, or puts a question to them: nobody hears the answer.
+    One test for the coach's vetting and the bench (checks.asks_player)."""
+    return bool(ASKS_PLAYER.search(text)) or any(QUESTION_TO_PLAYER.match(s) for s in SENTENCE_END.split(text))
+
+
+_SPANS: dict = {}
+
+
+def _item_spans(kb: "Knowledge", text: str) -> list[tuple[int, int, str]]:
+    """Where each item is named in `text`, cheap ones too, as (start, end, item key), in order."""
+    key = (id(kb.items), len(kb.items))
+    if _SPANS.get("key") != key:
+        from ..knowledge.constants import ITEM_ALIASES
+
+        names = {str(v.get("dname") or "").lower(): k for k, v in kb.items.items()
+                 if len(str(v.get("dname") or "")) >= 4 and "recipe" not in k}
+        names.update({a.lower(): f"item_{k}" for a, k in ITEM_ALIASES.items() if f"item_{k}" in kb.items})
+        pattern = "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))
+        _SPANS.update(key=key, names=names,
+                      re=re.compile(rf"(?<![a-z'])({pattern})(?![a-z])", re.IGNORECASE) if names else None)
+    if _SPANS["re"] is None:
+        return []
+    return [(m.start(), m.end(), _SPANS["names"][m.group(1).lower()]) for m in _SPANS["re"].finditer(text)]
+
+
+def _filler(gap: str) -> bool:
+    """Only "and", "plus", commas, a price in brackets... between two items of one list."""
+    return all(t.lower() in PART_FILLER or t.replace(",", "").isdigit() or t in ",+&()"
+               for t in re.findall(r"[A-Za-z']+|\d[\d,]*|\S", gap))
+
+
+def _parts_of(kb: "Knowledge", whole: str) -> set[str] | None:
+    """Every item inside `whole`, all the way down (and the shop's alternatives), or None when Doty has no recipe
+    for it (then nothing named as its part can be judged)."""
+    if not (kb.items.get(whole) or {}).get("components") and whole not in PART_CHOICES:
+        return None
+    return (kb.owned_with_parts({whole}) - {whole}) | PART_CHOICES.get(whole, set())
+
+
+def wrong_parts(kb: "Knowledge | None", text: str) -> list[tuple[str, str]]:
+    """Items a line names as parts of another item that aren't inside it: (part, whole) pairs. A real death answer:
+    "buy Broadsword plus Blades of Attack for Battle Fury", and Battle Fury holds no Blades of Attack. Read: "X (and
+    Z) for Y", "X towards Y", "X into Y", "X, a part of Y", "Y's X". One test for the coach's vetting
+    (Coach._wrong_fact) and the bench (checks.wrong_part)."""
+    if kb is None or not kb.items or not text:
+        return []
+    bad: list[tuple[str, str]] = []
+    for clause in re.split(r"[.;!?:]|\bthen\b", text):
+        spans = _item_spans(kb, clause)
+        if len(spans) < 2:
+            continue
+        pairs: list[tuple[str, str]] = []
+        for m in PART_OF.finditer(clause):
+            rest = re.match(r"(?:your|the|a|an|my)\s+", clause[m.end():], re.IGNORECASE)
+            at = m.end() + (rest.end() if rest else 0)
+            whole = next((s for s in spans if s[0] == at), None)
+            if whole is None or clause[whole[1]:whole[1] + 2] in ("'s", "’s"):
+                continue  # (not an item, or "for Battle Fury's slot")
+            run, pos = [], m.start()
+            for s in reversed([s for s in spans if s[1] <= pos]):
+                if not _filler(clause[s[1]:pos]):
+                    break
+                run.append(s[2])
+                pos = s[0]
+            before = re.findall(r"[A-Za-z']+", clause[:pos])
+            if before and before[-1].lower() in NOT_PARTS:
+                continue
+            pairs += [(p, whole[2]) for p in run]
+        for a, b in zip(spans, spans[1:]):  # "Battle Fury's Broadsword"
+            if re.fullmatch(r"['’]s\s+(?:(?:next|first|second|last|other|remaining)\s+)?", clause[a[1]:b[0]]):
+                pairs.append((b[2], a[2]))
+        for part, whole in pairs:
+            inside = _parts_of(kb, whole)
+            if part != whole and inside is not None and part not in inside and (part, whole) not in bad:
+                bad.append((part, whole))
+    return bad
 
 
 def owned_claims(kb: "Knowledge", text: str) -> set[str]:

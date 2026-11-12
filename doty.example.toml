@@ -48,6 +48,9 @@ model = "claude-sonnet-5-5"
 # "" = `model` for everything. Claude only.
 watch_model = "claude-haiku-5-5"
 effort = "low"
+# The answer after a death: "model" (`model`, default), "model_1h" (`model`, its prompt cache kept an hour so
+# deaths minutes apart read it) or "watch" (`watch_model`, the cheapest and fastest). Claude only.
+death_answer = "model"
 # How often (game seconds) the coach looks at your screen + game on its own.
 # Each look is one API call (with a screenshot when use_screenshot is on) and
 # keeps an instant answer ready for the ask hotkey. Roughly $1 a game at 30 s on

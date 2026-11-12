@@ -23,23 +23,46 @@ from dataclasses import dataclass
 from ..config import CoachConfig
 
 # US dollars per million tokens: (input, output, cache read, cache write), from Anthropic's price list (2026-11).
-# For the app's "this match cost about..." line; other providers show tokens only.
+# For the app's "this match cost about..." line; other providers show tokens only. Cache writes: 1.25x input for the
+# default five minutes, 2x for an hour (HOUR_WRITE).
 PRICES = {
     "claude-haiku-5-5": (0.10, 0.50, 0.01, 0.125),
     "claude-sonnet-5-5": (2.0, 10.0, 0.20, 2.50),
     "claude-opus-5-5": (4.0, 20.0, 0.20, 5.0),
 }
+HOUR_WRITE = 2.0  # a one-hour cache write, times the input price
+
+# What one death answer costs (CoachConfig.death_answer), worked out from the prices above and two real runs: the
+# cached prefix (system prompt about 6,100 tokens + match brief) was 8,392 and 8,616 tokens; the rest of the request
+# (the state at the death, the instruction) is about 2,000 more, uncached; the answer, thinking off, ~80 tokens.
+#   "model" (Sonnet 5.5, between_tools, 5-minute cache): cold at most deaths (nothing else on Sonnet uses that
+#     entry: between_tools is a different thinking setting from the plan's, which the second run showed is a separate
+#     entry, system prompt included), so it writes 8,500 tokens each time: ~$0.026 a death ($0.0065 when warm).
+#   "model_1h": the first death of the hour writes for an hour (~$0.039), every later one reads (~$0.0065): ~$0.013 a
+#     death over five deaths.
+#   "watch" (Haiku 5.5, thinking off): reads the entry the live looks every 30 s keep warm: ~$0.0003 a death.
 
 
 def cost_usd(model: str, usage: dict) -> float | None:
-    """What one request cost, from its usage ({"in", "cached", "written", "out"} tokens); None if the model's
-    price isn't known."""
+    """What one request cost, from its usage ({"in", "cached", "written", "out"} tokens, and "written_1h": the part
+    of "written" kept for an hour); None if the model's price isn't known."""
     price = next((p for m, p in PRICES.items() if model.startswith(m)), None)
     if price is None:
         return None
     p_in, p_out, p_read, p_write = price
+    hour = usage.get("written_1h", 0)
     return (usage.get("in", 0) * p_in + usage.get("out", 0) * p_out + usage.get("cached", 0) * p_read
-            + usage.get("written", 0) * p_write) / 1e6
+            + (usage.get("written", 0) - hour) * p_write + hour * p_in * HOUR_WRITE) / 1e6
+
+
+def _usage(u) -> dict:
+    """The tokens of one reply (the SDK's usage object) as Doty counts them."""
+    out = {"in": u.input_tokens or 0, "cached": u.cache_read_input_tokens or 0,
+           "written": u.cache_creation_input_tokens or 0, "out": getattr(u, "output_tokens", 0) or 0}
+    hour = getattr(getattr(u, "cache_creation", None), "ephemeral_1h_input_tokens", 0) or 0
+    if isinstance(hour, int) and hour > 0:
+        out["written_1h"] = hour
+    return out
 
 
 # Models that accept server-side refusal fallbacks (Haiku does not).
@@ -149,13 +172,30 @@ class Backend:
 # --------------------------------------------------------------------------- Claude
 
 
+def request_model(cfg: CoachConfig, kind: str) -> str:
+    """The model a request of this kind goes to. Live looks run on the fast model (watch_model): a tip that lands
+    sooner beats a slightly deeper one. The death answer does too when the player chose so (death_answer "watch")."""
+    watch = getattr(cfg, "watch_model", "")
+    if watch and (kind == "watch" or (kind == "death" and getattr(cfg, "death_answer", "model") == "watch")):
+        return watch
+    return cfg.model
+
+
 def claude_request(cfg: CoachConfig, system: str, content: list, kind: str, max_tokens: int = 0) -> dict:
-    # Live looks run on the fast model (watch_model): a tip that lands sooner beats a slightly deeper one.
-    model = cfg.watch_model if kind == "watch" and getattr(cfg, "watch_model", "") else cfg.model
+    model = request_model(cfg, kind)
+    # The cache's lifetime. Five minutes by default; with death_answer "model_1h", an hour on every request to the
+    # main model: its requests (the plan, questions, deaths) come minutes apart, so a five-minute entry is usually
+    # gone by the next one (what that costs: the note under PRICES). Never on the watch model: its looks every 30 s keep it warm.
+    cache = {"type": "ephemeral"}
+    if getattr(cfg, "death_answer", "model") == "model_1h" and model == cfg.model and model != cfg.watch_model:
+        cache = {"type": "ephemeral", "ttl": "1h"}
+        # (the match brief's breakpoint too: a 1-hour entry may not come after a 5-minute one)
+        content = [dict(b, cache_control=cache) if isinstance(b, dict) and "cache_control" in b else b
+                   for b in content]
     req = {
         "model": model,
         "max_tokens": max_tokens or (4000 if kind in ("plan", "start") else 2000),
-        "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+        "system": [{"type": "text", "text": system, "cache_control": cache}],
         "messages": [{"role": "user", "content": content}],
         "output_config": {"effort": cfg.effort},
     }
@@ -219,8 +259,7 @@ class ClaudeBackend(Backend):
             return
         u = getattr(reply, "usage", None)
         if u is not None and self.on_usage is not None:
-            self.on_usage(req["model"], {"in": u.input_tokens or 0, "cached": u.cache_read_input_tokens or 0,
-                                         "written": u.cache_creation_input_tokens or 0, "out": 0})
+            self.on_usage(req["model"], dict(_usage(u), out=0))
 
     async def stream(self, system, content, max_tokens, kind):
         sdk = self.sdk
@@ -241,8 +280,7 @@ class ClaudeBackend(Backend):
             raise BackendError("no API key — set ANTHROPIC_API_KEY", fatal=True) from exc
         if final.stop_reason == "refusal":
             raise BackendError("Coach declined that one")
-        self.usage = {"in": final.usage.input_tokens, "cached": final.usage.cache_read_input_tokens or 0,
-                      "written": final.usage.cache_creation_input_tokens or 0, "out": final.usage.output_tokens}
+        self.usage = _usage(final.usage)
         if self.on_usage is not None:
             self.on_usage(final.model or "", self.usage)
 

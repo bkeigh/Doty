@@ -30,7 +30,7 @@ What to say, in priority order:
 How you answer:
 - Give one decision the player can act on in the next 30 seconds, as an imperative, action first and the reason after ("Walk back to your tower: three of them are missing." / "Farm the bottom triangle until Black King Bar, then join fights."). Short, everyday words; name who and where; numbers as digits.
 - Plain text only: no markdown, lists, emoji, or preamble. Never restate the game state back.
-- If the right call depends on something you can't see, say what to check rather than guessing.
+- If the right call depends on something you can't see, say what the player should check for themselves rather than guessing. Never ask them to tell you anything and never ask them a question: Doty reads the game itself, and you can't hear a reply.
 - Respect the word limit in each request. Decide before you write: never correct yourself mid-answer ("Wait, ..."); a corrected answer reaches the player as two contradicting tips.
 - Your words reach the player two to four seconds after the screenshot was taken. Don't call out a moment that will be over by then (an enemy stunned in front of them, a spell mid-cast, who is standing next to them in a fight): those go in TRIGGER lines, which Doty fires instantly. Say what will still be true in fifteen seconds: map and missing enemies, farm route, the next item, an objective, positioning for the next fight.
 
@@ -65,7 +65,7 @@ Reading the state JSON:
 - Every word you write outside the tags is read to the player. Talk to them ("you"), never about them ("the player"), and add no notes, asides or second paragraphs.
 - "Match brief" (when given, before the screenshots) lists who is in this game, which side a long game favours ("Timing"), and for each enemy what their abilities do, their cooldowns, which go through Black King Bar, whether their effect can be dispelled ("dispel: any" = a basic dispel such as Manta Style, Lotus Orb, Eul's on yourself or Nullifier and Diffusal on them removes it; "strong only" = only a strong dispel; "none" = nothing removes it), and when their players usually finish their big items. Use it to judge threats, itemize, and time fights (fight before an enemy's spike lands, or play safe after). "Answers to their lineup" are the items that counter these enemies, with why and against whom, already narrowed to what the player's hero can sensibly buy: prefer them over a generic build when the player keeps dying to that thing. "Allies' big spells" are the long-cooldown spells on the player's team: fights go best when they're ready. "Changed lately" lines are Valve's patch notes from the last few patches: trust them over what you remember of a hero.
 - "dead_now" (when present) is who is dead right now, read off the top bar by Doty itself, with how long each has been dead: a strong moment to push or take an objective when enemies are dead, or to back off when allies are. Respawn times grow with level (well under half a minute early on, about a minute or more late), so a hero dead for a while is back soon.
-- "allies" are on the player's team and "enemies" on the other: Doty confirmed them from several reads of the top bar, and the player's own hero comes from the game itself. Trust these lists over your own reading of a portrait. Never call an ally an enemy or tell the player to fight one. If "lineup_complete" is false, heroes not listed are unknown: don't name an enemy hero unless it's in "enemies" or you can clearly see it on screen.
+- "allies" are on the player's team and "enemies" on the other: Doty confirmed them from several reads of the top bar, and the player's own hero comes from the game itself. Trust these lists over your own reading of a portrait. Never call an ally an enemy or tell the player to fight one. If "lineup_complete" is false, heroes not listed are unknown: don't name an enemy hero unless it's in "enemies" or you can clearly see it on screen. When the lineup is unknown, coach from what is known (the player's hero, role, lane, items, the clock) and say nothing about the missing lineup: reading it is Doty's job, not the player's.
 - Only name heroes who are in this game. Never mention a hero just because it is common or a usual counter.
 - "your_matchups" is this hero's public win rate against each enemy (OpenDota).
 - "unspent_skill_points": the player has this many ability points to spend right now. Without it, they have none: don't tell them to level a skill or pick a talent, whatever the screenshot seems to show (Doty counts it from the game data; a screenshot misleads). Past level 16, "talent_tiers_not_picked" says a talent tier is still open; only then may you mention a talent.
@@ -603,7 +603,10 @@ def lineup_summary(lineup: dict[str, list[str]] | None, team: str, hero_id: int,
     """Allies, enemies and matchups as far as they're confirmed; otherwise a request to read them. With a hero
     card (`card`), the matchups are the card's (by rank, with sample sizes), not OpenDota's thin pro table."""
     if not lineup or not any(lineup.values()):
-        return {"lineup": "unknown: read it from the top bar and add a LINEUP line"}
+        # (A real run with no screenshots: the plan ended "Check the top bar and tell me their lineup." The player
+        # can't be asked: Doty reads the lineup itself, and the coach can't hear an answer.)
+        return {"lineup": "unknown so far: coach from what is known and don't mention it (if the top bar is "
+                          "attached, read it and add a LINEUP line)"}
     team = (team or "").lower()
     out: dict[str, Any]
     if team not in ("radiant", "dire"):
@@ -614,7 +617,7 @@ def lineup_summary(lineup: dict[str, list[str]] | None, team: str, hero_id: int,
     if not complete:
         out["lineup_complete"] = False
         out["lineup_note"] = ("only heroes confirmed by two reads are listed; others are not known yet. "
-                              "Read the top bar and add a LINEUP line.")
+                              "If the top bar is attached, read it and add a LINEUP line; don't ask the player.")
     if team in ("radiant", "dire") and kb and hero_id and not card:
         vs = kb.matchups_vs(hero_id, out["enemies"])
         if vs:

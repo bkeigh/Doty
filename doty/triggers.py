@@ -60,6 +60,28 @@ SAME_WORDS_GAP_S = 150  # game seconds before a call with the same words may be 
 # (A real match: "Grab the water rune at 2:00", said at 2:47 on respawning.)
 CLOCK_LATE_S = 30
 CLOCK_WORDS = re.compile(r"(?<![\d:])(\d{1,2}):([0-5]\d)(?![\d:])")
+# ...but a call about something that happens AT that time (a rune spawning, a stack, a timer) is useless a few
+# seconds after it: by then the rune is taken, the pull missed. A real run showed "Grab the power rune at 6:00 if your
+# lane is safe." at 6:26. A standing condition with a time ("by 14:00", "after 20:00", "before 10:00") keeps
+# CLOCK_LATE_S. The bench's stale_time uses the same test (late_by).
+EVENT_LATE_S = 5
+EVENT_WORDS = re.compile(r"\b(?:at|on)\s+(?:the\s+)?(?:\d{1,2}):[0-5]\d(?![\d:])|\b(?:runes?|stack\w*|pull\w*|lotus|"
+                         r"tormentor|shrine|outpost|wisdom|bounty|spawns?|timer)\b", re.IGNORECASE)
+
+
+def grace_s(text: str) -> int:
+    """How long after the time a line names it is still worth saying: EVENT_LATE_S for an event at that time,
+    CLOCK_LATE_S for anything else."""
+    return EVENT_LATE_S if EVENT_WORDS.search(text) else CLOCK_LATE_S
+
+
+def late_by(text: str, clock: int) -> int | None:
+    """Seconds past its moment a line is, said at `clock`: every time it names is more than its grace (grace_s) in
+    the past. None when it names no time or one is still within its grace."""
+    named = [int(m) * 60 + int(s) for m, s in CLOCK_WORDS.findall(text)]
+    if not named or any(clock - t <= grace_s(text) for t in named):
+        return None
+    return clock - max(named)
 Afford = Callable[[str], "bool | None"]  # item -> your gold covers what's left of it (None: no item data)
 
 
@@ -98,9 +120,9 @@ class Trigger:
     was_true: bool | None = None  # unknown until the first check
 
     def late(self, clock: int) -> bool:
-        """The call's words name a time on the clock, and every time they name is well past (CLOCK_LATE_S)."""
-        named = [int(m) * 60 + int(s) for m, s in CLOCK_WORDS.findall(self.say)]
-        return bool(named) and all(clock - t > CLOCK_LATE_S for t in named)
+        """The call's words name a time on the clock, and every time they name is past its grace: a few seconds for
+        an event at that time (a rune), CLOCK_LATE_S for a standing condition (late_by)."""
+        return late_by(self.say, clock) is not None
 
     @property
     def while_dead(self) -> bool:
