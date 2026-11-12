@@ -48,6 +48,12 @@ FALLBACK_PREFIXES = ("claude-opus", "claude-fable", "claude-sonnet-5-5")
 # tip and a few prepared calls don't need it). Turning it off is allowed up to effort "high".
 NO_THINKING_MODELS = ("claude-haiku-5-5",)
 NO_THINKING_EFFORTS = ("low", "medium", "high")
+# Sonnet 5.5 thinks by default too, and refuses {"type": "disabled"} (a 400): {"type": "between_tools"} is how it
+# answers without thinking first (accepted up to effort "high"). The death answer is read while the player waits to
+# respawn: a real run on Sonnet 5.5 took 5.0 s to its first word and wrote 618 tokens (most of them thinking) for two
+# sentences. The answer rests on Doty's own facts (how_you_died, death_cause_candidates), not on long reasoning.
+BETWEEN_TOOLS_MODELS = ("claude-sonnet-5-5",)
+FAST_KINDS = ("death",)
 
 
 # The Anthropic SDK takes ~2 s to import (httpx2 ~0.15 s), so neither loads before Doty's window
@@ -153,8 +159,14 @@ def claude_request(cfg: CoachConfig, system: str, content: list, kind: str, max_
         "messages": [{"role": "user", "content": content}],
         "output_config": {"effort": cfg.effort},
     }
-    if kind == "watch" and model.startswith(NO_THINKING_MODELS) and cfg.effort in NO_THINKING_EFFORTS:
+    fast = kind == "watch" or kind in FAST_KINDS
+    if fast and model.startswith(NO_THINKING_MODELS) and cfg.effort in NO_THINKING_EFFORTS:
         req["thinking"] = {"type": "disabled"}
+    elif kind in FAST_KINDS and model.startswith(BETWEEN_TOOLS_MODELS) and cfg.effort in NO_THINKING_EFFORTS:
+        req["thinking"] = {"type": "between_tools"}
+        # (no server-side fallback with it: the fallback model re-runs the same body, and only Sonnet 5.5 takes
+        # between_tools; a refused death answer is said as "Coach declined that one", the rules keep talking)
+        return req
     if model.startswith(FALLBACK_PREFIXES):
         req["betas"] = ["server-side-fallback-2026-07-01"]
         req["fallbacks"] = "default"

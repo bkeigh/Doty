@@ -133,12 +133,40 @@ def not_affordable(line: "Line", match: "Match") -> str | None:
             return None
         gold, how = int(m.group(1).replace(",", "")), "gold (as the line itself says)"
     owned = _owned_items(line) or []
-    # As the coach judges it (llm.Coach._cant_afford): broke means the gold covers no real part of the item either.
-    bad = {i for i in buys if kb.cost_left(i, owned) > 0 and kb.next_buy(i, owned, gold) is None}
+    # As the coach judges it (llm.Coach._cant_afford): broke means the gold covers no real part of the item either;
+    # "you have the gold" / "you can afford it" claims the whole of what's left.
+    if llm.AFFORD_CLAIM.search(line.text):
+        bad = {i for i in buys if 0 < kb.cost_left(i, owned) and kb.cost_left(i, owned) > gold}
+    else:
+        bad = {i for i in buys if kb.cost_left(i, owned) > 0 and kb.next_buy(i, owned, gold) is None}
     if not bad:
         return ""
     left = ", ".join(f"{kb.item_name(i)} {kb.cost_left(i, owned):,} to go" for i in sorted(bad))
     return f"says to buy now with {gold:,} {how}: {left}"
+
+
+@checker("skill_order", 2, "tells the player to skill something other than the order Doty says, or to skip it")
+def skill_order(line: "Line", match: "Match") -> str | None:
+    """"Skip Blade Fury until level 2" with Blade Fury next in the order (a real run). The coach's own test
+    (llm.wrong_skill), on the game data's abilities (a replay or a record: the snapshot)."""
+    kb = match.kb
+    snap = line.ctx.snap if line.ctx is not None else None
+    if kb is None or snap is None or not getattr(snap, "abilities", None) or not kb.skill_rows:
+        return None
+    name = llm.wrong_skill(kb, line.text, snap)
+    return f"goes against the skill order ({name})" if name else ""
+
+
+@checker("claims_owned", 3, "says the player has, or spent their gold on, an item they don't hold")
+def claims_owned(line: "Line", match: "Match") -> str | None:
+    """"Your gold is spent on Wraith Band now" to a player who never bought it (a real run). The coach's own test
+    (llm.OWNED_CLAIM), any item, cheap ones too."""
+    kb = _kb(match)
+    ctx = line.ctx
+    if kb is None or ctx is None or ctx.owned is None or not llm.OWNED_CLAIM.search(line.text):
+        return None
+    bad = llm.owned_claims(kb, line.text) - kb.owned_with_parts(set(ctx.owned))
+    return f"says the player has what they don't: {_names(kb, bad)}" if bad else ""
 
 
 # The coach's "buy a TP" (llm.TP_BUY), plus the other word order the rules use ("No TP scroll — buy one").
@@ -254,6 +282,14 @@ def format_leak(line: "Line", match: "Match") -> str | None:
     m = llm.MID_CORRECTION.search(line.text) or llm.SELF_CORRECTION.search(line.text)
     if m:
         return f'changes its mind mid-line ("{m.group(0).strip()}")'
+    # The model writing to itself: a second paragraph, a "Note:", "the player" in the third person (coach/llm.META).
+    if re.search(r"\n\s*\n", line.text.strip()):
+        return "a second paragraph (the model talking to itself)"
+    m = llm.META.search(line.text)
+    if m:
+        return f'talks about the player instead of to them ("{m.group(0).strip()}")'
+    if line.text[:1].islower():
+        return "starts mid-sentence (the start was cut away)"
     return ""
 
 

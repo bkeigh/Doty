@@ -1,0 +1,19 @@
+{
+ "fixture": 1,
+ "kind": "watch",
+ "clock": 442,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "keep farming the safe lane.",
+ "said": false,
+ "state": {
+  "alive": true,
+  "fighting": false,
+  "gold": 400,
+  "items": ["item_quelling_blade", "item_slippers"],
+  "tp": true,
+  "passed_on": []
+ },
+ "expect": "fail",
+ "checks": ["format_leak"],
+ "note": "the first real-model run, scripted match: a line whose start a filter had cut away"
+}

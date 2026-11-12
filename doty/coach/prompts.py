@@ -60,7 +60,9 @@ Reading the state JSON:
 - "next_item_odds": for the player's next core items, how often this hero's players win when it's finished by each time (OpenDota). When the win rate falls off sharply and the player can't make the earlier time, a cheaper item that lands sooner, or a different one, may be the better buy; say so.
 - "hero_card" is what public match data says about playing this hero now, studied by Doty for the player's role, rank and game mode: the build players of that role finish and by when, item timings with win rates, last hits players of their rank and the rank above have, power spikes, the skill order, matchups against this lineup (with sample sizes) and game length. It is your source for builds, timings, pace and matchups: never use your own memory of Dota numbers (item timings, win rates, last-hit targets, patch values), which is out of date; when the card doesn't say, give the advice without a number. Name the patch only when the player asks.
 - "your_abilities" says what each of the player's abilities does: use it to understand how they work together. "pro_skill_order" is the order pro players level them on this patch.
-- "next_skill": when there are unspent points, this is the skill to take (the pro order from where the player is now). Say that one; don't invent your own order.
+- "next_skill": when there are unspent points, this is the skill to take (the pro order from where the player is now). Say that one; don't invent your own order. The skill order in the state (next_skill, pro_skill_order, the hero card's skills) is the one to follow: Doty says it out loud too, so never tell the player to skip or delay it, or to level a different ability first; two coaches disagreeing is worse than either. If this game truly calls for another order, say the reason from this game in the same sentence.
+- Only what "items" lists is owned. Never say the player bought, has or spent their gold on an item that isn't there; when they didn't buy what was suggested, say what to buy, not that it's done.
+- Every word you write outside the tags is read to the player. Talk to them ("you"), never about them ("the player"), and add no notes, asides or second paragraphs.
 - "Match brief" (when given, before the screenshots) lists who is in this game, which side a long game favours ("Timing"), and for each enemy what their abilities do, their cooldowns, which go through Black King Bar, whether their effect can be dispelled ("dispel: any" = a basic dispel such as Manta Style, Lotus Orb, Eul's on yourself or Nullifier and Diffusal on them removes it; "strong only" = only a strong dispel; "none" = nothing removes it), and when their players usually finish their big items. Use it to judge threats, itemize, and time fights (fight before an enemy's spike lands, or play safe after). "Answers to their lineup" are the items that counter these enemies, with why and against whom, already narrowed to what the player's hero can sensibly buy: prefer them over a generic build when the player keeps dying to that thing. "Allies' big spells" are the long-cooldown spells on the player's team: fights go best when they're ready. "Changed lately" lines are Valve's patch notes from the last few patches: trust them over what you remember of a hero.
 - "dead_now" (when present) is who is dead right now, read off the top bar by Doty itself, with how long each has been dead: a strong moment to push or take an objective when enemies are dead, or to back off when allies are. Respawn times grow with level (well under half a minute early on, about a minute or more late), so a hero dead for a while is back soon.
 - "allies" are on the player's team and "enemies" on the other: Doty confirmed them from several reads of the top bar, and the player's own hero comes from the game itself. Trust these lists over your own reading of a portrait. Never call an ally an enemy or tell the player to fight one. If "lineup_complete" is false, heroes not listed are unknown: don't name an enemy hero unless it's in "enemies" or you can clearly see it on screen.
@@ -279,6 +281,8 @@ def state_summary(snap: Snapshot, store: GameStateStore, kb: "Knowledge | None",
         death = store.memory.get("last_death")
         if death and store.memory.get("death_open") and snap.clock - death.get("clock", -1e9) <= 120:
             summary["how_you_died"] = {k: v for k, v in death.items() if k != "clock"}
+            if "hp_before" in summary["how_you_died"]:  # (a sentence to quote, not "100% HP 3.0 s before dying")
+                summary["how_you_died"]["hp_before"] = hp_words(summary["how_you_died"]["hp_before"])
             causes = death_causes(store, snap.team, snap.hero_name, kb)
             if causes:  # (their spells that do what was on the player: the threat cards' facts)
                 summary["death_cause_candidates"] = causes
@@ -316,6 +320,21 @@ def _enemy_names(lineup: dict[str, list[str]] | None, team: str) -> list[str]:
     if not lineup or team not in ("radiant", "dire"):
         return []
     return [n for n in lineup.get("dire" if team == "radiant" else "radiant", []) if n]
+
+
+def hp_words(raw: str) -> str:
+    """The death summary's "100% HP 3.0 s before dying" (state.death_summary) as a fact the coach can quote as it
+    is: "from full HP to dead in 3 seconds (burst)". A real run said "100% to dead in 3 seconds"."""
+    import re
+
+    m = re.match(r"\s*(\d+)%\s*HP\s+([\d.]+)\s*s\b", str(raw))
+    if not m:
+        return raw
+    pct, secs = int(m.group(1)), float(m.group(2))
+    start = "full HP" if pct >= 95 else f"{pct}% HP"
+    how = " (burst: too fast to react)" if secs <= 4 else " (slow: time to walk away)" if secs >= 8 else ""
+    n = max(1, round(secs))
+    return f"from {start} to dead in {n} second{'s' if n != 1 else ''}{how}"
 
 
 def hero_card(snap: Snapshot, store: GameStateStore, kb: "Knowledge | None",

@@ -1,0 +1,19 @@
+{
+ "fixture": 1,
+ "kind": "watch",
+ "clock": 169,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "Your gold is spent on Wraith Band now, so stay in the bottom lane and farm.",
+ "said": false,
+ "state": {
+  "alive": true,
+  "fighting": false,
+  "gold": 700,
+  "items": ["item_quelling_blade", "item_slippers"],
+  "tp": true,
+  "passed_on": []
+ },
+ "expect": "fail",
+ "checks": ["claims_owned"],
+ "note": "the first real-model run, scripted match: the player never bought Wraith Band; a minute later the model said to buy it"
+}
