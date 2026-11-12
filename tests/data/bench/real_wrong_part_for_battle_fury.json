@@ -1,0 +1,19 @@
+{
+ "fixture": 1,
+ "kind": "death",
+ "clock": 293,
+ "hero": "npc_dota_hero_juggernaut",
+ "line": "You died holding 2,026 gold, and burst took you from full HP in 3 seconds. On respawn, buy Broadsword plus Blades of Attack for Battle Fury, then Power Treads. Don't walk into trades while your wave is pushed out.",
+ "said": true,
+ "state": {
+  "alive": false,
+  "fighting": false,
+  "gold": 2026,
+  "items": ["item_quelling_blade", "item_slippers"],
+  "tp": true,
+  "passed_on": []
+ },
+ "expect": "fail",
+ "checks": ["wrong_part"],
+ "note": "the second real-model run, scripted match: the death answer named Blades of Attack as a part of Battle Fury"
+}

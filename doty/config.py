@@ -96,6 +96,13 @@ class CoachConfig:
     # coach who's dead; "shadow" only logs what it reads next to the AI's reads; "off" doesn't run it.
     vision: str = "on"
     effort: str = "low"
+    # Which model answers after a death, and how its prompt cache is kept (Claude only; coach/backends.py has the
+    # cost of each per death). "model": `model` above, thinking off (Sonnet 5.5's between_tools), the default 5-minute
+    # cache, which is usually cold by the next death. "model_1h": the same, with every `model` request's prompt cache
+    # (system prompt and match brief) kept for an hour, so deaths, plans and questions minutes apart read it instead
+    # of writing it again. "watch": `watch_model` (Haiku 5.5, thinking off), reading the cache the live looks keep
+    # warm: cheapest and fastest, and a quality call only real games can make.
+    death_answer: str = "model"
     # Game-seconds between background looks at your screen + game state. Each
     # look keeps an instant answer ready for the ask hotkey, and with `live` on
     # the coach also speaks up when it sees something worth interrupting for.

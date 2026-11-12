@@ -27,7 +27,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
-from .. import speech
+from .. import speech, triggers
 from ..coach import llm
 from ..knowledge import build
 from ..knowledge import constants as kconst
@@ -167,6 +167,29 @@ def claims_owned(line: "Line", match: "Match") -> str | None:
         return None
     bad = llm.owned_claims(kb, line.text) - kb.owned_with_parts(set(ctx.owned))
     return f"says the player has what they don't: {_names(kb, bad)}" if bad else ""
+
+
+@checker("wrong_part", 3, 'names an item as a part of another that isn\'t inside it ("X for Y", "X, a part of Y")')
+def wrong_part(line: "Line", match: "Match") -> str | None:
+    """"Buy Broadsword plus Blades of Attack for Battle Fury" (a real death answer): Battle Fury holds no Blades of
+    Attack. The coach's own test (llm.wrong_parts), on the item data's recipes."""
+    kb = _kb(match)
+    if kb is None:
+        return None
+    bad = llm.wrong_parts(kb, line.text)
+    if not bad and not llm.PART_OF.search(line.text):
+        return None
+    return ("names a part that isn't in the item: "
+            + ", ".join(f"{kb.item_name(p)} for {kb.item_name(w)}" for p, w in bad)) if bad else ""
+
+
+@checker("asks_player", 3, "asks the player to tell the coach something, or puts a question to them")
+def asks_player(line: "Line", match: "Match") -> str | None:
+    """"Check the top bar and tell me their lineup." (a real plan): Doty reads the game itself, and the coach can't
+    hear an answer. The coach's own test (llm.asks_player)."""
+    if line.source != "coach":
+        return None
+    return "asks the player for something the coach can't hear" if llm.asks_player(line.text) else ""
 
 
 # The coach's "buy a TP" (llm.TP_BUY), plus the other word order the rules use ("No TP scroll — buy one").
@@ -360,14 +383,17 @@ PAST_CUE = re.compile(r"\b(died|dead|killed|was|were|ago|since|earlier|last\s+(t
                       r"got|happened|spawned|picked|bought|finished|already)\b", re.IGNORECASE)
 
 
-@checker("stale_time", 2, f"names a clock time more than {STALE_S} s in the past as something to do")
+@checker("stale_time", 2, f"names a clock time as something to do after its moment: more than "
+                          f"{triggers.EVENT_LATE_S} s after an event at that time (a rune), {STALE_S} s otherwise")
 def stale_time(line: "Line", match: "Match") -> str | None:
+    """The prepared calls' own test (triggers.late_by): "Grab the power rune at 6:00" is late at 6:06, "Farm until
+    Black King Bar by 14:00" only half a minute after 14:00. A real run showed the rune call at 6:26."""
     times = [int(m.group(1)) * 60 + int(m.group(2)) for m in CLOCK_TIME.finditer(line.text)]
     if not times:
         return None
-    if any(t >= line.clock - STALE_S for t in times) or PAST_CUE.search(line.text):
+    late = triggers.late_by(line.text, line.clock)
+    if late is None or PAST_CUE.search(line.text):
         return ""
-    late = line.clock - max(times)
     return f"about {_mmss(max(times))}, said at {_mmss(line.clock)} ({late} s late)"
 
 

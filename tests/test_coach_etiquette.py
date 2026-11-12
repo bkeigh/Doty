@@ -741,6 +741,9 @@ def _bench_kb():
                        "wraith_band": {"id": 75, "dname": "Wraith Band", "cost": 505,
                                        "components": ["slippers", "circlet"]}}.items():
         kb.items.setdefault(f"item_{key}", value)  # (the real run's lines name it: tests/test_real_lines.py)
+    from .test_real_run2 import battle_fury_recipe
+
+    battle_fury_recipe(kb)  # (the second real run named a part of it that isn't: tests/test_real_run2.py)
     return kb
 
 
