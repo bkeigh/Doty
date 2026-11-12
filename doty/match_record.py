@@ -4,7 +4,8 @@ On by default (Settings > Advanced > "Keep a record of each match"; RecordConfig
 %LOCALAPPDATA%\\Doty\\records (RECORD_DIR, not Documents, so OneDrive doesn't sync it), named by when it started:
 
 - gsi.jsonl.gz: the game data, as capture mode keeps it (match_capture.scrub: no Steam ID, account ID, player
-  names or auth token) and with the match id hidden too. One update a second, plus every update where your items,
+  names or auth token) and with the match id hidden too. Dota's change copies ("previously", "added") are left
+  out: nothing in Doty reads them. One update a second, plus every update where your items,
   life, level or the game's events changed. Written plain while the match runs, packed when it ends.
 - advice.jsonl: every line Doty showed, with the game clock, who said it (rules or coach), the rule's id, its
   priority and category, and whether it was said out loud. What you said over push-to-talk isn't kept.

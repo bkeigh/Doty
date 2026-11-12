@@ -41,7 +41,7 @@ Doty has no key of its own and the installer contains none. The AI coach uses **
 
 | Goes to | What | When |
 |---|---|---|
-| The AI you chose (Anthropic, OpenAI, Google, OpenRouter; or nobody, with a local Ollama model) | A screenshot of the game, a summary of the game state (with public statistics about your hero), your question, and your instructions to the coach if you wrote any | When the coach looks, and when you ask. Saving your instructions in Settings also sends them once, to turn them into settings |
+| The AI you chose (Anthropic, OpenAI, Google, OpenRouter; or nobody, with a local Ollama model) | A screenshot of the game, a summary of the game state (with public statistics about your hero, what the enemy heroes' spells do, and this game's practice focus and its target), your question, and your instructions to the coach if you wrote any | When the coach looks, and when you ask. "Why?" about a coach tip that Doty can't explain from its own data also asks the AI. Saving your instructions in Settings also sends them once, to turn them into settings |
 | ElevenLabs | The words Doty is about to say | Only if you set an ElevenLabs key |
 | OpenDota | Requests for public hero statistics (about heroes, never players) | Start-up, the Heroes pages, and the background study (below) |
 | OpenDota | Your own account id, to read your public profile and recent matches (`/players/<id>` and `/players/<id>/recentMatches`). The id comes from your own game data, or you type it in | The Profile page. And, while Game mode is Automatic (Settings > Alerts > Game mode, the default), a request for your recent matches when Doty is coaching and first sees your account in the game data, to tell whether you usually play Turbo: once per account each time Doty starts (a copy less than five minutes old is used instead), asked again every 3 minutes only if OpenDota had no answer. Never for the demo. Set Game mode to Normal or Turbo and it isn't made |
@@ -66,6 +66,11 @@ Your voice is transcribed on your PC. Nothing else is sent anywhere.
 
 - Settings: `%APPDATA%\Doty\doty.toml`. Your instructions to the coach are kept there too.
 - Logs of what Doty said, and post-game reviews: `%LOCALAPPDATA%\Doty`.
+- Your practice history: `%LOCALAPPDATA%\Doty\focus.json`. One entry per finished game (not the demo), the last
+  200 kept: when it was played, normal or Turbo, core, support or not known, your experience setting, your hero, which
+  topic was the game's focus, and each topic's number and target (last hits at 10:00, deaths without a TP
+  scroll, and so on). No account, match id or name. Nothing sends it anywhere; it isn't removed by "Delete
+  records", so delete the file yourself to start the history again.
 - Downloaded tables, statistics and the hero cards the study builds: `%LOCALAPPDATA%\Doty\cache`.
 - A ChatGPT sign-in, if you use one: `%LOCALAPPDATA%\Doty\auth\chatgpt.json`.
 - A record of each match (on unless you turn it off): `%LOCALAPPDATA%\Doty\records`. See below.

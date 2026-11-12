@@ -430,6 +430,47 @@ A fact the code doesn't have is left out, never guessed: no data, no verdict; an
   speaks should check out, and the bench is the checker of record. "Wrong tip?" reports become anonymised
   fixtures (`--from-report`, `tests/data/bench/`), replayed by `tests/test_bench.py`.
 
+## What is heard, the enemy, and one thing to practise (the thirteenth pass)
+
+Same rule as the twelfth: code supplies the facts, the AI the judgement.
+
+- **One gate for what is said out loud** (`speech.py`, `SpeechGate`). The advice bus runs it on every line
+  before anyone sees it (`AdviceBus.gate`); it decides only what is heard, so the feed and the overlay still get
+  everything. In order: danger calls and answers the player asked for are always said; nothing else in a fight
+  or just after one; a budget of lines a minute and gaps between lines (longer between two coach lines), set by
+  `CoachConfig.talk` (`TALK`: less / normal / more; "" = by level, "less" for experienced and top players); one
+  item named in buy lines a capped number of times, rules and coach together, until a part of it is bought. A
+  line that can't be said now waits a short while for a slot (never past its own staleness), then is dropped;
+  when several wait, `SCORES` picks the one that most changes the next 30 seconds, with buying and planning
+  favoured while dead. `AdviceBus.tick` (every game update) sends held lines whose slot came. The old "When it
+  talks" setting row is gone: `speak_up` is now only what a live look offers (the Coach page's presets).
+- **"Why?"** (`HotkeyConfig.why`, Ctrl+Alt+Y; or "why?" over push-to-talk, `llm.WHY_ASK`). `Coach.explain` answers
+  from the code first: the line's own reason (`Advice.why`), the item case of an item it names, or the rule's
+  reason (`speech.rule_reason`). Only a coach line with none of those goes to the AI, as a question. Said even
+  when the budget is spent: the player asked.
+- **Threat cards** (`knowledge/threats.py`). Per enemy hero, ranked for the player's own hero and role: the one or
+  two spells or traits most likely to kill them, each with an answer that is either an item whose
+  `item_case` against that enemy is strong (among the items the player's hero is bought with) or a habit the
+  spell's data shows. Built only from that enemy's own ability list. Readers: the match brief ("Their threats to
+  you"); `rules/matchup.ThreatCall`, once a match when all five enemies are known and the player is alive and out
+  of a fight: one spoken line for the top threat (terser for experienced and top players) and a shown-only card
+  with every enemy's line; and the death look's `death_cause_candidates` (the enemy spells that do what was on
+  the player when they died, said as "could be"). The ability facts are reviewed for every hero with
+  `python -m doty.knowledge.judgement --audit` (cache only, no download), and a test pins the result.
+- **The practice focus** (`knowledge/focus.py`, `rules/focus.py`, `review.py`). Topics a review can measure as one
+  number against a target: last hits at 10:00, deaths without a TP scroll, deaths holding unspent gold, the
+  card's first key item's timing, minutes with an unspent skill point, late deaths without buyback, farm stalls.
+  `focus.choose` picks the topic with the worst recent gap for the level, role and mode, skipping what's
+  mastered and rotating one that has run several games. `rules/focus` says it at the horn with its target and
+  checks it at most once or twice mid-game (at most three lines a game, NORMAL priority, through the gate
+  like any line); it is in match memory (`focus`, `focus_plan`) and in the coach's state (`practice_focus`).
+  `MatchRecorder._grade_focus` grades a finished, non-demo game and appends it to `%LOCALAPPDATA%\Doty\focus.json`
+  (`HISTORY_KEPT` games; no account, match id or name). Turbo and normal games never share a trend, and a
+  role's own topic only counts games played in that role.
+- **The recap** (`ui/coach_page.py`) shows the focus ("Focus: Last hits at 10:00 — 38 (target 45)", hit or
+  missed, the last few games) and "How Doty did", from `bench.records.last_game_summary` on the latest match
+  record, worked out off the screen's thread.
+
 ## Game mode: normal or Turbo (the tenth pass, `knowledge/mode.py`)
 
 Dota's game data has no game-mode field, so `mode.observe(snap, store, setting, usually)` decides on every

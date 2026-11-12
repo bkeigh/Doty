@@ -145,6 +145,29 @@ the first few, Doty gives you a heads-up, so you can fight before the item lands
 instead of your ears, and an instant call isn't said twice within a few minutes. A tip that tells you to
 buy something you already have (or a second pair of boots) is dropped.
 
+**How much it talks:** everything Doty says, the instant calls and the coach together, goes through one
+budget. Danger calls ("Back off now") and answers to what you asked are always said. Anything else waits for a
+calm moment (not in a fight; dying is a good moment, since the shop is open), and only so many lines a minute
+are said, with a gap between them. When several want the same moment, the one that most changes what you
+should do next wins; a line that can't be said in time is dropped rather than said late. Everything still shows
+in the app's feed. Pick **Less**, **Normal** or **More** in Settings > AI coach > **How much Doty talks**; on
+**Automatic** it's Less for Experienced and Top players and Normal for everyone else.
+
+**"Why?"** Press **Ctrl+Alt+Y**, or ask "why?" over push-to-talk, and Doty says the reason for its last tip in a
+sentence or two: what an item answers in this lineup, or what the rule saw. For a coach tip with no reason Doty
+can give from its own data, it asks the AI.
+
+**Their biggest threat:** once Doty knows all five enemies, at a calm moment it says one line: the enemy spell
+most likely to kill *your* hero and what answers it ("Lion's Hex hexes you; answer: Linken's Sphere"), worked out from
+their spells for your hero and role. The feed gets a card with every enemy's line. When you die, the coach is
+told which of their spells could have done it, and says "could be" when several fit.
+
+**This game's focus:** at the horn Doty names one thing to practise this game, with a target: "This game: 40 last
+hits by 10:00. You've averaged 31.", or no deaths without a TP scroll, or not dying with a lot of unspent gold, and a few
+others. It picks the one your recent games most need, skips what you've already got right several games
+running, and suits it to your role (no last-hit target for a support). It checks once or twice mid-game, and
+that's all: at most three lines a game.
+
 **Ask out loud:** hold **Mouse 5** (the forward side button), ask "what should I buy?" or "can I fight
 now?", and let go. Your voice is turned into text on your PC; only the text goes to the AI.
 
@@ -157,6 +180,7 @@ now?", and let go. Your voice is turned into text on your PC; only the text goes
 | Ctrl+Alt+M | Mute / unmute the voice |
 | Ctrl+Alt+H | Hide / show the cards |
 | Ctrl+Alt+X | "Not that one": drop the item Doty is pointing at from this game's build |
+| Ctrl+Alt+Y | "Why?": the reason for the last tip Doty said (you can also ask "why?" out loud) |
 
 ## The app
 
@@ -211,6 +235,8 @@ The same status icon is in the app's top bar, on the overlay and in the tray: an
 
 **Make it coach your way** (all in Settings):
 
+- **How much Doty talks** (AI coach): Automatic, Less, Normal or More, for the instant calls and the coach
+  together (see "How much it talks" above). It replaces the old "When it talks" setting.
 - **When I go my own way** (Alerts > What Doty suggests): what Doty does when you build something other than
   what it suggests. **Say it once, with a reason** (the default): it may say so one time per item in a game,
   at a moment you can buy, and only with a reason from this game ("it blocks Lion's Earth Spike and Hex"). With
@@ -267,7 +293,14 @@ look is skipped when nothing has changed since one that had nothing to say.
 
 The Coach page shows a recap of the match: what to work on (up to three points), each death with what
 likely led to it (low HP in a fight, no TP scroll, deep on their side, right after a warning), and
-**Ask Doty about this game** for the coach's take out loud.
+**Ask Doty about this game** for the coach's take out loud. It also shows:
+
+- **Your focus, graded:** "Focus: Last hits at 10:00 — 38 (target 45)", green when you hit it and amber when
+  you didn't, with your number from the last few games so you can see the trend. Normal and Turbo games are
+  tracked apart. The history is kept on your PC (`%LOCALAPPDATA%\Doty\focus.json`) with no account or match id.
+  A demo game or a match you left early isn't graded.
+- **How Doty did:** Doty checks its own lines from the match record against what really happened: how many
+  lines it said, a score out of 100, and anything it got wrong ("told you to buy something you had").
 
 ## When something's off
 
@@ -325,9 +358,9 @@ hero numbers only, nothing about you), and for your own public profile and recen
 and, with Game mode on Automatic (the default), once for your account each time Doty starts coaching, to tell
 whether you usually play Turbo. To stop that lookup, set Settings > Alerts > Game mode to Normal or Turbo.
 
-On your PC: logs in `%LOCALAPPDATA%\Doty\logs`, and the match records in `%LOCALAPPDATA%\Doty\records` (on
-Linux, under `~/.local/share/doty`). Neither is sent anywhere, and neither is in Documents, so OneDrive doesn't
-sync them. Your AI key is kept in Windows Credential Manager (on Linux, the desktop keyring) and goes only to
+On your PC: logs in `%LOCALAPPDATA%\Doty\logs`, the match records in `%LOCALAPPDATA%\Doty\records` and your
+focus history in `%LOCALAPPDATA%\Doty\focus.json` (on Linux, under `~/.local/share/doty`). None of them is sent
+anywhere, and none is in Documents, so OneDrive doesn't sync them. Your AI key is kept in Windows Credential Manager (on Linux, the desktop keyring) and goes only to
 that AI. [SECURITY.md](../SECURITY.md) has the full list of what leaves your PC and when, and exactly what a
 match record keeps.
 
