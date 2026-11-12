@@ -163,11 +163,15 @@ def claude_request(cfg: CoachConfig, system: str, content: list, kind: str, max_
     if fast and model.startswith(NO_THINKING_MODELS) and cfg.effort in NO_THINKING_EFFORTS:
         req["thinking"] = {"type": "disabled"}
     elif kind in FAST_KINDS and model.startswith(BETWEEN_TOOLS_MODELS) and cfg.effort in NO_THINKING_EFFORTS:
+        # Exactly this and nothing else inside `thinking` (no display, no budget): only Sonnet 5.5 takes it, only at
+        # effort "high" or below, and never with a per-message effort change (none is sent here).
         req["thinking"] = {"type": "between_tools"}
-        # (no server-side fallback with it: the fallback model re-runs the same body, and only Sonnet 5.5 takes
-        # between_tools; a refused death answer is said as "Coach declined that one", the rules keep talking)
-        return req
     if model.startswith(FALLBACK_PREFIXES):
+        # The server-side refusal fallback stays on with between_tools too: under server-side-fallback-2026-07-01 a
+        # between_tools request that falls back to Claude Sonnet 5 runs there with thinking disabled, handled by the
+        # server. (Under -2026-06-01 the fallback entry would need its own `thinking`, or the request is rejected;
+        # only a client-side retry or the SDK's fallback middleware has to drop between_tools itself.) Keep this
+        # beta version if between_tools is sent.
         req["betas"] = ["server-side-fallback-2026-07-01"]
         req["fallbacks"] = "default"
     return req
