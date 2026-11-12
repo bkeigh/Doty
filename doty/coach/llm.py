@@ -194,6 +194,8 @@ class Coach:
         self._last_skipped: list[str] = []  # what "skip ..." last took out this match (for "remember that")
         self.gate = None  # speech.SpeechGate: what was last said out loud (for "why?"); the app sets it
         self._held_tips: dict[int, str] = {}  # live tips the gate is holding for a slot (advice id -> text)
+        self._held_cards: dict[int, Advice] = {}  # answers whose sentences the gate is holding (card id -> card)
+        self._noted: deque[int] = deque(maxlen=64)  # rule lines already noted (a held one comes again when said)
         self.rule_reason: Callable[[str], str] | None = None  # rule id -> its reason (speech.rule_reason)
 
     # lifecycle ---------------------------------------------------------------
@@ -220,7 +222,19 @@ class Coach:
         if adv.source == "coach" and adv.speak and adv.id in self._held_tips:  # a held tip, said after all
             self._tip_heard(self._held_tips.pop(adv.id))
             return
+        if adv.source == "coach" and not adv.held and adv.group in self._held_cards:
+            # The verdict on an answer the gate held: its card is sent again, now saying whether it was heard (the
+            # session log and the match record write it down then).
+            card = self._held_cards.pop(adv.group)
+            card.held, card.heard = False, bool(adv.speak)
+            self.bus.publish(card)
+            return
+        if adv.source == "rules" and adv.final and adv.id in self._noted:
+            if adv.speak and adv.display and adv.priority <= self.spoken_max:  # (held, and said now)
+                self._heard.append((time.monotonic(), content_words(adv.text + " " + adv.spoken)))
+            return
         if adv.source == "rules" and adv.final:
+            self._noted.append(adv.id)
             self.recent_alerts.append(adv.text)
             if adv.speak and adv.display and adv.priority <= self.spoken_max:  # (shown-only isn't heard)
                 self._heard.append((time.monotonic(), content_words(adv.text + " " + adv.spoken)))
@@ -805,8 +819,12 @@ class Coach:
 
         adv = Advice("…", Priority.HIGH, "coach", source="coach", trigger_t=t0, final=False, speak=False)
         # The player asked for this one (the ask key, a question, a plan): said even when Doty has talked a lot.
-        asked = visible and kind in ("now", "question", "plan")
-        heard_any = False  # a sentence of this answer was said out loud
+        # The player asked for this one (the ask key, a question, a plan), or it is one of the two things the AI
+        # says that must be heard: the plan as the game starts and the answer after a death. Said even when Doty
+        # has talked a lot (speech.py).
+        asked = visible and kind in ("now", "question", "plan", "start", "death")
+        heard_any = held_any = False  # a sentence of this answer was said out loud / is held for a slot
+        adv.asked = asked  # (the card says so too: the bench leaves such a line out of its budget checks)
         if visible:
             self.bus.publish(adv)
         text = ""
@@ -844,7 +862,8 @@ class Coach:
                     parts = SENTENCE_END.split(shown)
                     done = parts[:-1]
                     for sentence in done[spoken_upto:]:
-                        heard_any = self._speak(sentence, adv.id, asked) or heard_any
+                        line = self._speak(sentence, adv.id, asked)
+                        heard_any, held_any = self._spoken(line, heard_any, held_any)
                     spoken_upto = max(spoken_upto, len(done))
         except asyncio.CancelledError:
             raise
@@ -914,9 +933,13 @@ class Coach:
         if visible:
             remaining = SENTENCE_END.split(shown)[spoken_upto:]
             if remaining and any(s.strip() for s in remaining):
-                heard_any = self._speak(" ".join(remaining), adv.id, asked) or heard_any
+                heard_any, held_any = self._spoken(self._speak(" ".join(remaining), adv.id, asked), heard_any,
+                                                   held_any)
             adv.text, adv.final, adv.created_t, adv.marks = shown, True, time.perf_counter(), drawn
             adv.heard = heard_any  # (the card itself isn't spoken: its sentences were, if the speech gate let them)
+            if held_any and not heard_any:  # (held for a slot: the log and the record wait for the verdict)
+                adv.held = True
+                self._held_cards[adv.id] = adv
             self.bus.publish(adv)
             self._keep_evidence(adv.id, kind, summary, shot, text, question)
             if in_match and shown and not _is_waiting(shown) and self.cfg.speak_up != "never" and heard_any:
@@ -1054,15 +1077,22 @@ class Coach:
         (out / "report.json").write_text(json.dumps(report, indent=1, ensure_ascii=False), encoding="utf-8")
         return out
 
-    def _speak(self, sentence: str, group: int = 0, asked: bool = False) -> None:
+    def _speak(self, sentence: str, group: int = 0, asked: bool = False) -> "Advice | None":
         """One sentence of an answer, to the voice. `group`: the answer's card, so the speech gate says or holds
-        the answer as one; `asked`: the player asked for it (always said)."""
+        the answer as one; `asked`: the player asked for it (always said). The line sent (its `speak` and `held`
+        say what the gate made of it), or None for nothing to say."""
         sentence = sentence.strip()
         if not sentence:
-            return False
+            return None
         line = Advice(sentence, Priority.HIGH, "coach", source="coach", display=False, group=group, asked=asked)
         self.bus.publish(line)
-        return line.speak
+        return line
+
+    @staticmethod
+    def _spoken(line: "Advice | None", heard: bool, held: bool) -> tuple[bool, bool]:
+        if line is None:
+            return heard, held
+        return heard or line.speak, held or line.held
 
     def _fail(self, adv: Advice, visible: bool, msg: str) -> None:
         print(f"[doty] {msg}")

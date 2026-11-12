@@ -207,6 +207,9 @@ class SpeechGate:
         self._items: dict[str, list[int]] = {}  # item -> [buy lines naming it, gold left on it then]
         self.last: Advice | None = None  # the last non-danger line heard (what "why?" explains)
         self.held_dropped = 0  # lines that waited and never got a slot
+        self._dropped: list[Advice] = []  # ...since take_dropped was last called
+        self._game_time = False  # the clock is the game's (see _clock)
+        self._last_t = 0.0
         self._lock = threading.RLock()  # (lines come from the game-data loop, hotkeys and the coach)
 
     # the settings ------------------------------------------------------------------------------------------------
@@ -227,13 +230,13 @@ class SpeechGate:
     def _admit(self, adv: Advice, now: float | None) -> None:
         if not adv.final or not adv.speak or adv.priority > self.voice_max or getattr(adv, "_gated", False):
             return
-        now = time.monotonic() if now is None else now
+        now = self._clock() if now is None else now
         adv._gated = True
         group = getattr(adv, "group", 0)
         if group and group in self._groups:  # the rest of a coach answer follows its first sentence
             decided = self._groups[group]
             if isinstance(decided, _Held):
-                adv.speak = False
+                adv.speak, adv.held = False, True
                 decided.lines.append(adv)
             elif not decided:
                 adv.speak = False
@@ -255,7 +258,7 @@ class SpeechGate:
             self._heard(adv, now, kind)
             self._decide(group, True)
             return
-        adv.speak = False
+        adv.speak, adv.held = False, True  # (the feed shows it; the session log and the record wait for the verdict)
         wait = self._wait(adv)
         held = _Held(score, now + wait, [adv])
         self._held.append(held)
@@ -279,14 +282,48 @@ class SpeechGate:
         wait = max(HOLD_S, self.talk.gap_s + 2)
         return wait if adv.stale_s is None else min(wait, adv.stale_s)
 
+    def take_dropped(self) -> list[Advice]:
+        """Held lines that never got a slot since the last call: no longer held, not said (sent again by the bus so
+        the session log and the match record can write them down as unspoken)."""
+        with self._lock:
+            out, self._dropped = self._dropped, []
+            return out
+
+    def _clock(self) -> float:
+        """Now, in game seconds: windows, gaps and waits follow the game, not the wall clock, so a sped-up replay
+        (the demo runs six times faster) gets the same budget a real game does, and a pause stops the clock. Before
+        the first game update, the wall clock. A new match (the clock jumps back) starts the history afresh."""
+        snap = None
+        try:
+            snap, _f = self.state()
+        except Exception:
+            pass
+        clock = getattr(snap, "clock", None) if snap is not None and getattr(snap, "has_hero", False) else None
+        if not isinstance(clock, (int, float)):
+            return self._last_t if self._game_time else time.monotonic()
+        clock = float(clock)
+        if not self._game_time or clock < self._last_t - 30:  # (into a game, or a new one: what came before is gone)
+            self._said, self._last_any, self._last_coach, self._fight_end = [], -1e9, -1e9, -1e9
+            for h in self._held:
+                self._drop(h)
+            self._held, self._game_time = [], True
+        self._last_t = clock
+        return clock
+
+    def _drop(self, held: _Held) -> None:
+        self._settle(held, False)
+        for adv in held.lines:
+            adv.speak, adv.held = False, False
+            self._dropped.append(adv)
+
     def _release(self, now: float | None) -> list[Advice]:
-        now = time.monotonic() if now is None else now
+        now = self._clock() if now is None else now
         snap, fighting = self._state(now)
         kept = [h for h in self._held if h.until >= now and self._still_true(h)]
         self.held_dropped += len(self._held) - len(kept)
         for h in self._held:
             if h not in kept:
-                self._settle(h, False)
+                self._drop(h)
         self._held = kept
         out: list[Advice] = []
         while self._held:
@@ -298,7 +335,7 @@ class SpeechGate:
             self._heard(first, now, kind_of(first, self._focus()))
             self._settle(best, True)
             for adv in best.lines:
-                adv.speak = True
+                adv.speak, adv.held = True, False
                 # (the voice's own deadline: never said late; a line with its own staleness keeps it from now)
                 left = max(0.5, best.until - now)
                 adv.stale_s = left if adv.stale_s is None or adv.hold_s is None else min(left, adv.stale_s)

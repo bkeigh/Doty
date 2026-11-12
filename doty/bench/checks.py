@@ -387,25 +387,31 @@ def repeats(line: "Line", match: "Match") -> str | None:
 
 @checker("rate", 1, f"more than {RATE_BUDGET} lines heard in a minute (danger calls aside)", spoken_only=True)
 def rate(line: "Line", match: "Match") -> str | None:
-    if _danger(line):
+    if _exempt(line):
         return None
     budget = _talk(match).per_min if match.talk else RATE_BUDGET
     heard = sum(1 for prev in match.lines[:line.index + 1]
-                if prev.said and not _danger(prev) and line.clock - RATE_WINDOW_S < prev.clock <= line.clock)
+                if prev.said and not _exempt(prev) and line.clock - RATE_WINDOW_S < prev.clock <= line.clock)
     return f"line {heard} heard in a minute (budget {budget})" if heard > budget else ""
 
 
 @checker("coach_budget", 1, f"an unprompted coach line within {COACH_GAP_S} s of the last one", spoken_only=True)
 def coach_budget(line: "Line", match: "Match") -> str | None:
-    if line.source != "coach" or line.category not in ("coach", "trigger") or _danger(line):
+    if line.source != "coach" or line.category not in ("coach", "trigger") or _exempt(line):
         return None
     gap = _talk(match).coach_gap_s if match.talk else COACH_GAP_S
     for prev in reversed(match.lines[:line.index]):
         if line.clock - prev.clock >= gap:
             break
-        if prev.said and prev.source == "coach" and prev.category in ("coach", "trigger") and not _danger(prev):
+        if prev.said and prev.source == "coach" and prev.category in ("coach", "trigger") and not _exempt(prev):
             return f"{line.clock - prev.clock} s after the coach's last line"
     return ""
+
+
+def _exempt(line: "Line") -> bool:
+    """Outside the budget, as the speech gate has it: a danger call, or a line the player asked for (or the start plan
+    and a death answer)."""
+    return _danger(line) or bool(getattr(line, "asked", False))
 
 
 def _talk(match: "Match") -> speech.Talk:
