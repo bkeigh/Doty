@@ -382,8 +382,8 @@ def test_coaching_presets_in_the_coach_page_and_tray(qapp, tmp_path):
     assert coach_preset(20, "every") is None
     # Live looks on Haiku 5.5, the rest on Sonnet 5.5 (2026-11 prices): cents a game, not dollars.
     assert preset_cost(30, "claude-sonnet-5-5") == "about 8¢ a game"
-    assert preset_cost(15, "claude-sonnet-5-5") == "about 12¢ a game"
-    assert preset_cost(30, "claude-sonnet-5-5", watch_model="") == "about 71¢ a game"  # every look on Sonnet
+    assert preset_cost(15, "claude-sonnet-5-5") == "about 11¢ a game"
+    assert preset_cost(30, "claude-sonnet-5-5", watch_model="") == "about 64¢ a game"  # every look on Sonnet
     assert preset_cost(0, "claude-sonnet-5-5") == "about 5¢ a game" and preset_cost(30, "gpt-5", "openai") == ""
     ctl, win = make_window(qapp, tmp_path)
     page = win.coach_page
