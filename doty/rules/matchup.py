@@ -126,7 +126,17 @@ class ThreatCall(Rule):
         line = top.line
         if ctx.level in ("experienced", "pro") and t.spell and t.answer:
             line = f"{top.hero}'s {t.spell}: {t.answer}"  # (terse: they know what it does)
-        yield Advice(top.line, Priority.NORMAL, "plan", key="threat_call", speech=line)
+        yield Advice(top.line, Priority.NORMAL, "plan", key="threat_call", speech=line, why=_threat_why(top))
+
+
+def _threat_why(card) -> str:
+    """For "why?" after the threat call: what the card rests on, from the enemy's own ability data
+    (knowledge/threats.ThreatCard)."""
+    parts = []
+    for t in card.as_dict().get("threats", []):
+        what = f"{t['spell'] or 'their attacks'} {t['what']}".strip()
+        parts.append(what + (f" (answer: {t['answer']})" if t.get("answer") else ""))
+    return f"{card.hero}: " + "; ".join(parts) + "." if parts else ""
 
 
 # Spoken word for word, so the local voice makes them ahead of time (listed in rules.FIXED_LINES).

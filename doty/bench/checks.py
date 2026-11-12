@@ -183,9 +183,6 @@ def weak_case(line: "Line", match: "Match") -> str | None:
     return f"pushes an item that answers little of this lineup: {_names(kb, bad)}" if bad else ""
 
 
-POSSESSIVE = re.compile(r"\b([A-Z][\w\-]*(?:\s+[A-Z][\w\-]*)*)'s\s+")
-
-
 @checker("foreign_spell", 3, "gives a hero a spell that isn't theirs")
 def foreign_spell(line: "Line", match: "Match") -> str | None:
     """"Lion's Fiend's Grip": a hero named with a spell from another hero's list (knowledge/threats.py builds its
@@ -195,20 +192,8 @@ def foreign_spell(line: "Line", match: "Match") -> str | None:
     kb = match.kb
     if kb is None or not kb.ability_info or not kb.hero_abilities:
         return None
-    names = match.memo.get("spell_names")
-    if names is None:
-        found = {re.sub(r"\s*\([^)]*\)$", "", str(a.get("dname") or "")) for a in kb.ability_info.values()}
-        names = match.memo["spell_names"] = sorted((n for n in found if len(n) >= 3), key=len, reverse=True)
-    wrong = []
-    for m in POSSESSIVE.finditer(line.text):
-        words = m.group(1).split()
-        npc = next((h for i in range(len(words)) if (h := kb.find_hero(" ".join(words[i:])))), None)
-        if not npc:
-            continue
-        rest = line.text[m.end():]
-        spell = next((n for n in names if rest.startswith(n) and not rest[len(n):len(n) + 1].isalnum()), None)
-        if spell and spell not in threats.hero_spells(kb, npc):
-            wrong.append(f"{kb.hero_name(npc)}'s {spell}")
+    # (the coach's own vetting drops such a line with the same test: knowledge/threats.foreign_spells)
+    wrong = threats.foreign_spells(kb, line.text)
     return f"spells that aren't that hero's: {', '.join(wrong)}" if wrong else ""
 
 

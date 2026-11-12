@@ -394,6 +394,25 @@ def choose(history: list[dict[str, Any]], level: str = "some", role: Any = None,
 
 
 # what it says -----------------------------------------------------------------------------------------------------
+def why_text(plan: dict[str, Any]) -> str:
+    """For "why?" after a focus line: why this topic this game, and where its number comes from (the plan rules/
+    focus.py keeps in store.memory["focus_plan"])."""
+    topic = TOPICS.get(str(plan.get("key") or ""))
+    if topic is None:
+        return ""
+    recent = [v for v in plan.get("recent") or [] if isinstance(v, (int, float))]
+    why = {"gap": "it's where your last games fell furthest short of the target",
+           "rotation": "you've worked on the other one for a while, so this one gets a turn",
+           }.get(str(plan.get("why") or ""), "it's the first thing to work on at your level")
+    out = f"{topic.title} is this game's focus because {why}"
+    if recent:
+        out += " (your last games: " + ", ".join(f"{v:g}" for v in recent[-3:]) + ")"
+    source = {"card_up": "what players a rank above you reach on this hero",
+              "card_rank": "what players of your rank reach on this hero",
+              "fixed": ""}.get(str(plan.get("source") or ""), "")
+    return out + (f". The target is {source}." if source else ".")
+
+
 def mmss(seconds: float) -> str:
     s = int(round(seconds))
     return f"{'-' if s < 0 else ''}{abs(s) // 60}:{abs(s) % 60:02d}"

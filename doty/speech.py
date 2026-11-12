@@ -63,30 +63,44 @@ SCORES = {
     "danger": 90,  # act now to stay alive: always said
     "act_now": 70,  # a call prepared for exactly this moment (the coach's TRIGGER lines)
     "timer_now": 60,  # a timer that needs action now (a rune, a stack, Roshan) and won't wait
+    "plan": 55,  # once a match: how the game is won (the game plan), what kills you (the threat call)
     "buy_now": 50,  # a buying moment with the gold for it
-    "focus": 40,  # about the game's focus topic (store.memory["focus"])
+    "focus": 45,  # this game's practice focus (rules/focus.py), or a line about its topic
     "coach": 30,  # the coach's judgement for the next minute
     "timer": 20,  # a heads-up for later
     "general": 10,  # anything else
 }
 # While dead: buying and planning lines are at their best moment (the shop is open, nothing else is happening);
 # a call to go and do something on the map now can't be acted on.
-DEAD_BONUS = {"buy_now": 25, "coach": 30, "focus": 20, "timer_now": -40, "act_now": -40}
+DEAD_BONUS = {"buy_now": 25, "coach": 30, "focus": 20, "plan": 20, "timer_now": -40, "act_now": -40}
+
+
+# ...and a timer that needs doing now isn't said at all while dead: nothing can be done about it from the fountain
+# (the bench's timing check calls such a line a mistake). It's still on screen. (A prepared call still is: "buy back
+# now" is written for exactly that moment.)
+DEAD_QUIET = frozenset({"timer_now"})
 
 
 def score_of(kind: str, dead: bool = False) -> int:
     """SCORES, with the dead adjustment."""
     return SCORES[kind] + (DEAD_BONUS.get(kind, 0) if dead else 0)
 
-# Rules that belong to a focus topic, when the topic's name isn't in the rule's own id.
+# The rules whose lines are about each practice focus (knowledge/focus.TOPICS; store.memory["focus"] is the key).
 FOCUS_RULES = {
-    "last_hits": frozenset({"farm_check", "laning"}),
-    "farm": frozenset({"farm_check", "laning"}),
-    "items": frozenset({"affordable_item", "item_pace", "own_way"}),
-    "deaths": frozenset({"death_watch"}),
-    "map": frozenset({"gank_risk", "pick_off"}),
-    "skills": frozenset({"skill_point", "power_spike"}),
+    "lh10": frozenset({"farm_check", "laning"}),
+    "farm_stalls": frozenset({"farm_check"}),
+    "deaths_no_tp": frozenset({"missing_tp"}),
+    "deaths_with_gold": frozenset({"unspent_gold"}),
+    "skill_points": frozenset({"skill_point"}),
+    "key_item": frozenset({"affordable_item", "item_pace", "own_way"}),
+    "buyback": frozenset({"buyback"}),
 }
+# Lines said once a match that stay true for minutes: the game plan and the threat call ("plan"), the practice
+# focus ("focus"). They mustn't be lost to a short wait, so they may wait this long for a calm slot. At the horn,
+# where several want the same moment, the scores set the order (a timer that needs doing now, then the plan, then the
+# focus) and the gap spaces them out: one at a time over the first minute or two.
+ONCE_CATEGORIES = frozenset({"plan", "focus"})
+ONCE_HOLD_S = 150.0
 TIMER_CATEGORIES = frozenset({"timer", "runes", "objectives"})
 DANGER_CATEGORIES = frozenset({"survival", "danger"})
 # A call to get out: never held back (the coach's own word for it, coach/llm.RETREAT).
@@ -117,8 +131,10 @@ def kind_of(adv: Advice, focus: str = "") -> str:
     if danger(adv.priority, adv.category, adv.text):
         return "danger"
     rule = getattr(adv, "rule_id", "") or (adv.key or "").split(":")[0]
-    if focus and (focus in rule or focus == adv.category or rule in FOCUS_RULES.get(focus, ())):
+    if adv.category == "focus" or (focus and rule in FOCUS_RULES.get(focus, ())):
         return "focus"
+    if adv.category == "plan":
+        return "plan"
     if adv.category == "trigger":
         return "act_now"
     if adv.category in TIMER_CATEGORIES:
@@ -228,21 +244,19 @@ class SpeechGate:
             self._heard(adv, now, kind, count=False)
             self._decide(group, True)
             return
-        if self._over_cap(adv, snap):
+        dead = snap is not None and getattr(snap, "has_hero", False) and not snap.alive
+        if self._over_cap(adv, snap) or (dead and kind in DEAD_QUIET):
             adv.speak = False
             self._decide(group, False)
             return
-        score = score_of(kind, snap is not None and getattr(snap, "has_hero", False) and not snap.alive)
+        score = score_of(kind, dead)
         best_held = max((h.score for h in self._held if h.until >= now), default=-1)
         if self._open(adv, now, snap, fighting) and score >= best_held:
             self._heard(adv, now, kind)
             self._decide(group, True)
             return
         adv.speak = False
-        # (long enough to outlast the gap, so a line that came just after another can still be said; never past
-        # the line's own staleness: a tip about this moment isn't said late)
-        wait = max(HOLD_S, self.talk.gap_s + 2)
-        wait = wait if adv.stale_s is None else min(wait, adv.stale_s)
+        wait = self._wait(adv)
         held = _Held(score, now + wait, [adv])
         self._held.append(held)
         self._decide(group, held)
@@ -253,13 +267,25 @@ class SpeechGate:
         with self._lock:
             return self._release(now)
 
+    def _wait(self, adv: Advice) -> float:
+        """How long a line may wait for a slot. Its own `hold_s` if its maker set one (a coach tip that is checked
+        again before it's said: Advice.recheck); a line said once a match that stays true for minutes, ONCE_HOLD_S;
+        else long enough to outlast the gap, so a line that came just after another can still be said, but never
+        past the line's own staleness: a tip about this moment isn't said late."""
+        if adv.hold_s is not None:
+            return adv.hold_s
+        if adv.category in ONCE_CATEGORIES and adv.stale_s is None:
+            return ONCE_HOLD_S
+        wait = max(HOLD_S, self.talk.gap_s + 2)
+        return wait if adv.stale_s is None else min(wait, adv.stale_s)
+
     def _release(self, now: float | None) -> list[Advice]:
         now = time.monotonic() if now is None else now
         snap, fighting = self._state(now)
-        kept = [h for h in self._held if h.until >= now]
+        kept = [h for h in self._held if h.until >= now and self._still_true(h)]
         self.held_dropped += len(self._held) - len(kept)
         for h in self._held:
-            if h.until < now:
+            if h not in kept:
                 self._settle(h, False)
         self._held = kept
         out: list[Advice] = []
@@ -273,9 +299,21 @@ class SpeechGate:
             self._settle(best, True)
             for adv in best.lines:
                 adv.speak = True
-                adv.stale_s = max(0.5, best.until - now)  # (the voice's own deadline: never said late)
+                # (the voice's own deadline: never said late; a line with its own staleness keeps it from now)
+                left = max(0.5, best.until - now)
+                adv.stale_s = left if adv.stale_s is None or adv.hold_s is None else min(left, adv.stale_s)
                 out.append(adv)
         return out
+
+    def _still_true(self, held: _Held) -> bool:
+        """A held line whose maker can check it again (Advice.recheck) is dropped once it's no longer right."""
+        check = held.lines[0].recheck
+        if check is None:
+            return True
+        try:
+            return bool(check())
+        except Exception:
+            return False
 
     # the parts ---------------------------------------------------------------------------------------------------------
     def _state(self, now: float) -> tuple[Any, bool]:
